@@ -1,0 +1,30 @@
+{
+  "$id": "urn:qtrade:data:v1:FreshnessCheckpoint",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Verified complete period, not the maximum timestamp in an arbitrary page.\n\nThe producing adapter must verify the applicable coverage/calendar rules and\nattach a stable evidence digest. For sparse categories this means their own\nrelease rule; absence of an event is not proof of a missing daily bar.",
+  "properties": {
+    "complete_through": {
+      "format": "date",
+      "title": "Complete Through",
+      "type": "string"
+    },
+    "evidence_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Evidence Sha256",
+      "type": "string"
+    },
+    "observed_at": {
+      "format": "date-time",
+      "title": "Observed At",
+      "type": "string"
+    }
+  },
+  "required": [
+    "complete_through",
+    "observed_at",
+    "evidence_sha256"
+  ],
+  "title": "FreshnessCheckpoint",
+  "type": "object"
+}

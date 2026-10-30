@@ -1,0 +1,70 @@
+--- a/src/sso/webapp.py
++++ b/src/sso/webapp.py
+@@ -2,6 +2,8 @@
+ from __future__ import annotations
+ 
+ import secrets
++from datetime import UTC, datetime, timedelta
++from uuid import UUID
+ from pathlib import Path
+ from urllib.parse import urlsplit
+ 
+@@ -11,7 +13,7 @@
+ from starlette.responses import HTMLResponse
+ 
+ from sso.config import Settings
+-from sso.models import User
++from sso.models import Client, OAuthGrant, User
+ from sso.services import sessions as session_service
+ 
+ templates = Jinja2Templates(directory=str(Path(__file__).parent / "web" / "templates"))
+@@ -22,11 +24,49 @@
+     return urlsplit(request.app.state.settings.issuer).netloc
+ 
+ 
++def transaction_form_origin(request: Request, name: str, context: dict) -> str | None:
++    """Only a pending, registered transaction can expand an OIDC form policy."""
++    if name not in {"login.html", "consent.html"}:
++        return None
++    try:
++        transaction_id = UUID(context.get("txn", ""))
++    except (ValueError, TypeError, AttributeError):
++        return None
++    with request.app.state.session_factory() as db:
++        grant = db.get(OAuthGrant, transaction_id)
++        if grant is None or grant.denied or grant.consumed_at is not None or grant.code_hash:
++            return None
++        now = datetime.now(UTC)
++        if grant.expires_at is not None and grant.expires_at <= now:
++            return None
++        if grant.created_at is None or not now - timedelta(minutes=10) <= grant.created_at <= now:
++            return None
++        client = db.get(Client, grant.client_id)
++        if client is None or client.is_disabled or grant.redirect_uri not in client.redirect_uris:
++            return None
++        parts = urlsplit(grant.redirect_uri)
++        if (parts.scheme not in {"http", "https"} or not parts.netloc
++                or parts.username is not None or parts.password is not None or parts.fragment):
++            return None
++        if any(character.isspace() or character in ";'\\" for character in parts.netloc):
++            return None
++        if parts.scheme == "http" and (request.app.state.production
++                or parts.hostname not in {"127.0.0.1", "localhost", "::1"}):
++            return None
++        return parts.scheme + "://" + parts.netloc
++
++
+ def render(request: Request, name: str, context: dict | None = None, *, status_code: int = 200) -> HTMLResponse:
+     token = request.cookies.get(CSRF_COOKIE) or secrets.token_urlsafe(32)
+     ctx = {"issuer_host": issuer_host(request), "csrf_token": token, "request": request}
+     ctx.update(context or {})
+     resp = templates.TemplateResponse(request, name, ctx, status_code=status_code)
++    origin = transaction_form_origin(request, name, ctx)
++    if origin is not None:
++        resp.headers["Content-Security-Policy"] = (
++            "default-src 'self'; style-src 'self'; script-src 'self'; img-src 'self' data:; "
++            "frame-ancestors 'none'; base-uri 'none'; form-action 'self' " + origin
++        )
+     if not request.cookies.get(CSRF_COOKIE):
+         resp.set_cookie(CSRF_COOKIE, token, httponly=False, samesite="lax", path="/")
+     return resp

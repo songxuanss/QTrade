@@ -1,0 +1,14 @@
+FROM python:3.12-slim
+ARG QTRADE_BUILD_REVISION=unknown
+LABEL org.opencontainers.image.revision=$QTRADE_BUILD_REVISION
+WORKDIR /app
+COPY pyproject.toml uv.lock ./
+COPY --from=ghcr.io/astral-sh/uv:0.12.22 /uv /usr/local/bin/uv
+RUN uv sync --locked --no-dev
+COPY apps/ ./apps/
+COPY packages/ ./packages/
+COPY adapters/ ./adapters/
+ENV PATH="/app/.venv/bin:$PATH" PYTHONPATH="/app/apps/runner/src:/app/packages/domain/src:/app/packages/contracts/src:/app/packages/runtime/src:/app/packages/application/src" PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
+RUN groupadd --gid 10001 qtrade && useradd --uid 10001 --gid 10001 --create-home qtrade
+USER root
+CMD ["python", "-m", "qtrade_runner.main"]

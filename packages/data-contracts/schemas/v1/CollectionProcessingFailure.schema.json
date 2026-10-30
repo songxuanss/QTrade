@@ -1,0 +1,100 @@
+{
+  "$id": "urn:qtrade:data:v1:CollectionProcessingFailure",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "attempt": {
+      "minimum": 1,
+      "title": "Attempt",
+      "type": "integer"
+    },
+    "checker_version": {
+      "const": "collection-normalization-check.v1",
+      "title": "Checker Version",
+      "type": "string"
+    },
+    "error_code": {
+      "const": "unverified",
+      "title": "Error Code",
+      "type": "string"
+    },
+    "failed_at": {
+      "format": "date-time",
+      "title": "Failed At",
+      "type": "string"
+    },
+    "failure_id": {
+      "format": "uuid",
+      "title": "Failure Id",
+      "type": "string"
+    },
+    "job_id": {
+      "format": "uuid",
+      "title": "Job Id",
+      "type": "string"
+    },
+    "mapping_version": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Mapping Version",
+      "type": "string"
+    },
+    "normalized_record_count": {
+      "default": null,
+      "title": "Normalized Record Count",
+      "type": "null"
+    },
+    "part_id": {
+      "format": "uuid",
+      "title": "Part Id",
+      "type": "string"
+    },
+    "raw_capture_ids": {
+      "items": {
+        "format": "uuid",
+        "type": "string"
+      },
+      "maxItems": 4096,
+      "minItems": 1,
+      "title": "Raw Capture Ids",
+      "type": "array"
+    },
+    "schema_version": {
+      "const": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "scope_id": {
+      "format": "uuid",
+      "title": "Scope Id",
+      "type": "string"
+    },
+    "stage": {
+      "const": "normalization",
+      "title": "Stage",
+      "type": "string"
+    },
+    "status": {
+      "const": "blocked",
+      "title": "Status",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "scope_id",
+    "failure_id",
+    "part_id",
+    "job_id",
+    "attempt",
+    "checker_version",
+    "mapping_version",
+    "stage",
+    "error_code",
+    "status",
+    "raw_capture_ids",
+    "failed_at"
+  ],
+  "title": "CollectionProcessingFailure",
+  "type": "object"
+}

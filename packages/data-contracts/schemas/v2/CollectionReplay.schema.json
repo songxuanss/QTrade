@@ -1,0 +1,655 @@
+{
+  "$defs": {
+    "CollectionInputReference": {
+      "additionalProperties": false,
+      "properties": {
+        "dataset_kind": {
+          "enum": [
+            "bars",
+            "factors"
+          ],
+          "title": "Dataset Kind",
+          "type": "string"
+        },
+        "end": {
+          "format": "date-time",
+          "title": "End",
+          "type": "string"
+        },
+        "factor_definition": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FactorDefinition"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "field": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Field"
+        },
+        "granularity": {
+          "enum": [
+            "1m",
+            "5m",
+            "15m",
+            "30m",
+            "1h",
+            "1d"
+          ],
+          "title": "Granularity",
+          "type": "string"
+        },
+        "input_id": {
+          "format": "uuid",
+          "title": "Input Id",
+          "type": "string"
+        },
+        "input_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Input Sha256",
+          "type": "string"
+        },
+        "instrument_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Instrument Id",
+          "type": "string"
+        },
+        "instrument_name": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Instrument Name",
+          "type": "string"
+        },
+        "mapping_version": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Mapping Version",
+          "type": "string"
+        },
+        "owner_job_id": {
+          "format": "uuid",
+          "title": "Owner Job Id",
+          "type": "string"
+        },
+        "part_id": {
+          "format": "uuid",
+          "title": "Part Id",
+          "type": "string"
+        },
+        "prepared_at": {
+          "format": "date-time",
+          "title": "Prepared At",
+          "type": "string"
+        },
+        "row_count": {
+          "maximum": 100000,
+          "minimum": 0,
+          "title": "Row Count",
+          "type": "integer"
+        },
+        "schema_version": {
+          "const": 2,
+          "default": 2,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "scope_id": {
+          "format": "uuid",
+          "title": "Scope Id",
+          "type": "string"
+        },
+        "source": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Source",
+          "type": "string"
+        },
+        "start": {
+          "format": "date-time",
+          "title": "Start",
+          "type": "string"
+        }
+      },
+      "required": [
+        "scope_id",
+        "owner_job_id",
+        "part_id",
+        "input_id",
+        "input_sha256",
+        "instrument_id",
+        "instrument_name",
+        "field",
+        "source",
+        "dataset_kind",
+        "granularity",
+        "start",
+        "end",
+        "mapping_version",
+        "prepared_at",
+        "row_count",
+        "factor_definition"
+      ],
+      "title": "CollectionInputReference",
+      "type": "object"
+    },
+    "CollectionJobRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "actor_id": {
+          "format": "uuid",
+          "title": "Actor Id",
+          "type": "string"
+        },
+        "correlation_id": {
+          "format": "uuid",
+          "title": "Correlation Id",
+          "type": "string"
+        },
+        "dataset_kind": {
+          "enum": [
+            "bars",
+            "factors"
+          ],
+          "title": "Dataset Kind",
+          "type": "string"
+        },
+        "end": {
+          "format": "date-time",
+          "title": "End",
+          "type": "string"
+        },
+        "fields": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 200,
+          "title": "Fields",
+          "type": "array"
+        },
+        "granularity": {
+          "enum": [
+            "1m",
+            "5m",
+            "15m",
+            "30m",
+            "1h",
+            "1d"
+          ],
+          "title": "Granularity",
+          "type": "string"
+        },
+        "instrument_ids": {
+          "items": {
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 10000,
+          "minItems": 1,
+          "title": "Instrument Ids",
+          "type": "array"
+        },
+        "mode": {
+          "default": "missing",
+          "enum": [
+            "missing",
+            "all"
+          ],
+          "title": "Mode",
+          "type": "string"
+        },
+        "request_id": {
+          "format": "uuid",
+          "title": "Request Id",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "scope_id": {
+          "format": "uuid",
+          "title": "Scope Id",
+          "type": "string"
+        },
+        "source": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Source",
+          "type": "string"
+        },
+        "start": {
+          "format": "date-time",
+          "title": "Start",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema_version",
+        "scope_id",
+        "request_id",
+        "actor_id",
+        "correlation_id",
+        "source",
+        "dataset_kind",
+        "instrument_ids",
+        "granularity",
+        "start",
+        "end"
+      ],
+      "title": "CollectionJobRequest",
+      "type": "object"
+    },
+    "CollectionReplayLimits": {
+      "additionalProperties": false,
+      "properties": {
+        "max_bytes": {
+          "default": 134217728,
+          "maximum": 134217728,
+          "minimum": 1,
+          "title": "Max Bytes",
+          "type": "integer"
+        },
+        "max_receipts": {
+          "default": 4096,
+          "maximum": 4096,
+          "minimum": 1,
+          "title": "Max Receipts",
+          "type": "integer"
+        },
+        "max_rows": {
+          "default": 100000,
+          "maximum": 100000,
+          "minimum": 1,
+          "title": "Max Rows",
+          "type": "integer"
+        },
+        "schema_version": {
+          "const": 2,
+          "default": 2,
+          "title": "Schema Version",
+          "type": "integer"
+        }
+      },
+      "title": "CollectionReplayLimits",
+      "type": "object"
+    },
+    "CollectionReplayParent": {
+      "additionalProperties": false,
+      "properties": {
+        "end": {
+          "format": "date-time",
+          "title": "End",
+          "type": "string"
+        },
+        "execution_kind": {
+          "enum": [
+            "collection",
+            "normalization_replay"
+          ],
+          "title": "Execution Kind",
+          "type": "string"
+        },
+        "field": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Field"
+        },
+        "instrument_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Instrument Id",
+          "type": "string"
+        },
+        "instrument_name": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Instrument Name",
+          "type": "string"
+        },
+        "job_id": {
+          "format": "uuid",
+          "title": "Job Id",
+          "type": "string"
+        },
+        "mapping_version": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Mapping Version",
+          "type": "string"
+        },
+        "part_id": {
+          "format": "uuid",
+          "title": "Part Id",
+          "type": "string"
+        },
+        "request": {
+          "$ref": "#/$defs/CollectionJobRequest"
+        },
+        "schema_version": {
+          "const": 2,
+          "default": 2,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "start": {
+          "format": "date-time",
+          "title": "Start",
+          "type": "string"
+        }
+      },
+      "required": [
+        "request",
+        "job_id",
+        "part_id",
+        "instrument_id",
+        "field",
+        "start",
+        "end",
+        "mapping_version",
+        "instrument_name",
+        "execution_kind"
+      ],
+      "title": "CollectionReplayParent",
+      "type": "object"
+    },
+    "CollectionReplayRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "actor_id": {
+          "format": "uuid",
+          "title": "Actor Id",
+          "type": "string"
+        },
+        "input_id": {
+          "format": "uuid",
+          "title": "Input Id",
+          "type": "string"
+        },
+        "parent_job_id": {
+          "format": "uuid",
+          "title": "Parent Job Id",
+          "type": "string"
+        },
+        "parent_part_id": {
+          "format": "uuid",
+          "title": "Parent Part Id",
+          "type": "string"
+        },
+        "request_id": {
+          "format": "uuid",
+          "title": "Request Id",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": 2,
+          "default": 2,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "scope_id": {
+          "format": "uuid",
+          "title": "Scope Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "actor_id",
+        "scope_id",
+        "request_id",
+        "parent_job_id",
+        "parent_part_id",
+        "input_id"
+      ],
+      "title": "CollectionReplayRequest",
+      "type": "object"
+    },
+    "CollectionReplaySource": {
+      "additionalProperties": false,
+      "properties": {
+        "capture_id": {
+          "format": "uuid",
+          "title": "Capture Id",
+          "type": "string"
+        },
+        "captured_at": {
+          "format": "date-time",
+          "title": "Captured At",
+          "type": "string"
+        },
+        "content_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Content Sha256",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "calendar",
+            "history",
+            "cached_history",
+            "factor_history",
+            "http_response"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "response_rows": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Response Rows"
+        },
+        "schema_version": {
+          "const": 2,
+          "default": 2,
+          "title": "Schema Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "capture_id",
+        "kind",
+        "content_sha256",
+        "captured_at",
+        "response_rows"
+      ],
+      "title": "CollectionReplaySource",
+      "type": "object"
+    },
+    "FactorDefinition": {
+      "additionalProperties": false,
+      "properties": {
+        "available": {
+          "title": "Available",
+          "type": "boolean"
+        },
+        "calc_version": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Calc Version",
+          "type": "string"
+        },
+        "category": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Category",
+          "type": "string"
+        },
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "factor_id": {
+          "pattern": "^[a-zA-Z0-9_]{1,80}$",
+          "title": "Factor Id",
+          "type": "string"
+        },
+        "name": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "unavailable_reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Unavailable Reason"
+        },
+        "unit": {
+          "title": "Unit",
+          "type": "string"
+        },
+        "update_frequency": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Update Frequency",
+          "type": "string"
+        }
+      },
+      "required": [
+        "factor_id",
+        "name",
+        "category",
+        "unit",
+        "description",
+        "calc_version",
+        "update_frequency",
+        "available"
+      ],
+      "title": "FactorDefinition",
+      "type": "object"
+    }
+  },
+  "$id": "urn:qtrade:data:v2:CollectionReplay",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "command": {
+      "$ref": "#/$defs/CollectionReplayRequest"
+    },
+    "control_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Control Sha256",
+      "type": "string"
+    },
+    "input": {
+      "$ref": "#/$defs/CollectionInputReference"
+    },
+    "limits": {
+      "$ref": "#/$defs/CollectionReplayLimits"
+    },
+    "parent": {
+      "$ref": "#/$defs/CollectionReplayParent"
+    },
+    "replay_version": {
+      "const": "collection-normalization-replay.v1",
+      "default": "collection-normalization-replay.v1",
+      "title": "Replay Version",
+      "type": "string"
+    },
+    "rule_version": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Rule Version",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": 2,
+      "default": 2,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "sources": {
+      "items": {
+        "$ref": "#/$defs/CollectionReplaySource"
+      },
+      "maxItems": 4096,
+      "minItems": 1,
+      "title": "Sources",
+      "type": "array"
+    },
+    "supplier_calls": {
+      "const": 0,
+      "default": 0,
+      "title": "Supplier Calls",
+      "type": "integer"
+    },
+    "target_mapping_version": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Target Mapping Version",
+      "type": "string"
+    },
+    "target_part_id": {
+      "format": "uuid",
+      "title": "Target Part Id",
+      "type": "string"
+    },
+    "target_request": {
+      "$ref": "#/$defs/CollectionJobRequest"
+    },
+    "timezone": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Timezone",
+      "type": "string"
+    },
+    "verified_bytes": {
+      "minimum": 1,
+      "title": "Verified Bytes",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "command",
+    "parent",
+    "input",
+    "sources",
+    "target_request",
+    "target_part_id",
+    "target_mapping_version",
+    "rule_version",
+    "timezone",
+    "verified_bytes",
+    "limits",
+    "control_sha256"
+  ],
+  "title": "CollectionReplay",
+  "type": "object"
+}

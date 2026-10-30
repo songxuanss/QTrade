@@ -1,0 +1,56 @@
+[project]
+name = "qtrade"
+version = "0.1.0"
+description = "QTrade professional trading platform"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "boto3>=1.43.0",
+    "cryptography>=50.0.0",
+    "fastapi>=0.142.2",
+    "httpx>=0.28.1",
+    "opentelemetry-sdk>=1.45.1",
+    "prometheus-client>=0.26.0",
+    "psycopg[binary]>=3.3.6",
+    "pyarrow>=25.0.1",
+    "pydantic>=2.13.5",
+    "redis>=8.1.0",
+    "uvicorn[standard]>=0.54.0",
+]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.7,<1",
+    "mypy>=1.13,<2",
+    "pytest>=9.0.3,<10",
+    "httpx>=0.28.1",
+    "jsonschema>=4.26.0",
+    "pip-audit>=2.10.1",
+    "bandit>=1.9.4",
+    "boto3-stubs[s3]>=1.43.0",
+]
+
+[tool.uv]
+package = false
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+src = ["apps/collector/src", "adapters/data_files/src", "adapters/data_http/src", "apps/api/src", "apps/worker/src", "apps/runner/src", "apps/realtime/src", "apps/common/src", "packages/contracts/src", "packages/data-contracts/src", "packages/data-core/src", "adapters/data_mairui/src", "adapters/data_postgres/src", "packages/domain/src", "adapters/mock/src", "adapters/runner/src", "adapters/object_store/src", "adapters/postgres/src", "adapters/crypto/src", "adapters/parquet/src", "adapters/mairui/src", "adapters/notifications/src", "packages/runtime/src", "packages/application/src"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+mypy_path = ["apps/collector/src", "adapters/data_files/src", "adapters/data_http/src", "apps/api/src", "apps/worker/src", "apps/runner/src", "apps/realtime/src", "apps/common/src", "packages/contracts/src", "packages/data-contracts/src", "packages/data-core/src", "adapters/data_mairui/src", "adapters/data_postgres/src", "packages/domain/src", "adapters/mock/src", "adapters/runner/src", "adapters/object_store/src", "adapters/postgres/src", "adapters/crypto/src", "adapters/parquet/src", "adapters/mairui/src", "adapters/notifications/src", "packages/runtime/src", "packages/application/src"]
+files = ["apps/collector/src", "adapters/data_files/src", "adapters/data_http/src", "apps/api/src", "apps/worker/src", "apps/runner/src", "apps/realtime/src", "apps/common/src", "packages/contracts/src", "packages/data-contracts/src", "packages/data-core/src", "adapters/data_mairui/src", "adapters/data_postgres/src", "packages/domain/src", "adapters/mock/src", "adapters/runner/src", "adapters/object_store/src", "adapters/postgres/src", "adapters/crypto/src", "adapters/parquet/src", "adapters/mairui/src", "adapters/notifications/src", "packages/runtime/src", "packages/application/src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = [".", "apps/collector/src", "adapters/data_files/src", "adapters/data_http/src", "apps/api/src", "apps/worker/src", "apps/runner/src", "apps/realtime/src", "apps/common/src", "packages/contracts/src", "packages/data-contracts/src", "packages/data-core/src", "adapters/data_mairui/src", "adapters/data_postgres/src", "packages/domain/src", "adapters/mock/src", "adapters/runner/src", "adapters/object_store/src", "adapters/postgres/src", "adapters/crypto/src", "adapters/parquet/src", "adapters/mairui/src", "adapters/notifications/src", "packages/runtime/src", "packages/application/src"]
+addopts = "-q --strict-markers --strict-config"
+
+[[tool.mypy.overrides]]
+module = ["pyarrow", "pyarrow.*"]
+ignore_missing_imports = true

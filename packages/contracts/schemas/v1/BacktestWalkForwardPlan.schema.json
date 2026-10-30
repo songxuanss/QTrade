@@ -1,0 +1,134 @@
+{
+  "$defs": {
+    "BacktestWalkForwardWindow": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "train_end": {
+          "format": "date-time",
+          "title": "Train End",
+          "type": "string"
+        },
+        "train_samples": {
+          "minimum": 1,
+          "title": "Train Samples",
+          "type": "integer"
+        },
+        "train_start": {
+          "format": "date-time",
+          "title": "Train Start",
+          "type": "string"
+        },
+        "validation_end": {
+          "format": "date-time",
+          "title": "Validation End",
+          "type": "string"
+        },
+        "validation_samples": {
+          "minimum": 1,
+          "title": "Validation Samples",
+          "type": "integer"
+        },
+        "validation_start": {
+          "format": "date-time",
+          "title": "Validation Start",
+          "type": "string"
+        },
+        "workspace_id": {
+          "format": "uuid",
+          "title": "Workspace Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema_version",
+        "workspace_id",
+        "train_start",
+        "train_end",
+        "validation_start",
+        "validation_end",
+        "train_samples",
+        "validation_samples"
+      ],
+      "title": "BacktestWalkForwardWindow",
+      "type": "object"
+    }
+  },
+  "$id": "urn:qtrade:contracts:v1:BacktestWalkForwardPlan",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "dataset_id": {
+      "format": "uuid",
+      "title": "Dataset Id",
+      "type": "string"
+    },
+    "end": {
+      "format": "date-time",
+      "title": "End",
+      "type": "string"
+    },
+    "instrument_id": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Instrument Id",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "start": {
+      "format": "date-time",
+      "title": "Start",
+      "type": "string"
+    },
+    "step_seconds": {
+      "exclusiveMinimum": 0,
+      "title": "Step Seconds",
+      "type": "integer"
+    },
+    "train_window_seconds": {
+      "exclusiveMinimum": 0,
+      "title": "Train Window Seconds",
+      "type": "integer"
+    },
+    "validation_window_seconds": {
+      "exclusiveMinimum": 0,
+      "title": "Validation Window Seconds",
+      "type": "integer"
+    },
+    "windows": {
+      "items": {
+        "$ref": "#/$defs/BacktestWalkForwardWindow"
+      },
+      "minItems": 1,
+      "title": "Windows",
+      "type": "array"
+    },
+    "workspace_id": {
+      "format": "uuid",
+      "title": "Workspace Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "workspace_id",
+    "dataset_id",
+    "instrument_id",
+    "start",
+    "end",
+    "train_window_seconds",
+    "validation_window_seconds",
+    "step_seconds",
+    "windows"
+  ],
+  "title": "BacktestWalkForwardPlan",
+  "type": "object"
+}

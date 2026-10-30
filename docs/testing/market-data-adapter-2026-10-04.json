@@ -1,0 +1,26 @@
+{
+  "rows": 100000,
+  "instruments": 100,
+  "returned_bars": 1000,
+  "samples": [
+    0.06856289500137791,
+    0.1623000389954541,
+    0.059293049009284005,
+    0.05600094200053718,
+    0.05559399399498943,
+    0.05718158899981063,
+    0.05781432100047823,
+    0.05346865199680906,
+    0.05545138299930841,
+    0.060180773987667635
+  ],
+  "load_seconds": 6.852279743994586,
+  "median_seconds": 0.05749795500014443,
+  "p95_seconds": 0.1623000389954541,
+  "regression_budget_seconds": 1,
+  "scope": "local adapter including connection and contract validation; not production capacity",
+  "date": "2026-10-04",
+  "query_samples": 10,
+  "database_image": "timescale/timescaledb:2.30.2-pg17@sha256:b346edcdb51a1fd6020e3965e0bd1c9f3406fa6d5fbce1e28f4852587ef934e2",
+  "host": "Intel N100, 4 cores, 14 GiB RAM"
+}

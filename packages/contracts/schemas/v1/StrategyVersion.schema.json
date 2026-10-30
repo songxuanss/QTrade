@@ -1,0 +1,91 @@
+{
+  "$id": "urn:qtrade:contracts:v1:StrategyVersion",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "code_object_key": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Code Object Key",
+      "type": "string"
+    },
+    "code_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Code Sha256",
+      "type": "string"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "created_by": {
+      "format": "uuid",
+      "title": "Created By",
+      "type": "string"
+    },
+    "dependencies_object_key": {
+      "anyOf": [
+        {
+          "maxLength": 256,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Dependencies Object Key"
+    },
+    "dependencies_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Dependencies Sha256",
+      "type": "string"
+    },
+    "parameter_schema_json": {
+      "title": "Parameter Schema Json",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "strategy_id": {
+      "format": "uuid",
+      "title": "Strategy Id",
+      "type": "string"
+    },
+    "strategy_version_id": {
+      "format": "uuid",
+      "title": "Strategy Version Id",
+      "type": "string"
+    },
+    "version": {
+      "minimum": 1,
+      "title": "Version",
+      "type": "integer"
+    },
+    "workspace_id": {
+      "format": "uuid",
+      "title": "Workspace Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "workspace_id",
+    "strategy_id",
+    "strategy_version_id",
+    "version",
+    "created_by",
+    "created_at",
+    "code_object_key",
+    "code_sha256",
+    "parameter_schema_json",
+    "dependencies_sha256"
+  ],
+  "title": "StrategyVersion",
+  "type": "object"
+}

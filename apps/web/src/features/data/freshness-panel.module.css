@@ -1,0 +1,62 @@
+.panel {
+  margin-top: 12px;
+  min-width: 0;
+}
+.panel > button {
+  margin: 0 8px 8px 0;
+}
+.result {
+  margin-top: 12px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  overflow-wrap: anywhere;
+}
+.result h4 {
+  margin: 0 0 12px;
+  font-size: 14px;
+}
+.status {
+  color: var(--accent);
+  font-weight: 600;
+}
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+  gap: 14px 20px;
+  margin: 18px 0;
+}
+.grid dt {
+  color: var(--text-secondary);
+  font-size: 12px;
+  margin-bottom: 5px;
+}
+.grid dd {
+  margin: 0;
+  font-size: 13px;
+}
+.hint {
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.7;
+}
+@media (max-width: 640px) {
+  .result {
+    padding: 12px;
+  }
+}
+.current {
+  color: var(--accent);
+}
+.attention {
+  color: var(--warning, #e6bb71);
+}
+.watchSummary {
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+}
+details[open] > .watchSummary {
+  margin-bottom: 14px;
+}

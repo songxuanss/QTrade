@@ -1,0 +1,12 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "qtrade-data-http"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = ["qtrade-data-core==0.1.0", "qtrade-data-contracts==0.1.0", "httpx>=0.28.1,<1"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/qtrade_data_http"]

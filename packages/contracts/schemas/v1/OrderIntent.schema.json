@@ -1,0 +1,135 @@
+{
+  "$id": "urn:qtrade:contracts:v1:OrderIntent",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "account_id": {
+      "format": "uuid",
+      "title": "Account Id",
+      "type": "string"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "created_by": {
+      "format": "uuid",
+      "title": "Created By",
+      "type": "string"
+    },
+    "instrument_id": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Instrument Id",
+      "type": "string"
+    },
+    "intent_id": {
+      "format": "uuid",
+      "title": "Intent Id",
+      "type": "string"
+    },
+    "limit_price": {
+      "anyOf": [
+        {
+          "pattern": "^(?:0\\.0*[1-9][0-9]*|[1-9][0-9]*(?:\\.[0-9]+)?)$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Limit Price"
+    },
+    "order_type": {
+      "enum": [
+        "market",
+        "limit",
+        "stop",
+        "stop_limit"
+      ],
+      "title": "Order Type",
+      "type": "string"
+    },
+    "quantity": {
+      "pattern": "^(?:0\\.0*[1-9][0-9]*|[1-9][0-9]*(?:\\.[0-9]+)?)$",
+      "title": "Quantity",
+      "type": "string"
+    },
+    "runtime_id": {
+      "format": "uuid",
+      "title": "Runtime Id",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "side": {
+      "enum": [
+        "buy",
+        "sell"
+      ],
+      "title": "Side",
+      "type": "string"
+    },
+    "stop_price": {
+      "anyOf": [
+        {
+          "pattern": "^(?:0\\.0*[1-9][0-9]*|[1-9][0-9]*(?:\\.[0-9]+)?)$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Stop Price"
+    },
+    "strategy_version_id": {
+      "format": "uuid",
+      "title": "Strategy Version Id",
+      "type": "string"
+    },
+    "time_in_force": {
+      "enum": [
+        "day",
+        "gtc",
+        "ioc",
+        "fok"
+      ],
+      "title": "Time In Force",
+      "type": "string"
+    },
+    "trace_id": {
+      "format": "uuid",
+      "title": "Trace Id",
+      "type": "string"
+    },
+    "workspace_id": {
+      "format": "uuid",
+      "title": "Workspace Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "workspace_id",
+    "intent_id",
+    "account_id",
+    "runtime_id",
+    "strategy_version_id",
+    "created_by",
+    "created_at",
+    "instrument_id",
+    "side",
+    "order_type",
+    "quantity",
+    "time_in_force",
+    "trace_id"
+  ],
+  "title": "OrderIntent",
+  "type": "object"
+}

@@ -1,0 +1,181 @@
+{
+  "$defs": {
+    "CapabilityFact": {
+      "additionalProperties": false,
+      "properties": {
+        "as_of": {
+          "format": "date",
+          "title": "As Of",
+          "type": "string"
+        },
+        "aspect": {
+          "enum": [
+            "history",
+            "units",
+            "adjustment",
+            "time",
+            "updates",
+            "permission",
+            "quota",
+            "license"
+          ],
+          "title": "Aspect",
+          "type": "string"
+        },
+        "detail": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Detail",
+          "type": "string"
+        },
+        "evidence": {
+          "enum": [
+            "unknown",
+            "documented",
+            "sample_verified",
+            "e2e_verified"
+          ],
+          "title": "Evidence",
+          "type": "string"
+        },
+        "reference": {
+          "pattern": "^docs/[a-zA-Z0-9_./-]+\\.md$",
+          "title": "Reference",
+          "type": "string"
+        },
+        "unblock_condition": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Unblock Condition"
+        }
+      },
+      "required": [
+        "aspect",
+        "detail",
+        "evidence",
+        "reference",
+        "as_of"
+      ],
+      "title": "CapabilityFact",
+      "type": "object"
+    }
+  },
+  "$id": "urn:qtrade:data:v1:SourceProfile",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "facts": {
+      "items": {
+        "$ref": "#/$defs/CapabilityFact"
+      },
+      "maxItems": 8,
+      "minItems": 8,
+      "title": "Facts",
+      "type": "array"
+    },
+    "instrument_kinds": {
+      "items": {
+        "maxLength": 256,
+        "minLength": 1,
+        "type": "string"
+      },
+      "title": "Instrument Kinds",
+      "type": "array"
+    },
+    "kind": {
+      "enum": [
+        "bars",
+        "factors",
+        "financial_statement",
+        "corporate_action",
+        "membership_interval",
+        "security_identity_change",
+        "adjustment_factor",
+        "current_membership"
+      ],
+      "title": "Kind",
+      "type": "string"
+    },
+    "mapping_version": {
+      "anyOf": [
+        {
+          "maxLength": 256,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Mapping Version"
+    },
+    "markets": {
+      "items": {
+        "maxLength": 256,
+        "minLength": 1,
+        "type": "string"
+      },
+      "title": "Markets",
+      "type": "array"
+    },
+    "name": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Name",
+      "type": "string"
+    },
+    "periods": {
+      "items": {
+        "maxLength": 256,
+        "minLength": 1,
+        "type": "string"
+      },
+      "title": "Periods",
+      "type": "array"
+    },
+    "source": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Source",
+      "type": "string"
+    },
+    "state": {
+      "enum": [
+        "configured",
+        "unconfigured",
+        "not_connected"
+      ],
+      "title": "State",
+      "type": "string"
+    },
+    "timezone": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Timezone",
+      "type": "string"
+    }
+  },
+  "required": [
+    "source",
+    "name",
+    "kind",
+    "mapping_version",
+    "markets",
+    "periods",
+    "instrument_kinds",
+    "timezone",
+    "state",
+    "facts"
+  ],
+  "title": "SourceProfile",
+  "type": "object"
+}

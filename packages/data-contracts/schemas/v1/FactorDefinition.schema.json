@@ -1,0 +1,72 @@
+{
+  "$id": "urn:qtrade:data:v1:FactorDefinition",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "available": {
+      "title": "Available",
+      "type": "boolean"
+    },
+    "calc_version": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Calc Version",
+      "type": "string"
+    },
+    "category": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Category",
+      "type": "string"
+    },
+    "description": {
+      "title": "Description",
+      "type": "string"
+    },
+    "factor_id": {
+      "pattern": "^[a-zA-Z0-9_]{1,80}$",
+      "title": "Factor Id",
+      "type": "string"
+    },
+    "name": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Name",
+      "type": "string"
+    },
+    "unavailable_reason": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Unavailable Reason"
+    },
+    "unit": {
+      "title": "Unit",
+      "type": "string"
+    },
+    "update_frequency": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Update Frequency",
+      "type": "string"
+    }
+  },
+  "required": [
+    "factor_id",
+    "name",
+    "category",
+    "unit",
+    "description",
+    "calc_version",
+    "update_frequency",
+    "available"
+  ],
+  "title": "FactorDefinition",
+  "type": "object"
+}

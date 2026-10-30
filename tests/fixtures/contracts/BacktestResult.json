@@ -1,0 +1,27 @@
+{
+  "currency": "USD",
+  "dataset_id": "00000000-0000-4000-8000-000000000001",
+  "determinism": {
+    "engine": "qtrade.mock-event",
+    "seed": 7
+  },
+  "equity_curve": [
+    {
+      "cash": "10000",
+      "equity": "10000",
+      "timestamp": "2026-10-01T00:00:00Z"
+    }
+  ],
+  "fills": [],
+  "orders": [],
+  "schema_version": 1,
+  "summary": {
+    "ending_drawdown": "0",
+    "final_equity": "10000",
+    "initial_cash": "10000",
+    "sample_count": 1,
+    "total_return": "0"
+  },
+  "strategy_version_id": "00000000-0000-4000-8000-000000000001",
+  "workspace_id": "00000000-0000-4000-8000-000000000001"
+}

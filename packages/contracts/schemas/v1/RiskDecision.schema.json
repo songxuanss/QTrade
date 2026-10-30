@@ -1,0 +1,143 @@
+{
+  "$defs": {
+    "RiskReason": {
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Code",
+          "type": "string"
+        },
+        "current_value": {
+          "anyOf": [
+            {
+              "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Current Value"
+        },
+        "limit_value": {
+          "anyOf": [
+            {
+              "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Limit Value"
+        },
+        "rule_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Rule Id",
+          "type": "string"
+        },
+        "rule_version": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Rule Version",
+          "type": "string"
+        },
+        "summary": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Summary",
+          "type": "string"
+        }
+      },
+      "required": [
+        "rule_id",
+        "rule_version",
+        "code",
+        "summary"
+      ],
+      "title": "RiskReason",
+      "type": "object"
+    }
+  },
+  "$id": "urn:qtrade:contracts:v1:RiskDecision",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "decided_at": {
+      "format": "date-time",
+      "title": "Decided At",
+      "type": "string"
+    },
+    "decision_id": {
+      "format": "uuid",
+      "title": "Decision Id",
+      "type": "string"
+    },
+    "input_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Input Sha256",
+      "type": "string"
+    },
+    "intent_id": {
+      "format": "uuid",
+      "title": "Intent Id",
+      "type": "string"
+    },
+    "outcome": {
+      "enum": [
+        "allow",
+        "deny",
+        "require_approval"
+      ],
+      "title": "Outcome",
+      "type": "string"
+    },
+    "reasons": {
+      "items": {
+        "$ref": "#/$defs/RiskReason"
+      },
+      "title": "Reasons",
+      "type": "array"
+    },
+    "rule_set_version": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Rule Set Version",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "trace_id": {
+      "format": "uuid",
+      "title": "Trace Id",
+      "type": "string"
+    },
+    "workspace_id": {
+      "format": "uuid",
+      "title": "Workspace Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "workspace_id",
+    "decision_id",
+    "intent_id",
+    "decided_at",
+    "outcome",
+    "rule_set_version",
+    "input_sha256",
+    "reasons",
+    "trace_id"
+  ],
+  "title": "RiskDecision",
+  "type": "object"
+}

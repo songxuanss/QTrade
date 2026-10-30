@@ -1,0 +1,12 @@
+# Linux loopback deployment: use an existing persistent authenticated API/SSO.
+# This is local-only. Remote deployments use HTTPS and regular bridge networks.
+services:
+  web:
+    network_mode: host
+    ports: !reset []
+    environment:
+      HOSTNAME: 127.0.0.1
+      PORT: 13000
+      QTRADE_API_ORIGIN: ${QTRADE_API_ORIGIN:-http://127.0.0.1:3122}
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:13000/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]

@@ -1,0 +1,28 @@
+{
+  "calendar_id": "synthetic-ny",
+  "calendar_version": 1,
+  "effective_from": "2026-01-01",
+  "effective_to": "2026-12-31",
+  "overrides": [
+    {
+      "sessions": [],
+      "trading_date": "2026-05-08"
+    }
+  ],
+  "schema_version": 1,
+  "sessions": [
+    {
+      "closes": "16:00:00",
+      "opens": "09:30:00"
+    }
+  ],
+  "timezone": "America/New_York",
+  "weekdays": [
+    0,
+    1,
+    2,
+    3,
+    4
+  ],
+  "workspace_id": "00000000-0000-4000-8000-000000000001"
+}

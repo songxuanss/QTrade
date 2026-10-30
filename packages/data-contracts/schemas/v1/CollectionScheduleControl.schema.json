@@ -1,0 +1,17 @@
+{
+  "$id": "urn:qtrade:data:v1:CollectionScheduleControl",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "revision": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Revision",
+      "type": "string"
+    }
+  },
+  "required": [
+    "revision"
+  ],
+  "title": "CollectionScheduleControl",
+  "type": "object"
+}

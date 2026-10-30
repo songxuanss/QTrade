@@ -1,0 +1,215 @@
+/* Bound dense result areas, not the entire page: errors, task controls and
+   pagination remain reachable without scrolling through every archived part. */
+.toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 20px 0 0;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+}
+.switcher {
+  display: flex;
+  gap: 3px;
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--surface);
+}
+.switcher button {
+  min-height: 40px;
+  padding: 8px 18px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.switcher button[aria-pressed="true"] {
+  border-color: var(--border);
+  background: var(--surface-raised);
+  color: var(--text);
+}
+.switcher button:focus-visible,
+.parts:focus-visible,
+.records:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.hint,
+.taskPicker p {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+.view {
+  min-width: 0;
+}
+.view[hidden] {
+  display: none;
+}
+.taskPicker {
+  display: flex;
+  align-items: end;
+  flex-wrap: wrap;
+  gap: 12px 24px;
+  padding: 18px 0;
+}
+.taskPicker label {
+  display: grid;
+  gap: 8px;
+  max-width: 100%;
+  font-size: 12px;
+  color: var(--muted);
+}
+.taskPicker select {
+  width: min(100%, 500px);
+  min-height: 42px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 8px 12px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+.parts {
+  max-height: min(56vh, 560px);
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  padding: 3px;
+}
+/* Existing global selectors are deliberately less specific than these two
+   classes so the result table stays bounded on both mobile and desktop. */
+.view .records {
+  max-height: min(42vh, 400px);
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+.records thead {
+  position: sticky;
+  top: 0;
+  background: var(--surface);
+}
+@media (max-width: 640px) {
+  .taskPicker,
+  .taskPicker label,
+  .taskPicker select {
+    width: 100%;
+  }
+  .hint {
+    display: none;
+  }
+}
+
+.resultGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+  align-items: start;
+  gap: 16px;
+}
+.resultGrid > :only-child {
+  grid-column: 1 / -1;
+}
+.resultGrid :global(.collector-records) {
+  margin-top: 0;
+}
+.resultGrid :global(.collector-parts) {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+}
+@media (max-width: 1100px) {
+  .resultGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Scope density to this workbench. Do not shrink shared controls or hide
+   validation/plan acknowledgements to achieve a shorter document. */
+.workbench .heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.heading h2 {
+  margin: 0;
+  font-size: 16px;
+}
+.workbench .toolbar {
+  margin-top: 14px;
+  padding-bottom: 12px;
+}
+.workbench .createLayout {
+  margin-top: 16px;
+  grid-template-columns: minmax(0, 2.2fr) minmax(260px, 1fr);
+}
+.workbench .form {
+  gap: 12px;
+  padding: 16px;
+}
+.form :global(.collector-form-section-title) {
+  margin-top: 0;
+  padding-bottom: 6px;
+}
+.form :global(.collector-footer) {
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.form :global(.collector-footer) > .help {
+  flex: 1 1 180px;
+}
+.help {
+  min-width: 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.65;
+}
+.help summary {
+  width: fit-content;
+  cursor: pointer;
+  padding-block: 8px;
+}
+.help summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.help p {
+  margin: 6px 0;
+  overflow-wrap: anywhere;
+}
+.dateShortcut {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+}
+.dateShortcut > p {
+  flex-basis: 100%;
+}
+@media (max-width: 1100px) {
+  .workbench .createLayout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (max-width: 760px) {
+  .workbench .form {
+    padding: 12px;
+  }
+  .form :global(.collector-footer) > .help {
+    flex: auto;
+  }
+}
+@media (max-width: 430px) {
+  /* Paired dates fit 390px phones with full native date controls. Keep source,
+     instrument and strategy full width; touch targets remain at least 40px. */
+  .form :global(.collector-date-field) {
+    grid-column: span 1;
+  }
+  .heading {
+    flex-wrap: wrap;
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "authorization_id": "mock-license",
+  "batch_id": "00000000-0000-4000-8000-000000000001",
+  "collected_at": "2026-10-01T00:00:00Z",
+  "content_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "granularity": "1m",
+  "ingestion_task_id": "00000000-0000-4000-8000-000000000001",
+  "instrument_id": "MOCK:ABC",
+  "object_key": "batches/source.parquet",
+  "record_count": 1,
+  "schema_version": 1,
+  "source": "mock",
+  "workspace_id": "00000000-0000-4000-8000-000000000001"
+}

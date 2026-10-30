@@ -1,0 +1,89 @@
+{
+  "$id": "urn:qtrade:data:v1:CollectedBar",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "close": {
+      "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$",
+      "title": "Close",
+      "type": "string"
+    },
+    "granularity": {
+      "enum": [
+        "1m",
+        "5m",
+        "15m",
+        "30m",
+        "1h",
+        "1d"
+      ],
+      "title": "Granularity",
+      "type": "string"
+    },
+    "high": {
+      "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$",
+      "title": "High",
+      "type": "string"
+    },
+    "instrument_id": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Instrument Id",
+      "type": "string"
+    },
+    "low": {
+      "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$",
+      "title": "Low",
+      "type": "string"
+    },
+    "open": {
+      "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$",
+      "title": "Open",
+      "type": "string"
+    },
+    "quality": {
+      "default": "valid",
+      "enum": [
+        "valid",
+        "suspect"
+      ],
+      "title": "Quality",
+      "type": "string"
+    },
+    "timestamp": {
+      "format": "date-time",
+      "title": "Timestamp",
+      "type": "string"
+    },
+    "value": {
+      "anyOf": [
+        {
+          "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Value"
+    },
+    "volume": {
+      "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$",
+      "title": "Volume",
+      "type": "string"
+    }
+  },
+  "required": [
+    "instrument_id",
+    "timestamp",
+    "granularity",
+    "open",
+    "high",
+    "low",
+    "close",
+    "volume",
+    "value"
+  ],
+  "title": "CollectedBar",
+  "type": "object"
+}

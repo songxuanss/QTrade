@@ -1,0 +1,189 @@
+{
+  "$defs": {
+    "FreshnessCheckpoint": {
+      "additionalProperties": false,
+      "description": "Verified complete period, not the maximum timestamp in an arbitrary page.\n\nThe producing adapter must verify the applicable coverage/calendar rules and\nattach a stable evidence digest. For sparse categories this means their own\nrelease rule; absence of an event is not proof of a missing daily bar.",
+      "properties": {
+        "complete_through": {
+          "format": "date",
+          "title": "Complete Through",
+          "type": "string"
+        },
+        "evidence_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Evidence Sha256",
+          "type": "string"
+        },
+        "observed_at": {
+          "format": "date-time",
+          "title": "Observed At",
+          "type": "string"
+        }
+      },
+      "required": [
+        "complete_through",
+        "observed_at",
+        "evidence_sha256"
+      ],
+      "title": "FreshnessCheckpoint",
+      "type": "object"
+    },
+    "FreshnessKey": {
+      "additionalProperties": false,
+      "properties": {
+        "adjustment": {
+          "anyOf": [
+            {
+              "enum": [
+                "unadjusted",
+                "forward",
+                "backward"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Adjustment"
+        },
+        "dataset_kind": {
+          "enum": [
+            "bars",
+            "factors",
+            "financial_statement",
+            "corporate_action"
+          ],
+          "title": "Dataset Kind",
+          "type": "string"
+        },
+        "date_axis": {
+          "enum": [
+            "observation_date",
+            "report_period",
+            "event_date"
+          ],
+          "title": "Date Axis",
+          "type": "string"
+        },
+        "field": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Field"
+        },
+        "instrument_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Instrument Id",
+          "type": "string"
+        },
+        "mapping_version": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Mapping Version",
+          "type": "string"
+        },
+        "period": {
+          "anyOf": [
+            {
+              "const": "1d",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Period"
+        },
+        "scope_id": {
+          "format": "uuid",
+          "title": "Scope Id",
+          "type": "string"
+        },
+        "source": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Source",
+          "type": "string"
+        }
+      },
+      "required": [
+        "scope_id",
+        "source",
+        "instrument_id",
+        "dataset_kind",
+        "adjustment",
+        "date_axis",
+        "mapping_version"
+      ],
+      "title": "FreshnessKey",
+      "type": "object"
+    }
+  },
+  "$id": "urn:qtrade:data:v1:FreshnessEvidence",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "collected": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/FreshnessCheckpoint"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "key": {
+      "$ref": "#/$defs/FreshnessKey"
+    },
+    "published": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/FreshnessCheckpoint"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "source": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/FreshnessCheckpoint"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "source_health": {
+      "enum": [
+        "available",
+        "unavailable",
+        "unknown"
+      ],
+      "title": "Source Health",
+      "type": "string"
+    }
+  },
+  "required": [
+    "key",
+    "source_health"
+  ],
+  "title": "FreshnessEvidence",
+  "type": "object"
+}

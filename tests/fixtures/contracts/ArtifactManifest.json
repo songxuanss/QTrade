@@ -1,0 +1,23 @@
+{
+  "adapter_version": "1",
+  "code_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "created_at": "2026-10-01T00:00:00Z",
+  "created_by": "00000000-0000-4000-8000-000000000001",
+  "dataset_id": "00000000-0000-4000-8000-000000000001",
+  "dataset_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "engine_name": "mock",
+  "engine_version": "1",
+  "environment_image_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "execution_config_json": "{\"benchmark_id\":null,\"cost_model_version\":\"v1\",\"currency\":\"USD\",\"end\":\"2026-10-02T00:00:00Z\",\"initial_cash\":\"10000\",\"resource_profile\":\"standard.v1\",\"start\":\"2026-10-01T00:00:00Z\"}",
+  "execution_config_sha256": "f253f81c79326c88d6c668fa3336101b37c32e15eca12ba9d1186b8efbac5dc7",
+  "kind": "backtest",
+  "manifest_id": "00000000-0000-4000-8000-000000000001",
+  "nondeterministic_sources": [],
+  "parameters_json": "{\"lookback\":20}",
+  "parameters_sha256": "52950a3e3234a0dc4665a508b7cd5bbe3e4afbcf8c753e01353fa1f8d89332ce",
+  "random_seed": 42,
+  "run_id": "00000000-0000-4000-8000-000000000001",
+  "schema_version": 1,
+  "strategy_version_id": "00000000-0000-4000-8000-000000000001",
+  "workspace_id": "00000000-0000-4000-8000-000000000001"
+}

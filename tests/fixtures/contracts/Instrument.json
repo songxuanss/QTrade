@@ -1,0 +1,18 @@
+{
+  "calendar_id": "mock-24x7",
+  "contract_multiplier": "1",
+  "currency": "USD",
+  "enabled": true,
+  "exchange": "MOCK",
+  "instrument_id": "MOCK:ABC",
+  "lot_size": "1",
+  "market": "mock",
+  "name": "Mock ABC",
+  "price_precision": 2,
+  "quantity_precision": 0,
+  "schema_version": 1,
+  "specification_version": 1,
+  "tick_size": "0.01",
+  "timezone": "UTC",
+  "workspace_id": "00000000-0000-4000-8000-000000000001"
+}

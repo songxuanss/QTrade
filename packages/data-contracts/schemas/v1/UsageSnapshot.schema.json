@@ -1,0 +1,315 @@
+{
+  "$defs": {
+    "UsageBudget": {
+      "additionalProperties": false,
+      "properties": {
+        "active_reservations": {
+          "minimum": 0,
+          "title": "Active Reservations",
+          "type": "integer"
+        },
+        "concurrency_limit": {
+          "exclusiveMinimum": 0,
+          "title": "Concurrency Limit",
+          "type": "integer"
+        },
+        "credits_used": {
+          "minimum": 0,
+          "title": "Credits Used",
+          "type": "integer"
+        },
+        "daily_limit": {
+          "exclusiveMinimum": 0,
+          "title": "Daily Limit",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "daily_limit",
+        "credits_used",
+        "active_reservations",
+        "concurrency_limit"
+      ],
+      "title": "UsageBudget",
+      "type": "object"
+    },
+    "UsageDenialView": {
+      "additionalProperties": false,
+      "properties": {
+        "credits": {
+          "exclusiveMinimum": 0,
+          "title": "Credits",
+          "type": "integer"
+        },
+        "denied_at": {
+          "format": "date-time",
+          "title": "Denied At",
+          "type": "string"
+        },
+        "operation": {
+          "pattern": "^[a-z][a-z0-9._-]{0,99}$",
+          "title": "Operation",
+          "type": "string"
+        },
+        "reason": {
+          "enum": [
+            "source_daily",
+            "scope_daily",
+            "source_concurrency",
+            "scope_concurrency"
+          ],
+          "title": "Reason",
+          "type": "string"
+        },
+        "request_id": {
+          "format": "uuid",
+          "title": "Request Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "request_id",
+        "operation",
+        "credits",
+        "reason",
+        "denied_at"
+      ],
+      "title": "UsageDenialView",
+      "type": "object"
+    },
+    "UsageRequestView": {
+      "additionalProperties": false,
+      "properties": {
+        "credits": {
+          "exclusiveMinimum": 0,
+          "title": "Credits",
+          "type": "integer"
+        },
+        "duration_ms": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Duration Ms"
+        },
+        "error_code": {
+          "anyOf": [
+            {
+              "enum": [
+                "timeout",
+                "unavailable",
+                "unauthorized",
+                "rate_limited",
+                "unverified"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Error Code"
+        },
+        "lease_elapsed": {
+          "title": "Lease Elapsed",
+          "type": "boolean"
+        },
+        "lease_until": {
+          "format": "date-time",
+          "title": "Lease Until",
+          "type": "string"
+        },
+        "operation": {
+          "pattern": "^[a-z][a-z0-9._-]{0,99}$",
+          "title": "Operation",
+          "type": "string"
+        },
+        "outcome": {
+          "anyOf": [
+            {
+              "enum": [
+                "success",
+                "failure",
+                "expired"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Outcome"
+        },
+        "request_id": {
+          "format": "uuid",
+          "title": "Request Id",
+          "type": "string"
+        },
+        "reserved_at": {
+          "format": "date-time",
+          "title": "Reserved At",
+          "type": "string"
+        },
+        "response_bytes": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Response Bytes"
+        },
+        "state": {
+          "enum": [
+            "reserved",
+            "finished",
+            "expired"
+          ],
+          "title": "State",
+          "type": "string"
+        }
+      },
+      "required": [
+        "request_id",
+        "operation",
+        "credits",
+        "reserved_at",
+        "lease_until",
+        "state",
+        "lease_elapsed",
+        "outcome",
+        "error_code",
+        "duration_ms",
+        "response_bytes"
+      ],
+      "title": "UsageRequestView",
+      "type": "object"
+    }
+  },
+  "$id": "urn:qtrade:data:v1:UsageSnapshot",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "accounting": {
+      "const": "internal_credit_safeguard",
+      "title": "Accounting",
+      "type": "string"
+    },
+    "day": {
+      "format": "date",
+      "title": "Day",
+      "type": "string"
+    },
+    "denial_count": {
+      "minimum": 0,
+      "title": "Denial Count",
+      "type": "integer"
+    },
+    "expired_count": {
+      "minimum": 0,
+      "title": "Expired Count",
+      "type": "integer"
+    },
+    "failure_count": {
+      "minimum": 0,
+      "title": "Failure Count",
+      "type": "integer"
+    },
+    "generated_at": {
+      "format": "date-time",
+      "title": "Generated At",
+      "type": "string"
+    },
+    "recent_denials": {
+      "items": {
+        "$ref": "#/$defs/UsageDenialView"
+      },
+      "maxItems": 50,
+      "title": "Recent Denials",
+      "type": "array"
+    },
+    "recent_requests": {
+      "items": {
+        "$ref": "#/$defs/UsageRequestView"
+      },
+      "maxItems": 50,
+      "title": "Recent Requests",
+      "type": "array"
+    },
+    "request_count": {
+      "minimum": 0,
+      "title": "Request Count",
+      "type": "integer"
+    },
+    "resets_at": {
+      "format": "date-time",
+      "title": "Resets At",
+      "type": "string"
+    },
+    "response_bytes": {
+      "minimum": 0,
+      "title": "Response Bytes",
+      "type": "integer"
+    },
+    "schema_version": {
+      "const": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "scope_budget": {
+      "$ref": "#/$defs/UsageBudget"
+    },
+    "scope_id": {
+      "format": "uuid",
+      "title": "Scope Id",
+      "type": "string"
+    },
+    "source": {
+      "pattern": "^[a-z][a-z0-9._-]{0,99}$",
+      "title": "Source",
+      "type": "string"
+    },
+    "source_budget": {
+      "$ref": "#/$defs/UsageBudget"
+    },
+    "success_count": {
+      "minimum": 0,
+      "title": "Success Count",
+      "type": "integer"
+    },
+    "timezone": {
+      "title": "Timezone",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "scope_id",
+    "source",
+    "day",
+    "timezone",
+    "generated_at",
+    "resets_at",
+    "source_budget",
+    "scope_budget",
+    "request_count",
+    "success_count",
+    "failure_count",
+    "expired_count",
+    "denial_count",
+    "response_bytes",
+    "recent_requests",
+    "recent_denials",
+    "accounting"
+  ],
+  "title": "UsageSnapshot",
+  "type": "object"
+}

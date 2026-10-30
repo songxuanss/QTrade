@@ -1,0 +1,70 @@
+{
+  "$id": "urn:qtrade:data:v1:CapabilityFact",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "as_of": {
+      "format": "date",
+      "title": "As Of",
+      "type": "string"
+    },
+    "aspect": {
+      "enum": [
+        "history",
+        "units",
+        "adjustment",
+        "time",
+        "updates",
+        "permission",
+        "quota",
+        "license"
+      ],
+      "title": "Aspect",
+      "type": "string"
+    },
+    "detail": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Detail",
+      "type": "string"
+    },
+    "evidence": {
+      "enum": [
+        "unknown",
+        "documented",
+        "sample_verified",
+        "e2e_verified"
+      ],
+      "title": "Evidence",
+      "type": "string"
+    },
+    "reference": {
+      "pattern": "^docs/[a-zA-Z0-9_./-]+\\.md$",
+      "title": "Reference",
+      "type": "string"
+    },
+    "unblock_condition": {
+      "anyOf": [
+        {
+          "maxLength": 256,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Unblock Condition"
+    }
+  },
+  "required": [
+    "aspect",
+    "detail",
+    "evidence",
+    "reference",
+    "as_of"
+  ],
+  "title": "CapabilityFact",
+  "type": "object"
+}

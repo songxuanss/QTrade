@@ -1,0 +1,214 @@
+name: qtrade
+
+x-python: &python
+  build:
+    context: .
+    network: host
+    dockerfile: Dockerfile.python
+    args:
+      QTRADE_BUILD_REVISION: ${QTRADE_BUILD_REVISION:-unknown}
+  environment:
+    QTRADE_ENV: local
+    QTRADE_LIVE_TRADING_ENABLED: "false"
+    QTRADE_PUBLIC_ORIGIN: ${QTRADE_PUBLIC_ORIGIN:-http://localhost:13000}
+    DATABASE_URL: postgresql://qtrade:qtrade-local-only@postgres:5432/qtrade
+    DATA_COLLECTION_DATABASE_URL: ${DATA_COLLECTION_DATABASE_URL:-postgresql://qtrade:qtrade-local-only@postgres:5432/qtrade}
+    MARKET_DATABASE_URL: postgresql://qtrade:qtrade-market-local-only@market-db:5432/qtrade_market
+    REDIS_URL: redis://valkey:6379/0
+    OBJECT_STORE_URL: http://object-store:9000
+    OBJECT_STORE_BUCKET: qtrade
+    OBJECT_STORE_ACCESS_KEY: qtrade-local
+    OBJECT_STORE_SECRET_KEY: qtrade-local-only
+    MAIRUI_LICENCE: ${MAIRUI_LICENCE:-}
+    QTRADE_COLLECTION_MIN_INTERVAL_SECONDS: ${QTRADE_COLLECTION_MIN_INTERVAL_SECONDS:-3}
+    QTRADE_COLLECTOR_URL: ${QTRADE_COLLECTOR_COMPOSE_URL:-}
+    COLLECTOR_SERVICE_TOKEN: ${COLLECTOR_SERVICE_TOKEN:-}
+    COLLECTOR_FRESHNESS_CONSUMER_ID: ${COLLECTOR_FRESHNESS_CONSUMER_ID:-qtrade-alerts}
+    QTRADE_COLLECTOR_ALLOW_HTTP: ${QTRADE_COLLECTOR_ALLOW_HTTP:-false}
+    QTRADE_MAIRUI_PRO_ENABLED: ${QTRADE_MAIRUI_PRO_ENABLED:-false}
+    QTRADE_TICK_DOWNLOAD_MAX_DAYS: ${QTRADE_TICK_DOWNLOAD_MAX_DAYS:-0}
+    SMTP_HOST: ${SMTP_HOST:-}
+    SMTP_PORT: ${SMTP_PORT:-587}
+    SMTP_SENDER: ${SMTP_SENDER:-}
+    SMTP_USERNAME: ${SMTP_USERNAME:-}
+    SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+    QTRADE_WEBHOOK_ALLOWED_HOSTS: ${QTRADE_WEBHOOK_ALLOWED_HOSTS:-}
+    QTRADE_WEBHOOK_DESTINATIONS: ${QTRADE_WEBHOOK_DESTINATIONS:-}
+  depends_on:
+    migrate:
+      condition: service_completed_successfully
+    market-db:
+      condition: service_healthy
+    postgres:
+      condition: service_healthy
+    valkey:
+      condition: service_healthy
+    object-store:
+      condition: service_healthy
+  healthcheck:
+    test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/ready', timeout=10)"]
+    interval: 10s
+    timeout: 15s
+    start_period: 20s
+    retries: 6
+  restart: unless-stopped
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: qtrade
+      POSTGRES_PASSWORD: qtrade-local-only
+      POSTGRES_DB: qtrade
+    volumes: ["postgres-data:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U qtrade -d qtrade"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  market-db:
+    image: timescale/timescaledb:2.30.2-pg17@sha256:b346edcdb51a1fd6020e3965e0bd1c9f3406fa6d5fbce1e28f4852587ef934e2
+    environment:
+      POSTGRES_USER: qtrade
+      POSTGRES_PASSWORD: qtrade-market-local-only
+      POSTGRES_DB: qtrade_market
+    volumes: ["market-data:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U qtrade -d qtrade_market"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  migrate:
+    <<: *python
+    # The migration job must contain exactly the deployed API migration set.
+    image: qtrade-api
+    command: ["sh", "-c", "python -m qtrade_postgres.migrate && python -m qtrade_postgres.market_migrate && python -m qtrade_data_postgres.migrate"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      market-db:
+        condition: service_healthy
+    healthcheck:
+      disable: true
+    restart: "no"
+
+  valkey:
+    image: valkey/valkey:8-alpine
+    command: ["valkey-server", "--appendonly", "yes"]
+    volumes: ["valkey-data:/data"]
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  object-store:
+    build:
+      context: .
+      network: host
+      dockerfile: infra/minio/Dockerfile
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: qtrade-local
+      MINIO_ROOT_PASSWORD: qtrade-local-only
+    volumes: ["object-data:/data"]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  api:
+    <<: *python
+    image: qtrade-api
+    ports: ["127.0.0.1:18000:8000"]
+
+  worker:
+    <<: *python
+    command: ["uvicorn", "qtrade_worker.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    volumes:
+      - strategy-runner-socket:/run/qtrade:ro
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      market-db:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      valkey:
+        condition: service_healthy
+      object-store:
+        condition: service_healthy
+      strategy-runner:
+        condition: service_healthy
+
+  strategy-runner:
+    build:
+      context: .
+      network: host
+      dockerfile: Dockerfile.runner
+      args:
+        QTRADE_BUILD_REVISION: ${QTRADE_BUILD_REVISION:-unknown}
+    network_mode: none
+    read_only: true
+    cap_drop: [ALL]
+    cap_add: [CHOWN, KILL, SETUID, SETGID, SYS_RESOURCE]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 16
+    cpus: 1.0
+    mem_limit: 768m
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=16m,nr_inodes=4096,mode=1777
+    volumes:
+      - strategy-runner-socket:/run/qtrade
+    healthcheck:
+      test: ["CMD", "python", "-m", "qtrade_runner.healthcheck"]
+      interval: 5s
+      timeout: 3s
+      start_period: 5s
+      retries: 12
+    restart: unless-stopped
+
+  realtime:
+    <<: *python
+    command: ["uvicorn", "qtrade_realtime.main:app", "--host", "0.0.0.0", "--port", "8000"]
+
+  web:
+    build:
+      context: .
+      network: host
+      dockerfile: apps/web/Dockerfile
+      args:
+        QTRADE_BUILD_REVISION: ${QTRADE_BUILD_REVISION:-unknown}
+    environment:
+      QTRADE_ENV: local
+      QTRADE_LIVE_TRADING_ENABLED: "false"
+      QTRADE_PUBLIC_ORIGIN: ${QTRADE_PUBLIC_ORIGIN:-http://localhost:13000}
+      QTRADE_API_ORIGIN: ${QTRADE_API_ORIGIN:-http://api:8000}
+      QTRADE_API_PUBLIC_ORIGIN: ${QTRADE_API_PUBLIC_ORIGIN:-http://localhost:18000}
+      QTRADE_OIDC_ISSUER: ${QTRADE_OIDC_ISSUER:-}
+      QTRADE_OIDC_CLIENT_ID: ${QTRADE_OIDC_CLIENT_ID:-}
+      QTRADE_OIDC_CLIENT_SECRET: ${QTRADE_OIDC_CLIENT_SECRET:-}
+      QTRADE_OIDC_TRANSACTION_KEY: ${QTRADE_OIDC_TRANSACTION_KEY:-}
+      QTRADE_BFF_SECRET: ${QTRADE_BFF_SECRET:-}
+      QTRADE_OIDC_ALLOW_HTTP: ${QTRADE_OIDC_ALLOW_HTTP:-false}
+      QTRADE_INSECURE_LOCAL_COOKIES: ${QTRADE_INSECURE_LOCAL_COOKIES:-false}
+    ports: ["127.0.0.1:13000:3000"]
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      start_period: 20s
+      retries: 6
+
+volumes:
+  postgres-data:
+  market-data:
+  valkey-data:
+  object-data:
+  strategy-runner-socket:

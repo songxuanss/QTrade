@@ -1,0 +1,59 @@
+{
+  "$id": "urn:qtrade:contracts:v1:BacktestWalkForwardWindow",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "train_end": {
+      "format": "date-time",
+      "title": "Train End",
+      "type": "string"
+    },
+    "train_samples": {
+      "minimum": 1,
+      "title": "Train Samples",
+      "type": "integer"
+    },
+    "train_start": {
+      "format": "date-time",
+      "title": "Train Start",
+      "type": "string"
+    },
+    "validation_end": {
+      "format": "date-time",
+      "title": "Validation End",
+      "type": "string"
+    },
+    "validation_samples": {
+      "minimum": 1,
+      "title": "Validation Samples",
+      "type": "integer"
+    },
+    "validation_start": {
+      "format": "date-time",
+      "title": "Validation Start",
+      "type": "string"
+    },
+    "workspace_id": {
+      "format": "uuid",
+      "title": "Workspace Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "workspace_id",
+    "train_start",
+    "train_end",
+    "validation_start",
+    "validation_end",
+    "train_samples",
+    "validation_samples"
+  ],
+  "title": "BacktestWalkForwardWindow",
+  "type": "object"
+}

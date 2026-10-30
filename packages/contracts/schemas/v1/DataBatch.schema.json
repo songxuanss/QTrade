@@ -1,0 +1,95 @@
+{
+  "$id": "urn:qtrade:contracts:v1:DataBatch",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "authorization_id": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Authorization Id",
+      "type": "string"
+    },
+    "batch_id": {
+      "format": "uuid",
+      "title": "Batch Id",
+      "type": "string"
+    },
+    "collected_at": {
+      "format": "date-time",
+      "title": "Collected At",
+      "type": "string"
+    },
+    "content_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Content Sha256",
+      "type": "string"
+    },
+    "granularity": {
+      "enum": [
+        "tick",
+        "1m",
+        "5m",
+        "15m",
+        "30m",
+        "1h",
+        "1d"
+      ],
+      "title": "Granularity",
+      "type": "string"
+    },
+    "ingestion_task_id": {
+      "format": "uuid",
+      "title": "Ingestion Task Id",
+      "type": "string"
+    },
+    "instrument_id": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Instrument Id",
+      "type": "string"
+    },
+    "object_key": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Object Key",
+      "type": "string"
+    },
+    "record_count": {
+      "minimum": 0,
+      "title": "Record Count",
+      "type": "integer"
+    },
+    "schema_version": {
+      "const": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "source": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Source",
+      "type": "string"
+    },
+    "workspace_id": {
+      "format": "uuid",
+      "title": "Workspace Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "workspace_id",
+    "batch_id",
+    "source",
+    "authorization_id",
+    "ingestion_task_id",
+    "instrument_id",
+    "granularity",
+    "collected_at",
+    "object_key",
+    "content_sha256",
+    "record_count"
+  ],
+  "title": "DataBatch",
+  "type": "object"
+}

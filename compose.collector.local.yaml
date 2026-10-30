@@ -1,0 +1,30 @@
+# Linux local-only profile for hosts whose bridge egress is unavailable.
+# Preserve the normal isolated bridge profile for remote/TLS deployments.
+services:
+  collector-db:
+    ports:
+      - "127.0.0.1:${COLLECTOR_LOCAL_DB_PORT:-15436}:5432"
+
+  collector:
+    network_mode: host
+    ports: !reset []
+    environment:
+      DATA_COLLECTION_DATABASE_URL: postgresql://collector:${COLLECTOR_DB_PASSWORD}@127.0.0.1:${COLLECTOR_LOCAL_DB_PORT:-15436}/collector
+      COLLECTOR_AUTHORIZER_URL: ${COLLECTOR_LOCAL_AUTHORIZER_URL:-http://127.0.0.1:3122/internal/data/authorize}
+      COLLECTOR_ALLOW_HTTP: "true"
+    # Host networking removes Docker's port mapping. Bind the process itself to
+    # loopback so this local profile does not publish the API on other interfaces.
+    command:
+      - uvicorn
+      - qtrade_collector.main:app
+      - --host
+      - "${COLLECTOR_BIND_ADDRESS:-127.0.0.1}"
+      - --port
+      - "${COLLECTOR_PORT:-18100}"
+      - --no-access-log
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request;urllib.request.urlopen('http://127.0.0.1:${COLLECTOR_PORT:-18100}/ready',timeout=5)"

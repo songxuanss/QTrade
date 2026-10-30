@@ -1,0 +1,122 @@
+{
+  "$id": "urn:qtrade:data:v1:PublicationManifest",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "batch_ids": {
+      "items": {
+        "format": "uuid",
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Batch Ids",
+      "type": "array"
+    },
+    "content_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Content Sha256",
+      "type": "string"
+    },
+    "dataset_id": {
+      "format": "uuid",
+      "title": "Dataset Id",
+      "type": "string"
+    },
+    "dataset_version": {
+      "minimum": 1,
+      "title": "Dataset Version",
+      "type": "integer"
+    },
+    "end": {
+      "format": "date-time",
+      "title": "End",
+      "type": "string"
+    },
+    "granularity": {
+      "enum": [
+        "1m",
+        "5m",
+        "15m",
+        "1h",
+        "1d"
+      ],
+      "title": "Granularity",
+      "type": "string"
+    },
+    "instrument_ids": {
+      "items": {
+        "maxLength": 256,
+        "minLength": 1,
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Instrument Ids",
+      "type": "array"
+    },
+    "published_at": {
+      "format": "date-time",
+      "title": "Published At",
+      "type": "string"
+    },
+    "quality": {
+      "enum": [
+        "verified",
+        "warning",
+        "unverified"
+      ],
+      "title": "Quality",
+      "type": "string"
+    },
+    "record_count": {
+      "minimum": 1,
+      "title": "Record Count",
+      "type": "integer"
+    },
+    "schema_version": {
+      "const": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "scope_id": {
+      "format": "uuid",
+      "title": "Scope Id",
+      "type": "string"
+    },
+    "source": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Source",
+      "type": "string"
+    },
+    "start": {
+      "format": "date-time",
+      "title": "Start",
+      "type": "string"
+    },
+    "transformation_version": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Transformation Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "scope_id",
+    "dataset_id",
+    "dataset_version",
+    "source",
+    "instrument_ids",
+    "granularity",
+    "start",
+    "end",
+    "record_count",
+    "batch_ids",
+    "content_sha256",
+    "transformation_version",
+    "published_at",
+    "quality"
+  ],
+  "title": "PublicationManifest",
+  "type": "object"
+}

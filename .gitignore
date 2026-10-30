@@ -1,0 +1,39 @@
+# Local configuration and credentials
+.env*
+!.env.example
+!.env.*.example
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Local tools and virtual environments
+.tools/
+.venv/
+venv/
+
+# Python caches and build outputs
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+build/
+dist/
+
+# Node.js and Next.js outputs
+node_modules/
+.next/
+*.tsbuildinfo
+apps/web/public/monaco/
+
+# Browser test outputs
+playwright-report/
+test-results/
+
+# Editor and OS metadata
+.DS_Store
+Thumbs.db

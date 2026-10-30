@@ -1,0 +1,117 @@
+{
+  "$id": "urn:qtrade:data:v1:CollectionSelection",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "actor_id": {
+      "format": "uuid",
+      "title": "Actor Id",
+      "type": "string"
+    },
+    "authorization_id": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Authorization Id",
+      "type": "string"
+    },
+    "correlation_id": {
+      "format": "uuid",
+      "title": "Correlation Id",
+      "type": "string"
+    },
+    "end": {
+      "format": "date-time",
+      "title": "End",
+      "type": "string"
+    },
+    "granularity": {
+      "enum": [
+        "tick",
+        "1m",
+        "5m",
+        "15m",
+        "1h",
+        "1d"
+      ],
+      "title": "Granularity",
+      "type": "string"
+    },
+    "instrument_ids": {
+      "default": [],
+      "items": {
+        "maxLength": 256,
+        "minLength": 1,
+        "type": "string"
+      },
+      "title": "Instrument Ids",
+      "type": "array"
+    },
+    "mode": {
+      "default": "missing",
+      "enum": [
+        "missing",
+        "all"
+      ],
+      "title": "Mode",
+      "type": "string"
+    },
+    "request_id": {
+      "format": "uuid",
+      "title": "Request Id",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "scope_id": {
+      "format": "uuid",
+      "title": "Scope Id",
+      "type": "string"
+    },
+    "snapshot_ids": {
+      "items": {
+        "format": "uuid",
+        "type": "string"
+      },
+      "maxItems": 100,
+      "minItems": 1,
+      "title": "Snapshot Ids",
+      "type": "array"
+    },
+    "source": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Source",
+      "type": "string"
+    },
+    "start": {
+      "format": "date-time",
+      "title": "Start",
+      "type": "string"
+    },
+    "transformation_version": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Transformation Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "scope_id",
+    "request_id",
+    "actor_id",
+    "correlation_id",
+    "snapshot_ids",
+    "source",
+    "authorization_id",
+    "granularity",
+    "start",
+    "end",
+    "transformation_version"
+  ],
+  "title": "CollectionSelection",
+  "type": "object"
+}

@@ -1,0 +1,48 @@
+.status {
+  margin: 8px 0 4px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+.status p {
+  margin: 4px 0;
+  font-size: 12px;
+  line-height: 1.65;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.status .title {
+  color: var(--text);
+  font-weight: 600;
+}
+.refresh {
+  margin-top: 8px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  font-size: 12px;
+  cursor: pointer;
+}
+.refresh:hover {
+  border-color: var(--accent);
+}
+.refresh:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.status details {
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 11px;
+}
+.status summary {
+  cursor: pointer;
+}
+.status code {
+  display: block;
+  margin-top: 6px;
+  overflow-wrap: anywhere;
+}

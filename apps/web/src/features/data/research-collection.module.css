@@ -1,0 +1,22 @@
+/* Both research editors share the same responsive frame; domain-specific
+   inputs and actions remain in their own panels. */
+.workspace :global(.data-section-heading) {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.workspace :global(.collector-form) {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+}
+
+.workspace :global(.collector-form) p {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
+.workspace :global(.collector-form) > button {
+  justify-self: start;
+}

@@ -1,0 +1,60 @@
+{
+  "$id": "urn:qtrade:data:v2:CollectionReplaySource",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "capture_id": {
+      "format": "uuid",
+      "title": "Capture Id",
+      "type": "string"
+    },
+    "captured_at": {
+      "format": "date-time",
+      "title": "Captured At",
+      "type": "string"
+    },
+    "content_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Content Sha256",
+      "type": "string"
+    },
+    "kind": {
+      "enum": [
+        "calendar",
+        "history",
+        "cached_history",
+        "factor_history",
+        "http_response"
+      ],
+      "title": "Kind",
+      "type": "string"
+    },
+    "response_rows": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Response Rows"
+    },
+    "schema_version": {
+      "const": 2,
+      "default": 2,
+      "title": "Schema Version",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "capture_id",
+    "kind",
+    "content_sha256",
+    "captured_at",
+    "response_rows"
+  ],
+  "title": "CollectionReplaySource",
+  "type": "object"
+}

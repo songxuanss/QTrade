@@ -1,0 +1,51 @@
+{
+  "$id": "urn:qtrade:data:v1:FreshnessExpectation",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "available_at": {
+      "format": "date-time",
+      "title": "Available At",
+      "type": "string"
+    },
+    "basis": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Basis",
+      "type": "string"
+    },
+    "complete_through": {
+      "format": "date",
+      "title": "Complete Through",
+      "type": "string"
+    },
+    "grace_seconds": {
+      "default": 0,
+      "maximum": 604800,
+      "minimum": 0,
+      "title": "Grace Seconds",
+      "type": "integer"
+    },
+    "rule_version": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Rule Version",
+      "type": "string"
+    },
+    "timezone": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Timezone",
+      "type": "string"
+    }
+  },
+  "required": [
+    "complete_through",
+    "available_at",
+    "timezone",
+    "rule_version",
+    "basis"
+  ],
+  "title": "FreshnessExpectation",
+  "type": "object"
+}

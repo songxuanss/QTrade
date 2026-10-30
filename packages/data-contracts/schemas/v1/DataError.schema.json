@@ -1,0 +1,60 @@
+{
+  "$id": "urn:qtrade:data:v1:DataError",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "code": {
+      "enum": [
+        "invalid_input",
+        "unauthorized",
+        "forbidden",
+        "not_found",
+        "conflict",
+        "unsupported",
+        "unverified",
+        "rate_limited",
+        "timeout",
+        "unavailable"
+      ],
+      "title": "Code",
+      "type": "string"
+    },
+    "correlation_id": {
+      "format": "uuid",
+      "title": "Correlation Id",
+      "type": "string"
+    },
+    "retry_after_seconds": {
+      "anyOf": [
+        {
+          "maximum": 86400,
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Retry After Seconds"
+    },
+    "schema_version": {
+      "const": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "scope_id": {
+      "format": "uuid",
+      "title": "Scope Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "scope_id",
+    "code",
+    "correlation_id"
+  ],
+  "title": "DataError",
+  "type": "object"
+}

@@ -1,0 +1,55 @@
+{
+  "$id": "urn:qtrade:data:v1:CollectionCostEstimate",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Uncached execution upper bound before retries, expressed in internal credit.\n\nPreview-time metadata is excluded; zero is a legitimate lower bound when\nevery needed source response is cached or every partition can be reused.",
+  "properties": {
+    "accounting": {
+      "const": "internal_credit_safeguard",
+      "title": "Accounting",
+      "type": "string"
+    },
+    "basis": {
+      "maxLength": 1000,
+      "minLength": 1,
+      "title": "Basis",
+      "type": "string"
+    },
+    "calls_max": {
+      "minimum": 0,
+      "title": "Calls Max",
+      "type": "integer"
+    },
+    "calls_min": {
+      "minimum": 0,
+      "title": "Calls Min",
+      "type": "integer"
+    },
+    "credits_max": {
+      "minimum": 0,
+      "title": "Credits Max",
+      "type": "integer"
+    },
+    "credits_min": {
+      "minimum": 0,
+      "title": "Credits Min",
+      "type": "integer"
+    },
+    "includes_retries": {
+      "const": false,
+      "title": "Includes Retries",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "calls_min",
+    "calls_max",
+    "credits_min",
+    "credits_max",
+    "accounting",
+    "basis",
+    "includes_retries"
+  ],
+  "title": "CollectionCostEstimate",
+  "type": "object"
+}

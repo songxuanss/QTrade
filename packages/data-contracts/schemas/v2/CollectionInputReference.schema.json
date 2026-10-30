@@ -1,0 +1,219 @@
+{
+  "$defs": {
+    "FactorDefinition": {
+      "additionalProperties": false,
+      "properties": {
+        "available": {
+          "title": "Available",
+          "type": "boolean"
+        },
+        "calc_version": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Calc Version",
+          "type": "string"
+        },
+        "category": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Category",
+          "type": "string"
+        },
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "factor_id": {
+          "pattern": "^[a-zA-Z0-9_]{1,80}$",
+          "title": "Factor Id",
+          "type": "string"
+        },
+        "name": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "unavailable_reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Unavailable Reason"
+        },
+        "unit": {
+          "title": "Unit",
+          "type": "string"
+        },
+        "update_frequency": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Update Frequency",
+          "type": "string"
+        }
+      },
+      "required": [
+        "factor_id",
+        "name",
+        "category",
+        "unit",
+        "description",
+        "calc_version",
+        "update_frequency",
+        "available"
+      ],
+      "title": "FactorDefinition",
+      "type": "object"
+    }
+  },
+  "$id": "urn:qtrade:data:v2:CollectionInputReference",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "dataset_kind": {
+      "enum": [
+        "bars",
+        "factors"
+      ],
+      "title": "Dataset Kind",
+      "type": "string"
+    },
+    "end": {
+      "format": "date-time",
+      "title": "End",
+      "type": "string"
+    },
+    "factor_definition": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/FactorDefinition"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "field": {
+      "anyOf": [
+        {
+          "maxLength": 256,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Field"
+    },
+    "granularity": {
+      "enum": [
+        "1m",
+        "5m",
+        "15m",
+        "30m",
+        "1h",
+        "1d"
+      ],
+      "title": "Granularity",
+      "type": "string"
+    },
+    "input_id": {
+      "format": "uuid",
+      "title": "Input Id",
+      "type": "string"
+    },
+    "input_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Input Sha256",
+      "type": "string"
+    },
+    "instrument_id": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Instrument Id",
+      "type": "string"
+    },
+    "instrument_name": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Instrument Name",
+      "type": "string"
+    },
+    "mapping_version": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Mapping Version",
+      "type": "string"
+    },
+    "owner_job_id": {
+      "format": "uuid",
+      "title": "Owner Job Id",
+      "type": "string"
+    },
+    "part_id": {
+      "format": "uuid",
+      "title": "Part Id",
+      "type": "string"
+    },
+    "prepared_at": {
+      "format": "date-time",
+      "title": "Prepared At",
+      "type": "string"
+    },
+    "row_count": {
+      "maximum": 100000,
+      "minimum": 0,
+      "title": "Row Count",
+      "type": "integer"
+    },
+    "schema_version": {
+      "const": 2,
+      "default": 2,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "scope_id": {
+      "format": "uuid",
+      "title": "Scope Id",
+      "type": "string"
+    },
+    "source": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Source",
+      "type": "string"
+    },
+    "start": {
+      "format": "date-time",
+      "title": "Start",
+      "type": "string"
+    }
+  },
+  "required": [
+    "scope_id",
+    "owner_job_id",
+    "part_id",
+    "input_id",
+    "input_sha256",
+    "instrument_id",
+    "instrument_name",
+    "field",
+    "source",
+    "dataset_kind",
+    "granularity",
+    "start",
+    "end",
+    "mapping_version",
+    "prepared_at",
+    "row_count",
+    "factor_definition"
+  ],
+  "title": "CollectionInputReference",
+  "type": "object"
+}

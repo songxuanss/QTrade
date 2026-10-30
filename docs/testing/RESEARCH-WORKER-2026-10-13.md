@@ -1,0 +1,7 @@
+# 研究持久队列和Worker阶段证据
+
+2026-10-13；OpenSpec3.3继续实施，任务不勾选。新增迁移0007研究队列与核心ResearchWorker，原始/标准证据及质量清单继续使用既有不可变表。queue保存queued/running/completed/no_observations/failed、有限尝试、租约及安全错误码，completed必须有当前作用域发布引用。finish额外检查产物属于同一冻结请求，不允许另一运行的发布伪装完成。
+
+`python scripts/verification-research-persistence.py`29项通过，实际随机隔离PG中验证三线程重复入队及竞争领取、只领取一次、旧租约拒绝、过期重新领取、达到尝试上限终止、跨作用域拒绝；Worker使用受控分页Adapter运行后保存两条非空标准记录、非空原始血缘和完成发布，重建Repository后仍可读取。ruff与mypy通过。受控源仍是fixture，不计真实供应商闭环。
+
+新增迁移仅在隔离数据库验证，尚未应用到实际部署。服务启动消费循环、公开提交/状态查询及实际财务Provider组合尚未连接；本轮不声明生产Worker或UI已可用。执行期间暂无续租，默认600秒租约，超时会拒绝finish并按有限恢复重新领取；后续长任务需要续租或分片执行。失败重试、取消、增量、预算及调度按原Goal继续完成，不能从本轮队列测试推出这些能力已经通过。

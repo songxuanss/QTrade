@@ -1,0 +1,149 @@
+{
+  "$id": "urn:qtrade:contracts:v1:Order",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "account_id": {
+      "format": "uuid",
+      "title": "Account Id",
+      "type": "string"
+    },
+    "average_fill_price": {
+      "anyOf": [
+        {
+          "pattern": "^(?:0\\.0*[1-9][0-9]*|[1-9][0-9]*(?:\\.[0-9]+)?)$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Average Fill Price"
+    },
+    "command_id": {
+      "format": "uuid",
+      "title": "Command Id",
+      "type": "string"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "filled_quantity": {
+      "default": "0",
+      "pattern": "^(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?$",
+      "title": "Filled Quantity",
+      "type": "string"
+    },
+    "idempotency_key": {
+      "format": "uuid",
+      "title": "Idempotency Key",
+      "type": "string"
+    },
+    "instrument_id": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Instrument Id",
+      "type": "string"
+    },
+    "intent_id": {
+      "format": "uuid",
+      "title": "Intent Id",
+      "type": "string"
+    },
+    "order_id": {
+      "format": "uuid",
+      "title": "Order Id",
+      "type": "string"
+    },
+    "quantity": {
+      "pattern": "^(?:0\\.0*[1-9][0-9]*|[1-9][0-9]*(?:\\.[0-9]+)?)$",
+      "title": "Quantity",
+      "type": "string"
+    },
+    "revision": {
+      "minimum": 1,
+      "title": "Revision",
+      "type": "integer"
+    },
+    "runtime_id": {
+      "format": "uuid",
+      "title": "Runtime Id",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "side": {
+      "enum": [
+        "buy",
+        "sell"
+      ],
+      "title": "Side",
+      "type": "string"
+    },
+    "status": {
+      "enum": [
+        "created",
+        "risk_approved",
+        "submitted",
+        "partially_filled",
+        "cancel_pending",
+        "filled",
+        "cancelled",
+        "rejected",
+        "timeout",
+        "failed"
+      ],
+      "title": "Status",
+      "type": "string"
+    },
+    "terminal_reason": {
+      "anyOf": [
+        {
+          "maxLength": 256,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Terminal Reason"
+    },
+    "updated_at": {
+      "format": "date-time",
+      "title": "Updated At",
+      "type": "string"
+    },
+    "workspace_id": {
+      "format": "uuid",
+      "title": "Workspace Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "workspace_id",
+    "order_id",
+    "account_id",
+    "runtime_id",
+    "intent_id",
+    "command_id",
+    "idempotency_key",
+    "instrument_id",
+    "side",
+    "status",
+    "quantity",
+    "created_at",
+    "updated_at",
+    "revision"
+  ],
+  "title": "Order",
+  "type": "object"
+}

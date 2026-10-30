@@ -1,0 +1,120 @@
+{
+  "$id": "urn:qtrade:contracts:v1:OrderEvent",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "event_id": {
+      "format": "uuid",
+      "title": "Event Id",
+      "type": "string"
+    },
+    "filled_quantity": {
+      "pattern": "^(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?$",
+      "title": "Filled Quantity",
+      "type": "string"
+    },
+    "from_status": {
+      "anyOf": [
+        {
+          "enum": [
+            "created",
+            "risk_approved",
+            "submitted",
+            "partially_filled",
+            "cancel_pending",
+            "filled",
+            "cancelled",
+            "rejected",
+            "timeout",
+            "failed"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "From Status"
+    },
+    "occurred_at": {
+      "format": "date-time",
+      "title": "Occurred At",
+      "type": "string"
+    },
+    "order_id": {
+      "format": "uuid",
+      "title": "Order Id",
+      "type": "string"
+    },
+    "reason": {
+      "anyOf": [
+        {
+          "maxLength": 256,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Reason"
+    },
+    "revision": {
+      "minimum": 1,
+      "title": "Revision",
+      "type": "integer"
+    },
+    "schema_version": {
+      "const": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "source": {
+      "enum": [
+        "risk",
+        "broker",
+        "user",
+        "recovery",
+        "system"
+      ],
+      "title": "Source",
+      "type": "string"
+    },
+    "to_status": {
+      "enum": [
+        "created",
+        "risk_approved",
+        "submitted",
+        "partially_filled",
+        "cancel_pending",
+        "filled",
+        "cancelled",
+        "rejected",
+        "timeout",
+        "failed"
+      ],
+      "title": "To Status",
+      "type": "string"
+    },
+    "workspace_id": {
+      "format": "uuid",
+      "title": "Workspace Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "workspace_id",
+    "event_id",
+    "order_id",
+    "revision",
+    "from_status",
+    "to_status",
+    "occurred_at",
+    "source",
+    "filled_quantity"
+  ],
+  "title": "OrderEvent",
+  "type": "object"
+}

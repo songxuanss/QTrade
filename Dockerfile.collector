@@ -1,0 +1,18 @@
+FROM python:3.12-slim
+WORKDIR /build
+COPY packages/data-contracts /build/contracts
+COPY packages/data-core /build/core
+COPY adapters/data_postgres /build/postgres
+COPY adapters/data_mairui /build/mairui
+COPY adapters/data_files /build/files
+COPY adapters/data_http /build/http
+COPY apps/collector /build/collector
+RUN --mount=type=cache,target=/root/.cache/pip pip install /build/contracts /build/core /build/postgres /build/mairui /build/files /build/http /build/collector \
+    && useradd --uid 10001 --create-home collector \
+    && mkdir -p /data/archives && chown collector:collector /data/archives \
+    && rm -rf /build
+USER collector
+WORKDIR /data
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
+EXPOSE 8100
+CMD ["uvicorn", "qtrade_collector.main:app", "--host", "0.0.0.0", "--port", "8100", "--no-access-log"]

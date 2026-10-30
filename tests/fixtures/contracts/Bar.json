@@ -1,0 +1,17 @@
+{
+  "batch_id": "00000000-0000-4000-8000-000000000001",
+  "close": "10.5",
+  "dataset_id": "00000000-0000-4000-8000-000000000001",
+  "granularity": "1m",
+  "high": "11",
+  "instrument_id": "MOCK:ABC",
+  "low": "9",
+  "open": "10",
+  "quality": "valid",
+  "schema_version": 1,
+  "specification_version": 1,
+  "timestamp": "2026-10-01T00:00:00Z",
+  "value": "1000",
+  "volume": "100",
+  "workspace_id": "00000000-0000-4000-8000-000000000001"
+}

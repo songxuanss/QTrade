@@ -1,0 +1,36 @@
+{
+  "$id": "urn:qtrade:data:v2:CollectionReplayLimits",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "max_bytes": {
+      "default": 134217728,
+      "maximum": 134217728,
+      "minimum": 1,
+      "title": "Max Bytes",
+      "type": "integer"
+    },
+    "max_receipts": {
+      "default": 4096,
+      "maximum": 4096,
+      "minimum": 1,
+      "title": "Max Receipts",
+      "type": "integer"
+    },
+    "max_rows": {
+      "default": 100000,
+      "maximum": 100000,
+      "minimum": 1,
+      "title": "Max Rows",
+      "type": "integer"
+    },
+    "schema_version": {
+      "const": 2,
+      "default": 2,
+      "title": "Schema Version",
+      "type": "integer"
+    }
+  },
+  "title": "CollectionReplayLimits",
+  "type": "object"
+}

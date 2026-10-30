@@ -1,0 +1,47 @@
+{
+  "$id": "urn:qtrade:data:v2:ResearchReplaySubmission",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "actor_id": {
+      "format": "uuid",
+      "title": "Actor Id",
+      "type": "string"
+    },
+    "control_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Control Sha256",
+      "type": "string"
+    },
+    "parent_request_id": {
+      "format": "uuid",
+      "title": "Parent Request Id",
+      "type": "string"
+    },
+    "request_id": {
+      "format": "uuid",
+      "title": "Request Id",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": 2,
+      "default": 2,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "scope_id": {
+      "format": "uuid",
+      "title": "Scope Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "actor_id",
+    "scope_id",
+    "request_id",
+    "parent_request_id",
+    "control_sha256"
+  ],
+  "title": "ResearchReplaySubmission",
+  "type": "object"
+}

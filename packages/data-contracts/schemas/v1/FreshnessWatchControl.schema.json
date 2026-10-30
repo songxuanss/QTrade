@@ -1,0 +1,22 @@
+{
+  "$id": "urn:qtrade:data:v1:FreshnessWatchControl",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "enabled": {
+      "title": "Enabled",
+      "type": "boolean"
+    },
+    "revision": {
+      "minimum": 1,
+      "title": "Revision",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "revision",
+    "enabled"
+  ],
+  "title": "FreshnessWatchControl",
+  "type": "object"
+}

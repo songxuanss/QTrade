@@ -1,0 +1,1 @@
+"""Isolated strategy execution process."""

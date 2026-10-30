@@ -1,0 +1,114 @@
+{
+  "$id": "urn:qtrade:contracts:v1:Instrument",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "calendar_id": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Calendar Id",
+      "type": "string"
+    },
+    "contract_multiplier": {
+      "pattern": "^(?:0\\.0*[1-9][0-9]*|[1-9][0-9]*(?:\\.[0-9]+)?)$",
+      "title": "Contract Multiplier",
+      "type": "string"
+    },
+    "currency": {
+      "pattern": "^[A-Z]{3,10}$",
+      "title": "Currency",
+      "type": "string"
+    },
+    "enabled": {
+      "title": "Enabled",
+      "type": "boolean"
+    },
+    "exchange": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Exchange",
+      "type": "string"
+    },
+    "instrument_id": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Instrument Id",
+      "type": "string"
+    },
+    "lot_size": {
+      "pattern": "^(?:0\\.0*[1-9][0-9]*|[1-9][0-9]*(?:\\.[0-9]+)?)$",
+      "title": "Lot Size",
+      "type": "string"
+    },
+    "market": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Market",
+      "type": "string"
+    },
+    "name": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Name",
+      "type": "string"
+    },
+    "price_precision": {
+      "maximum": 18,
+      "minimum": 0,
+      "title": "Price Precision",
+      "type": "integer"
+    },
+    "quantity_precision": {
+      "maximum": 18,
+      "minimum": 0,
+      "title": "Quantity Precision",
+      "type": "integer"
+    },
+    "schema_version": {
+      "const": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "specification_version": {
+      "minimum": 1,
+      "title": "Specification Version",
+      "type": "integer"
+    },
+    "tick_size": {
+      "pattern": "^(?:0\\.0*[1-9][0-9]*|[1-9][0-9]*(?:\\.[0-9]+)?)$",
+      "title": "Tick Size",
+      "type": "string"
+    },
+    "timezone": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Timezone",
+      "type": "string"
+    },
+    "workspace_id": {
+      "format": "uuid",
+      "title": "Workspace Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "workspace_id",
+    "instrument_id",
+    "specification_version",
+    "name",
+    "market",
+    "exchange",
+    "currency",
+    "tick_size",
+    "lot_size",
+    "contract_multiplier",
+    "price_precision",
+    "quantity_precision",
+    "timezone",
+    "calendar_id",
+    "enabled"
+  ],
+  "title": "Instrument",
+  "type": "object"
+}

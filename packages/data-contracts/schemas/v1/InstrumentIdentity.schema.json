@@ -1,0 +1,77 @@
+{
+  "$id": "urn:qtrade:data:v1:InstrumentIdentity",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "asset_kind": {
+      "enum": [
+        "stock",
+        "index",
+        "etf",
+        "future",
+        "crypto"
+      ],
+      "title": "Asset Kind",
+      "type": "string"
+    },
+    "code": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Code",
+      "type": "string"
+    },
+    "currency": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Currency",
+      "type": "string"
+    },
+    "instrument_id": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Instrument Id",
+      "type": "string"
+    },
+    "market": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Market",
+      "type": "string"
+    },
+    "name": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Name",
+      "type": "string"
+    },
+    "product_type": {
+      "default": "cash",
+      "enum": [
+        "cash",
+        "dated",
+        "continuous",
+        "spot",
+        "perpetual"
+      ],
+      "title": "Product Type",
+      "type": "string"
+    },
+    "venue": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Venue",
+      "type": "string"
+    }
+  },
+  "required": [
+    "instrument_id",
+    "asset_kind",
+    "market",
+    "venue",
+    "code",
+    "name",
+    "currency"
+  ],
+  "title": "InstrumentIdentity",
+  "type": "object"
+}

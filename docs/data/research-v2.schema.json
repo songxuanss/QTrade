@@ -1,0 +1,1038 @@
+{
+  "$defs": {
+    "AdjustmentFactor": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": 2,
+          "default": 2,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "scope_id": {
+          "format": "uuid",
+          "title": "Scope Id",
+          "type": "string"
+        },
+        "source": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Source",
+          "type": "string"
+        },
+        "instrument_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Instrument Id",
+          "type": "string"
+        },
+        "collected_at": {
+          "format": "date-time",
+          "title": "Collected At",
+          "type": "string"
+        },
+        "knowledge": {
+          "$ref": "#/$defs/KnowledgeTime",
+          "default": {
+            "status": "unknown",
+            "known_at": null,
+            "evidence_reference": null
+          }
+        },
+        "source_revision": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Revision"
+        },
+        "mapping_version": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Mapping Version",
+          "type": "string"
+        },
+        "kind": {
+          "const": "adjustment_factor",
+          "default": "adjustment_factor",
+          "title": "Kind",
+          "type": "string"
+        },
+        "observation_date": {
+          "format": "date",
+          "title": "Observation Date",
+          "type": "string"
+        },
+        "adjustment": {
+          "enum": [
+            "forward",
+            "backward",
+            "total_return"
+          ],
+          "title": "Adjustment",
+          "type": "string"
+        },
+        "factor": {
+          "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$",
+          "title": "Factor",
+          "type": "string"
+        },
+        "base_date": {
+          "format": "date",
+          "title": "Base Date",
+          "type": "string"
+        },
+        "base_value": {
+          "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$",
+          "title": "Base Value",
+          "type": "string"
+        },
+        "algorithm_version": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Algorithm Version",
+          "type": "string"
+        },
+        "convention_evidence": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Convention Evidence",
+          "type": "string"
+        }
+      },
+      "required": [
+        "scope_id",
+        "source",
+        "instrument_id",
+        "collected_at",
+        "mapping_version",
+        "observation_date",
+        "adjustment",
+        "factor",
+        "base_date",
+        "base_value",
+        "algorithm_version",
+        "convention_evidence"
+      ],
+      "title": "AdjustmentFactor",
+      "type": "object"
+    },
+    "CorporateAction": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": 2,
+          "default": 2,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "scope_id": {
+          "format": "uuid",
+          "title": "Scope Id",
+          "type": "string"
+        },
+        "source": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Source",
+          "type": "string"
+        },
+        "instrument_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Instrument Id",
+          "type": "string"
+        },
+        "collected_at": {
+          "format": "date-time",
+          "title": "Collected At",
+          "type": "string"
+        },
+        "knowledge": {
+          "$ref": "#/$defs/KnowledgeTime",
+          "default": {
+            "status": "unknown",
+            "known_at": null,
+            "evidence_reference": null
+          }
+        },
+        "source_revision": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Revision"
+        },
+        "mapping_version": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Mapping Version",
+          "type": "string"
+        },
+        "kind": {
+          "const": "corporate_action",
+          "default": "corporate_action",
+          "title": "Kind",
+          "type": "string"
+        },
+        "source_event_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Source Event Id",
+          "type": "string"
+        },
+        "action": {
+          "enum": [
+            "distribution",
+            "split",
+            "consolidation",
+            "rights"
+          ],
+          "title": "Action",
+          "type": "string"
+        },
+        "announcement_date": {
+          "anyOf": [
+            {
+              "format": "date",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Announcement Date"
+        },
+        "record_date": {
+          "anyOf": [
+            {
+              "format": "date",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Record Date"
+        },
+        "ex_date": {
+          "anyOf": [
+            {
+              "format": "date",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Ex Date"
+        },
+        "payment_date": {
+          "anyOf": [
+            {
+              "format": "date",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Payment Date"
+        },
+        "listing_date": {
+          "anyOf": [
+            {
+              "format": "date",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Listing Date"
+        },
+        "status": {
+          "enum": [
+            "proposed",
+            "approved",
+            "implemented",
+            "cancelled",
+            "unknown"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "cash": {
+          "anyOf": [
+            {
+              "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cash"
+        },
+        "cash_currency": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cash Currency"
+        },
+        "cash_tax_basis": {
+          "default": "unknown",
+          "enum": [
+            "before_tax",
+            "after_tax",
+            "unknown"
+          ],
+          "title": "Cash Tax Basis",
+          "type": "string"
+        },
+        "basis_shares": {
+          "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$",
+          "title": "Basis Shares",
+          "type": "string"
+        },
+        "bonus_shares": {
+          "anyOf": [
+            {
+              "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Bonus Shares"
+        },
+        "transfer_shares": {
+          "anyOf": [
+            {
+              "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Transfer Shares"
+        },
+        "split_ratio": {
+          "anyOf": [
+            {
+              "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Split Ratio"
+        },
+        "rights_shares": {
+          "anyOf": [
+            {
+              "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rights Shares"
+        },
+        "rights_price": {
+          "anyOf": [
+            {
+              "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rights Price"
+        },
+        "terms_evidence": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Terms Evidence",
+          "type": "string"
+        }
+      },
+      "required": [
+        "scope_id",
+        "source",
+        "instrument_id",
+        "collected_at",
+        "mapping_version",
+        "source_event_id",
+        "action",
+        "status",
+        "basis_shares",
+        "terms_evidence"
+      ],
+      "title": "CorporateAction",
+      "type": "object"
+    },
+    "FinancialMetric": {
+      "additionalProperties": false,
+      "properties": {
+        "field_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Field Id",
+          "type": "string"
+        },
+        "name": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "original_value": {
+          "anyOf": [
+            {
+              "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Original Value"
+        },
+        "original_unit": {
+          "$ref": "#/$defs/UnitEvidence"
+        },
+        "standard_value": {
+          "anyOf": [
+            {
+              "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Standard Value"
+        },
+        "standard_unit": {
+          "$ref": "#/$defs/UnitEvidence"
+        },
+        "missing_reason": {
+          "anyOf": [
+            {
+              "enum": [
+                "provider_null",
+                "not_reported",
+                "not_authorized"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Missing Reason"
+        },
+        "normalization": {
+          "enum": [
+            "identity",
+            "converted",
+            "unresolved"
+          ],
+          "title": "Normalization",
+          "type": "string"
+        },
+        "conversion_version": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Conversion Version"
+        }
+      },
+      "required": [
+        "field_id",
+        "name",
+        "original_value",
+        "original_unit",
+        "standard_value",
+        "standard_unit",
+        "normalization"
+      ],
+      "title": "FinancialMetric",
+      "type": "object"
+    },
+    "FinancialStatement": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": 2,
+          "default": 2,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "scope_id": {
+          "format": "uuid",
+          "title": "Scope Id",
+          "type": "string"
+        },
+        "source": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Source",
+          "type": "string"
+        },
+        "instrument_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Instrument Id",
+          "type": "string"
+        },
+        "collected_at": {
+          "format": "date-time",
+          "title": "Collected At",
+          "type": "string"
+        },
+        "knowledge": {
+          "$ref": "#/$defs/KnowledgeTime",
+          "default": {
+            "status": "unknown",
+            "known_at": null,
+            "evidence_reference": null
+          }
+        },
+        "source_revision": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Revision"
+        },
+        "mapping_version": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Mapping Version",
+          "type": "string"
+        },
+        "kind": {
+          "const": "financial_statement",
+          "default": "financial_statement",
+          "title": "Kind",
+          "type": "string"
+        },
+        "statement": {
+          "enum": [
+            "balance",
+            "income",
+            "cashflow"
+          ],
+          "title": "Statement",
+          "type": "string"
+        },
+        "report_period": {
+          "format": "date",
+          "title": "Report Period",
+          "type": "string"
+        },
+        "disclosure_date": {
+          "anyOf": [
+            {
+              "format": "date",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Disclosure Date"
+        },
+        "disclosure_precision": {
+          "default": "unknown",
+          "enum": [
+            "day",
+            "unknown"
+          ],
+          "title": "Disclosure Precision",
+          "type": "string"
+        },
+        "period_semantics": {
+          "enum": [
+            "point_in_time",
+            "year_to_date",
+            "single_period",
+            "unknown"
+          ],
+          "title": "Period Semantics",
+          "type": "string"
+        },
+        "period_semantics_evidence": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Period Semantics Evidence"
+        },
+        "accounting_scope": {
+          "default": "unknown",
+          "enum": [
+            "consolidated",
+            "parent",
+            "unknown"
+          ],
+          "title": "Accounting Scope",
+          "type": "string"
+        },
+        "metrics": {
+          "items": {
+            "$ref": "#/$defs/FinancialMetric"
+          },
+          "minItems": 1,
+          "title": "Metrics",
+          "type": "array"
+        }
+      },
+      "required": [
+        "scope_id",
+        "source",
+        "instrument_id",
+        "collected_at",
+        "mapping_version",
+        "statement",
+        "report_period",
+        "period_semantics",
+        "metrics"
+      ],
+      "title": "FinancialStatement",
+      "type": "object"
+    },
+    "KnowledgeTime": {
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "default": "unknown",
+          "enum": [
+            "unknown",
+            "evidenced"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "known_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Known At"
+        },
+        "evidence_reference": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Evidence Reference"
+        }
+      },
+      "title": "KnowledgeTime",
+      "type": "object"
+    },
+    "MembershipInterval": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": 2,
+          "default": 2,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "scope_id": {
+          "format": "uuid",
+          "title": "Scope Id",
+          "type": "string"
+        },
+        "source": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Source",
+          "type": "string"
+        },
+        "instrument_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Instrument Id",
+          "type": "string"
+        },
+        "collected_at": {
+          "format": "date-time",
+          "title": "Collected At",
+          "type": "string"
+        },
+        "knowledge": {
+          "$ref": "#/$defs/KnowledgeTime",
+          "default": {
+            "status": "unknown",
+            "known_at": null,
+            "evidence_reference": null
+          }
+        },
+        "source_revision": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Revision"
+        },
+        "mapping_version": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Mapping Version",
+          "type": "string"
+        },
+        "kind": {
+          "const": "membership_interval",
+          "default": "membership_interval",
+          "title": "Kind",
+          "type": "string"
+        },
+        "universe_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Universe Id",
+          "type": "string"
+        },
+        "valid_from": {
+          "format": "date",
+          "title": "Valid From",
+          "type": "string"
+        },
+        "valid_until": {
+          "anyOf": [
+            {
+              "format": "date",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Valid Until"
+        },
+        "interval_evidence": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Interval Evidence",
+          "type": "string"
+        }
+      },
+      "required": [
+        "scope_id",
+        "source",
+        "instrument_id",
+        "collected_at",
+        "mapping_version",
+        "universe_id",
+        "valid_from",
+        "interval_evidence"
+      ],
+      "title": "MembershipInterval",
+      "type": "object"
+    },
+    "SecurityIdentityChange": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": 2,
+          "default": 2,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "scope_id": {
+          "format": "uuid",
+          "title": "Scope Id",
+          "type": "string"
+        },
+        "source": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Source",
+          "type": "string"
+        },
+        "instrument_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Instrument Id",
+          "type": "string"
+        },
+        "collected_at": {
+          "format": "date-time",
+          "title": "Collected At",
+          "type": "string"
+        },
+        "knowledge": {
+          "$ref": "#/$defs/KnowledgeTime",
+          "default": {
+            "status": "unknown",
+            "known_at": null,
+            "evidence_reference": null
+          }
+        },
+        "source_revision": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Revision"
+        },
+        "mapping_version": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Mapping Version",
+          "type": "string"
+        },
+        "kind": {
+          "const": "security_identity_change",
+          "default": "security_identity_change",
+          "title": "Kind",
+          "type": "string"
+        },
+        "security_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Security Id",
+          "type": "string"
+        },
+        "previous_instrument_id": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Previous Instrument Id"
+        },
+        "change": {
+          "enum": [
+            "listing",
+            "delisting",
+            "code",
+            "name",
+            "venue"
+          ],
+          "title": "Change",
+          "type": "string"
+        },
+        "effective_date": {
+          "format": "date",
+          "title": "Effective Date",
+          "type": "string"
+        },
+        "previous_name": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Previous Name"
+        },
+        "name": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "change_evidence": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Change Evidence",
+          "type": "string"
+        }
+      },
+      "required": [
+        "scope_id",
+        "source",
+        "instrument_id",
+        "collected_at",
+        "mapping_version",
+        "security_id",
+        "change",
+        "effective_date",
+        "name",
+        "change_evidence"
+      ],
+      "title": "SecurityIdentityChange",
+      "type": "object"
+    },
+    "UnitEvidence": {
+      "additionalProperties": false,
+      "properties": {
+        "unit": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Unit"
+        },
+        "basis": {
+          "default": "unknown",
+          "enum": [
+            "unknown",
+            "documented",
+            "provider",
+            "local_definition"
+          ],
+          "title": "Basis",
+          "type": "string"
+        },
+        "evidence_reference": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Evidence Reference"
+        }
+      },
+      "title": "UnitEvidence",
+      "type": "object"
+    }
+  },
+  "discriminator": {
+    "mapping": {
+      "adjustment_factor": "#/$defs/AdjustmentFactor",
+      "corporate_action": "#/$defs/CorporateAction",
+      "financial_statement": "#/$defs/FinancialStatement",
+      "membership_interval": "#/$defs/MembershipInterval",
+      "security_identity_change": "#/$defs/SecurityIdentityChange"
+    },
+    "propertyName": "kind"
+  },
+  "oneOf": [
+    {
+      "$ref": "#/$defs/FinancialStatement"
+    },
+    {
+      "$ref": "#/$defs/MembershipInterval"
+    },
+    {
+      "$ref": "#/$defs/SecurityIdentityChange"
+    },
+    {
+      "$ref": "#/$defs/CorporateAction"
+    },
+    {
+      "$ref": "#/$defs/AdjustmentFactor"
+    }
+  ]
+}

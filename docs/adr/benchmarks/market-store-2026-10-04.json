@@ -1,0 +1,25 @@
+{
+  "date": "2026-10-04",
+  "host": {"cpu": "Intel N100", "cores": 4, "memory_gib": 14},
+  "containers": {
+    "timescaledb": "timescale/timescaledb:2.30.2-pg17@sha256:b346edcdb51a1fd6020e3965e0bd1c9f3406fa6d5fbce1e28f4852587ef934e2",
+    "clickhouse": "clickhouse/clickhouse-server:26.8.4@sha256:b1d9f9baec7727c779a6febb2a95eb08a8e1de3f463294e3ebb35c3d3fb30360"
+  },
+  "dataset": {"rows": 5000000, "instruments": 1000, "bars_per_instrument": 5000, "grain_seconds": 60, "synthetic_seed": 42},
+  "repetitions": 5,
+  "warm_cache": true,
+  "metrics": {
+    "load_seconds": {"timescaledb": 40.88629487300932, "clickhouse": 4.028541681997012},
+    "single_instrument_time_range_execution_seconds_median": {"timescaledb": 0.002135, "clickhouse": 0.007},
+    "recent_cross_section_execution_seconds_median": {"timescaledb": 0.025974, "clickhouse": 0.02},
+    "stored_bytes": {"timescaledb_hypertable_including_indexes": 673538048, "clickhouse_active_parts": 188436561}
+  },
+  "query_timing": {"timescaledb": "EXPLAIN ANALYZE execution time", "clickhouse": "system.query_log query_duration_ms; one-millisecond resolution"},
+  "limitations": [
+    "single local host, no resource quotas, five million rows only",
+    "synthetic prices and volumes, warm-cache queries, one run per engine",
+    "load paths use PostgreSQL COPY CSV and one ClickHouse HTTP CSV insert",
+    "not a production capacity test; no concurrent readers/writers or multi-year retention",
+    "target market, licensed provider, tick/order-book need, and production instrument count are not selected"
+  ]
+}

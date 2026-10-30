@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "scope_id": "00000000-0000-0000-0000-000000000001",
+  "publication_id": "00000000-0000-0000-0000-000000000002",
+  "job_id": "00000000-0000-0000-0000-000000000003",
+  "part_id": "00000000-0000-0000-0000-000000000002",
+  "actor_id": "00000000-0000-0000-0000-000000000004",
+  "correlation_id": "00000000-0000-0000-0000-000000000005",
+  "source": "controlled.v1",
+  "dataset_kind": "bars",
+  "instrument_id": "601288.SH",
+  "instrument_name": "农业银行",
+  "granularity": "5m",
+  "field": null,
+  "start": "2025-09-01T00:00:00Z",
+  "end": "2025-09-02T00:00:00Z",
+  "mapping_version": "fixture.v1",
+  "raw_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "records_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "raw_record_count": 1,
+  "record_count": 1,
+  "published_at": "2025-09-03T00:00:00Z",
+  "units": {
+    "prices": "CNY"
+  },
+  "source_time_convention": "UTC",
+  "evidence": {},
+  "limitations": []
+}

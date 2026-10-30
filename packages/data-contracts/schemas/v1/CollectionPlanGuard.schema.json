@@ -1,0 +1,46 @@
+{
+  "$id": "urn:qtrade:data:v1:CollectionPlanGuard",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Operator limits for new plans, independent of provider history boundaries.\n\nConfirmation thresholds prompt acknowledgement; positive hard limits reject\nthe entire request. Neither changes previously frozen jobs or publications.",
+  "properties": {
+    "confirm_credits": {
+      "maximum": 1000000000,
+      "minimum": 1,
+      "title": "Confirm Credits",
+      "type": "integer"
+    },
+    "confirm_new_parts": {
+      "maximum": 1000000,
+      "minimum": 1,
+      "title": "Confirm New Parts",
+      "type": "integer"
+    },
+    "max_instruments": {
+      "maximum": 10000,
+      "minimum": 1,
+      "title": "Max Instruments",
+      "type": "integer"
+    },
+    "max_new_parts": {
+      "maximum": 1000000,
+      "minimum": 1,
+      "title": "Max New Parts",
+      "type": "integer"
+    },
+    "version": {
+      "const": "collection-plan-guard.v1",
+      "title": "Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "version",
+    "max_instruments",
+    "max_new_parts",
+    "confirm_new_parts",
+    "confirm_credits"
+  ],
+  "title": "CollectionPlanGuard",
+  "type": "object"
+}

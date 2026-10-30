@@ -1,0 +1,258 @@
+{
+  "$defs": {
+    "FreshnessKey": {
+      "additionalProperties": false,
+      "properties": {
+        "adjustment": {
+          "anyOf": [
+            {
+              "enum": [
+                "unadjusted",
+                "forward",
+                "backward"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Adjustment"
+        },
+        "dataset_kind": {
+          "enum": [
+            "bars",
+            "factors",
+            "financial_statement",
+            "corporate_action"
+          ],
+          "title": "Dataset Kind",
+          "type": "string"
+        },
+        "date_axis": {
+          "enum": [
+            "observation_date",
+            "report_period",
+            "event_date"
+          ],
+          "title": "Date Axis",
+          "type": "string"
+        },
+        "field": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Field"
+        },
+        "instrument_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Instrument Id",
+          "type": "string"
+        },
+        "mapping_version": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Mapping Version",
+          "type": "string"
+        },
+        "period": {
+          "anyOf": [
+            {
+              "const": "1d",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Period"
+        },
+        "scope_id": {
+          "format": "uuid",
+          "title": "Scope Id",
+          "type": "string"
+        },
+        "source": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Source",
+          "type": "string"
+        }
+      },
+      "required": [
+        "scope_id",
+        "source",
+        "instrument_id",
+        "dataset_kind",
+        "adjustment",
+        "date_axis",
+        "mapping_version"
+      ],
+      "title": "FreshnessKey",
+      "type": "object"
+    }
+  },
+  "$id": "urn:qtrade:data:v1:FreshnessWatch",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "actor_id": {
+      "format": "uuid",
+      "title": "Actor Id",
+      "type": "string"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "enabled": {
+      "title": "Enabled",
+      "type": "boolean"
+    },
+    "interval_seconds": {
+      "maximum": 86400,
+      "minimum": 60,
+      "title": "Interval Seconds",
+      "type": "integer"
+    },
+    "key": {
+      "$ref": "#/$defs/FreshnessKey"
+    },
+    "last_attempt_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Last Attempt At"
+    },
+    "last_checked_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Last Checked At"
+    },
+    "last_error_code": {
+      "anyOf": [
+        {
+          "enum": [
+            "invalid_input",
+            "unauthorized",
+            "forbidden",
+            "not_found",
+            "conflict",
+            "unsupported",
+            "unverified",
+            "rate_limited",
+            "timeout",
+            "unavailable"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Last Error Code"
+    },
+    "next_due_at": {
+      "format": "date-time",
+      "title": "Next Due At",
+      "type": "string"
+    },
+    "paused_reason": {
+      "anyOf": [
+        {
+          "enum": [
+            "invalid_input",
+            "unauthorized",
+            "forbidden",
+            "not_found",
+            "conflict",
+            "unsupported",
+            "unverified",
+            "rate_limited",
+            "timeout",
+            "unavailable"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Paused Reason"
+    },
+    "reference_publication_id": {
+      "format": "uuid",
+      "title": "Reference Publication Id",
+      "type": "string"
+    },
+    "revision": {
+      "minimum": 1,
+      "title": "Revision",
+      "type": "integer"
+    },
+    "schema_version": {
+      "const": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "scope_id": {
+      "format": "uuid",
+      "title": "Scope Id",
+      "type": "string"
+    },
+    "updated_at": {
+      "format": "date-time",
+      "title": "Updated At",
+      "type": "string"
+    },
+    "watch_id": {
+      "format": "uuid",
+      "title": "Watch Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "scope_id",
+    "watch_id",
+    "actor_id",
+    "key",
+    "reference_publication_id",
+    "revision",
+    "enabled",
+    "interval_seconds",
+    "created_at",
+    "updated_at",
+    "next_due_at"
+  ],
+  "title": "FreshnessWatch",
+  "type": "object"
+}

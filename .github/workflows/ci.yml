@@ -1,0 +1,78 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+      - run: uv sync --locked --python 3.12
+      - run: uv run --locked ruff check .
+      - run: uv run --locked mypy
+      - run: uv run --locked python scripts/check_architecture.py
+      - run: uv run --locked pytest
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - run: npm ci
+      - run: npm run check
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+      - run: npm run test:auth
+
+  integration-and-images:
+    runs-on: ubuntu-latest
+    needs: [python, frontend]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+      - run: uv sync --locked --python 3.12
+      - run: docker compose up --build --wait --wait-timeout 240
+      - run: uv run --locked python scripts/selftest-compose.py
+      - run: uv run --locked python scripts/selftest-objectstore.py
+      - run: uv run --locked python scripts/selftest-postgres.py
+      - run: uv run --locked python scripts/selftest-timescale.py
+      - if: always()
+        run: docker compose down -v
+
+  required:
+    runs-on: ubuntu-latest
+    if: always()
+    needs: [python, frontend, integration-and-images]
+    steps:
+      - name: Require every verification gate
+        env:
+          PYTHON_RESULT: ${{ needs.python.result }}
+          FRONTEND_RESULT: ${{ needs.frontend.result }}
+          INTEGRATION_RESULT: ${{ needs['integration-and-images'].result }}
+        run: |
+          set -euo pipefail
+          for result in "${PYTHON_RESULT:-}" "${FRONTEND_RESULT:-}" "${INTEGRATION_RESULT:-}"; do
+            if [[ "$result" != "success" ]]; then
+              echo "CI gate rejected result: ${result:-missing}" >&2
+              exit 1
+            fi
+          done

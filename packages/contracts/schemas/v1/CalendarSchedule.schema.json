@@ -1,0 +1,162 @@
+{
+  "$defs": {
+    "CalendarOverride": {
+      "additionalProperties": false,
+      "properties": {
+        "sessions": {
+          "items": {
+            "$ref": "#/$defs/CalendarSession"
+          },
+          "title": "Sessions",
+          "type": "array"
+        },
+        "trading_date": {
+          "format": "date",
+          "title": "Trading Date",
+          "type": "string"
+        }
+      },
+      "required": [
+        "trading_date",
+        "sessions"
+      ],
+      "title": "CalendarOverride",
+      "type": "object"
+    },
+    "CalendarSession": {
+      "additionalProperties": false,
+      "properties": {
+        "close_day_offset": {
+          "default": 0,
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Close Day Offset",
+          "type": "integer"
+        },
+        "close_fold": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Close Fold"
+        },
+        "closes": {
+          "pattern": "^(?:[01][0-9]|2[0-3]):[0-5][0-9](?::[0-5][0-9](?:\\.[0-9]{1,6})?)?$",
+          "title": "Closes",
+          "type": "string"
+        },
+        "open_fold": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Open Fold"
+        },
+        "opens": {
+          "pattern": "^(?:[01][0-9]|2[0-3]):[0-5][0-9](?::[0-5][0-9](?:\\.[0-9]{1,6})?)?$",
+          "title": "Opens",
+          "type": "string"
+        }
+      },
+      "required": [
+        "opens",
+        "closes"
+      ],
+      "title": "CalendarSession",
+      "type": "object"
+    }
+  },
+  "$id": "urn:qtrade:contracts:v1:CalendarSchedule",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "calendar_id": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Calendar Id",
+      "type": "string"
+    },
+    "calendar_version": {
+      "minimum": 1,
+      "title": "Calendar Version",
+      "type": "integer"
+    },
+    "effective_from": {
+      "format": "date",
+      "title": "Effective From",
+      "type": "string"
+    },
+    "effective_to": {
+      "format": "date",
+      "title": "Effective To",
+      "type": "string"
+    },
+    "overrides": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/CalendarOverride"
+      },
+      "title": "Overrides",
+      "type": "array"
+    },
+    "schema_version": {
+      "const": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "sessions": {
+      "items": {
+        "$ref": "#/$defs/CalendarSession"
+      },
+      "title": "Sessions",
+      "type": "array"
+    },
+    "timezone": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Timezone",
+      "type": "string"
+    },
+    "weekdays": {
+      "items": {
+        "maximum": 6,
+        "minimum": 0,
+        "type": "integer"
+      },
+      "title": "Weekdays",
+      "type": "array"
+    },
+    "workspace_id": {
+      "format": "uuid",
+      "title": "Workspace Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "workspace_id",
+    "calendar_id",
+    "calendar_version",
+    "timezone",
+    "effective_from",
+    "effective_to",
+    "weekdays",
+    "sessions"
+  ],
+  "title": "CalendarSchedule",
+  "type": "object"
+}

@@ -1,0 +1,18 @@
+{
+  "$id": "urn:qtrade:data:v1:FreshnessCheckRequest",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Locate trusted evidence; clients cannot submit health, clocks or scope.",
+  "properties": {
+    "publication_id": {
+      "format": "uuid",
+      "title": "Publication Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "publication_id"
+  ],
+  "title": "FreshnessCheckRequest",
+  "type": "object"
+}

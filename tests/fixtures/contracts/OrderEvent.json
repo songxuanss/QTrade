@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "workspace_id": "00000000-0000-4000-8000-000000000001",
+  "event_id": "00000000-0000-4000-8000-000000000020",
+  "order_id": "00000000-0000-4000-8000-000000000010",
+  "revision": 2,
+  "from_status": "created",
+  "to_status": "risk_approved",
+  "occurred_at": "2026-10-01T00:00:01Z",
+  "source": "risk",
+  "filled_quantity": "0",
+  "reason": null
+}

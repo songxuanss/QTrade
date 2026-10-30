@@ -1,0 +1,77 @@
+name: qtrade-collector
+
+services:
+  collector-db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: collector
+      POSTGRES_DB: collector
+      POSTGRES_PASSWORD: ${COLLECTOR_DB_PASSWORD:?Set private collector database password}
+    volumes: ["collector-db:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U collector -d collector"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    restart: unless-stopped
+    logging: &logging
+      driver: json-file
+      options: {max-size: "20m", max-file: "5"}
+
+  collector:
+    build:
+      context: .
+      dockerfile: Dockerfile.collector
+      network: host
+    environment:
+      DATA_COLLECTION_DATABASE_URL: postgresql://collector:${COLLECTOR_DB_PASSWORD}@collector-db:5432/collector
+      COLLECTOR_SERVICE_TOKEN: ${COLLECTOR_SERVICE_TOKEN:?Set strong private service token}
+      COLLECTOR_AUTHORIZER_URL: ${COLLECTOR_AUTHORIZER_URL:-}
+      COLLECTOR_SCOPE_GRANTS_JSON: ${COLLECTOR_SCOPE_GRANTS_JSON:-}
+      COLLECTOR_ALLOW_HTTP: ${COLLECTOR_ALLOW_HTTP:-false}
+      COLLECTOR_MAIRUI_PRO_ENABLED: ${COLLECTOR_MAIRUI_PRO_ENABLED:-false}
+      COLLECTOR_MAIRUI_DAILY_CREDITS: ${COLLECTOR_MAIRUI_DAILY_CREDITS:-10000}
+      COLLECTOR_SCOPE_DAILY_CREDITS: ${COLLECTOR_SCOPE_DAILY_CREDITS:-2000}
+      COLLECTOR_SCOPE_LIMITS_JSON: ${COLLECTOR_SCOPE_LIMITS_JSON:-}
+      COLLECTOR_PLAN_MAX_INSTRUMENTS: ${COLLECTOR_PLAN_MAX_INSTRUMENTS:-10000}
+      COLLECTOR_PLAN_MAX_NEW_PARTS: ${COLLECTOR_PLAN_MAX_NEW_PARTS:-20000}
+      COLLECTOR_PLAN_CONFIRM_PARTS: ${COLLECTOR_PLAN_CONFIRM_PARTS:-100}
+      COLLECTOR_PLAN_CONFIRM_CREDITS: ${COLLECTOR_PLAN_CONFIRM_CREDITS:-500}
+      COLLECTOR_SOURCE_CONCURRENCY: ${COLLECTOR_SOURCE_CONCURRENCY:-4}
+      COLLECTOR_SCOPE_CONCURRENCY: ${COLLECTOR_SCOPE_CONCURRENCY:-2}
+      COLLECTOR_SOURCE_INTERVAL_SECONDS: ${COLLECTOR_SOURCE_INTERVAL_SECONDS:-3}
+      COLLECTOR_REQUEST_TIMEOUT_SECONDS: ${COLLECTOR_REQUEST_TIMEOUT_SECONDS:-90}
+      COLLECTOR_MAIRUI_PARTITION_MAX_DAYS: ${COLLECTOR_MAIRUI_PARTITION_MAX_DAYS:-0}
+      COLLECTOR_NORMALIZATION_REPLAY_MAX_ROWS: ${COLLECTOR_NORMALIZATION_REPLAY_MAX_ROWS:-100000}
+      COLLECTOR_NORMALIZATION_REPLAY_MAX_BYTES: ${COLLECTOR_NORMALIZATION_REPLAY_MAX_BYTES:-134217728}
+      COLLECTOR_NORMALIZATION_REPLAY_MAX_RECEIPTS: ${COLLECTOR_NORMALIZATION_REPLAY_MAX_RECEIPTS:-4096}
+      COLLECTOR_RESEARCH_REPLAY_MAX_PAGES: ${COLLECTOR_RESEARCH_REPLAY_MAX_PAGES:-1000}
+      COLLECTOR_RESEARCH_REPLAY_MAX_ROWS: ${COLLECTOR_RESEARCH_REPLAY_MAX_ROWS:-100000}
+      COLLECTOR_RESEARCH_REPLAY_MAX_BYTES: ${COLLECTOR_RESEARCH_REPLAY_MAX_BYTES:-67108864}
+      COLLECTOR_RUN_WORKER: ${COLLECTOR_RUN_WORKER:-true}
+      COLLECTOR_RUN_SCHEDULER: ${COLLECTOR_RUN_SCHEDULER:-true}
+      COLLECTOR_RUN_FRESHNESS: ${COLLECTOR_RUN_FRESHNESS:-true}
+      COLLECTOR_FRESHNESS_CONSUMER_ID: ${COLLECTOR_FRESHNESS_CONSUMER_ID:-qtrade-alerts}
+      COLLECTOR_FRESHNESS_HEALTH_MAX_AGE_SECONDS: ${COLLECTOR_FRESHNESS_HEALTH_MAX_AGE_SECONDS:-900}
+      COLLECTOR_SCHEDULER_INTERVAL_SECONDS: ${COLLECTOR_SCHEDULER_INTERVAL_SECONDS:-2}
+      COLLECTOR_LOG_LEVEL: ${COLLECTOR_LOG_LEVEL:-INFO}
+      COLLECTOR_ARCHIVE_ROOT: /data/archives
+      MAIRUI_LICENCE: ${MAIRUI_LICENCE:-}
+    ports: ["${COLLECTOR_BIND_ADDRESS:-127.0.0.1}:${COLLECTOR_PORT:-18100}:8100"]
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    volumes: ["collector-archives:/data/archives"]
+    depends_on:
+      collector-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://127.0.0.1:8100/ready',timeout=5)"]
+      interval: 10s
+      timeout: 6s
+      start_period: 20s
+      retries: 6
+    restart: unless-stopped
+    logging: *logging
+
+volumes:
+  collector-db:
+  collector-archives:

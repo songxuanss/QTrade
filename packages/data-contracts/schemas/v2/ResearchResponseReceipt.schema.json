@@ -1,0 +1,163 @@
+{
+  "$id": "urn:qtrade:data:v2:ResearchResponseReceipt",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "acquisition_id": {
+      "format": "uuid",
+      "title": "Acquisition Id",
+      "type": "string"
+    },
+    "actor_id": {
+      "format": "uuid",
+      "title": "Actor Id",
+      "type": "string"
+    },
+    "body_bytes": {
+      "maximum": 67108864,
+      "minimum": 0,
+      "title": "Body Bytes",
+      "type": "integer"
+    },
+    "body_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Body Sha256",
+      "type": "string"
+    },
+    "captured_at": {
+      "format": "date-time",
+      "title": "Captured At",
+      "type": "string"
+    },
+    "complete": {
+      "title": "Complete",
+      "type": "boolean"
+    },
+    "cursor": {
+      "anyOf": [
+        {
+          "maxLength": 256,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Cursor"
+    },
+    "end": {
+      "format": "date",
+      "title": "End",
+      "type": "string"
+    },
+    "http_status": {
+      "anyOf": [
+        {
+          "maximum": 599,
+          "minimum": 100,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Http Status"
+    },
+    "instrument_id": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Instrument Id",
+      "type": "string"
+    },
+    "kind": {
+      "enum": [
+        "financial_statement",
+        "membership_interval",
+        "security_identity_change",
+        "corporate_action",
+        "adjustment_factor"
+      ],
+      "title": "Kind",
+      "type": "string"
+    },
+    "mapping_version": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Mapping Version",
+      "type": "string"
+    },
+    "operation": {
+      "const": "research.data",
+      "title": "Operation",
+      "type": "string"
+    },
+    "plan_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Plan Sha256",
+      "type": "string"
+    },
+    "receipt_id": {
+      "format": "uuid",
+      "title": "Receipt Id",
+      "type": "string"
+    },
+    "request_id": {
+      "format": "uuid",
+      "title": "Request Id",
+      "type": "string"
+    },
+    "response_index": {
+      "exclusiveMaximum": 10,
+      "minimum": 0,
+      "title": "Response Index",
+      "type": "integer"
+    },
+    "schema_version": {
+      "const": 2,
+      "default": 2,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "scope_id": {
+      "format": "uuid",
+      "title": "Scope Id",
+      "type": "string"
+    },
+    "source": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Source",
+      "type": "string"
+    },
+    "start": {
+      "format": "date",
+      "title": "Start",
+      "type": "string"
+    }
+  },
+  "required": [
+    "scope_id",
+    "request_id",
+    "receipt_id",
+    "acquisition_id",
+    "response_index",
+    "actor_id",
+    "plan_sha256",
+    "source",
+    "kind",
+    "mapping_version",
+    "instrument_id",
+    "start",
+    "end",
+    "cursor",
+    "operation",
+    "http_status",
+    "complete",
+    "body_bytes",
+    "body_sha256",
+    "captured_at"
+  ],
+  "title": "ResearchResponseReceipt",
+  "type": "object"
+}

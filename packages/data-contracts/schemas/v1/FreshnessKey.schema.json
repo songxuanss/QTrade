@@ -1,0 +1,103 @@
+{
+  "$id": "urn:qtrade:data:v1:FreshnessKey",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "adjustment": {
+      "anyOf": [
+        {
+          "enum": [
+            "unadjusted",
+            "forward",
+            "backward"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Adjustment"
+    },
+    "dataset_kind": {
+      "enum": [
+        "bars",
+        "factors",
+        "financial_statement",
+        "corporate_action"
+      ],
+      "title": "Dataset Kind",
+      "type": "string"
+    },
+    "date_axis": {
+      "enum": [
+        "observation_date",
+        "report_period",
+        "event_date"
+      ],
+      "title": "Date Axis",
+      "type": "string"
+    },
+    "field": {
+      "anyOf": [
+        {
+          "maxLength": 256,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Field"
+    },
+    "instrument_id": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Instrument Id",
+      "type": "string"
+    },
+    "mapping_version": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Mapping Version",
+      "type": "string"
+    },
+    "period": {
+      "anyOf": [
+        {
+          "const": "1d",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Period"
+    },
+    "scope_id": {
+      "format": "uuid",
+      "title": "Scope Id",
+      "type": "string"
+    },
+    "source": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Source",
+      "type": "string"
+    }
+  },
+  "required": [
+    "scope_id",
+    "source",
+    "instrument_id",
+    "dataset_kind",
+    "adjustment",
+    "date_axis",
+    "mapping_version"
+  ],
+  "title": "FreshnessKey",
+  "type": "object"
+}

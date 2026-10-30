@@ -1,0 +1,18 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "qtrade-collector"
+version = "0.1.0"
+description = "Standalone market data collection and publication service"
+requires-python = ">=3.12"
+dependencies = [
+  "qtrade-data-contracts==0.1.0", "qtrade-data-core==0.1.0",
+  "qtrade-data-postgres==0.1.0", "qtrade-data-mairui==0.1.0",
+  "qtrade-data-files==0.1.0", "qtrade-data-http==0.1.0",
+  "fastapi>=0.142.2,<1", "uvicorn>=0.54,<1",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/qtrade_collector"]

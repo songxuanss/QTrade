@@ -1,0 +1,318 @@
+{
+  "$defs": {
+    "ReferenceIdentity": {
+      "additionalProperties": false,
+      "properties": {
+        "currency": {
+          "const": "CNY",
+          "default": "CNY",
+          "title": "Currency",
+          "type": "string"
+        },
+        "exchange": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Exchange",
+          "type": "string"
+        },
+        "instrument_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Instrument Id",
+          "type": "string"
+        },
+        "instrument_kind": {
+          "enum": [
+            "stock",
+            "index"
+          ],
+          "title": "Instrument Kind",
+          "type": "string"
+        },
+        "name": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "instrument_id",
+        "instrument_kind",
+        "name",
+        "exchange"
+      ],
+      "title": "ReferenceIdentity",
+      "type": "object"
+    },
+    "ReferenceIssue": {
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "enum": [
+            "directory_member_missing",
+            "name_conflict"
+          ],
+          "title": "Code",
+          "type": "string"
+        },
+        "directory_name": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Directory Name"
+        },
+        "instrument_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Instrument Id",
+          "type": "string"
+        },
+        "member_name": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Member Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "instrument_id",
+        "code",
+        "member_name"
+      ],
+      "title": "ReferenceIssue",
+      "type": "object"
+    },
+    "UniverseMember": {
+      "additionalProperties": false,
+      "properties": {
+        "affiliations": {
+          "default": [],
+          "items": {
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Affiliations",
+          "type": "array"
+        },
+        "classification_evidence": {
+          "default": [],
+          "items": {
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Classification Evidence",
+          "type": "array"
+        },
+        "instrument": {
+          "$ref": "#/$defs/ReferenceIdentity"
+        },
+        "market_cap": {
+          "anyOf": [
+            {
+              "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Market Cap"
+        },
+        "market_cap_basis": {
+          "anyOf": [
+            {
+              "enum": [
+                "provider_total",
+                "provider_float"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Market Cap Basis"
+        },
+        "valuation_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Valuation At"
+        }
+      },
+      "required": [
+        "instrument"
+      ],
+      "title": "UniverseMember",
+      "type": "object"
+    }
+  },
+  "$id": "urn:qtrade:data:v1:UniverseSnapshot",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "category": {
+      "enum": [
+        "custom",
+        "index_members",
+        "industry",
+        "theme",
+        "market_cap"
+      ],
+      "title": "Category",
+      "type": "string"
+    },
+    "classification_version": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Classification Version",
+      "type": "string"
+    },
+    "content_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Content Sha256",
+      "type": "string"
+    },
+    "effective_end": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Effective End"
+    },
+    "effective_start": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Effective Start"
+    },
+    "market_scope": {
+      "items": {
+        "maxLength": 256,
+        "minLength": 1,
+        "type": "string"
+      },
+      "title": "Market Scope",
+      "type": "array"
+    },
+    "members": {
+      "items": {
+        "$ref": "#/$defs/UniverseMember"
+      },
+      "maxItems": 10000,
+      "minItems": 1,
+      "title": "Members",
+      "type": "array"
+    },
+    "membership_basis": {
+      "enum": [
+        "current_snapshot",
+        "verified_historical"
+      ],
+      "title": "Membership Basis",
+      "type": "string"
+    },
+    "name": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Name",
+      "type": "string"
+    },
+    "observed_at": {
+      "format": "date-time",
+      "title": "Observed At",
+      "type": "string"
+    },
+    "reference_issues": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/ReferenceIssue"
+      },
+      "title": "Reference Issues",
+      "type": "array"
+    },
+    "schema_version": {
+      "const": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "scope_id": {
+      "format": "uuid",
+      "title": "Scope Id",
+      "type": "string"
+    },
+    "snapshot_id": {
+      "format": "uuid",
+      "title": "Snapshot Id",
+      "type": "string"
+    },
+    "source": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Source",
+      "type": "string"
+    },
+    "universe_id": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Universe Id",
+      "type": "string"
+    },
+    "version": {
+      "minimum": 1,
+      "title": "Version",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "schema_version",
+    "scope_id",
+    "universe_id",
+    "version",
+    "name",
+    "category",
+    "source",
+    "observed_at",
+    "membership_basis",
+    "market_scope",
+    "classification_version",
+    "members",
+    "snapshot_id",
+    "content_sha256"
+  ],
+  "title": "UniverseSnapshot",
+  "type": "object"
+}

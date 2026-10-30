@@ -1,0 +1,99 @@
+.history {
+  margin-top: 20px;
+  min-width: 0;
+}
+
+.toolbar {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 8px;
+}
+
+.search {
+  display: grid;
+  gap: 6px;
+  flex: 1;
+  max-width: 420px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.search input {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+
+.toolbar p,
+.hint {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.viewport {
+  max-height: 440px;
+  max-width: 100%;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  scrollbar-gutter: stable;
+}
+
+.viewport:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.viewport table {
+  width: 100%;
+  min-width: 680px;
+  border-spacing: 0;
+}
+
+.viewport td {
+  overflow-wrap: anywhere;
+}
+
+.viewport th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--surface-raised);
+}
+
+.viewport td {
+  vertical-align: top;
+}
+
+.empty {
+  padding: 16px;
+  color: var(--text-secondary);
+}
+
+@media (max-width: 640px) {
+  .toolbar {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .toolbar p {
+    margin: 0;
+  }
+
+  .search {
+    max-width: none;
+  }
+
+  .viewport {
+    max-height: 360px;
+  }
+}

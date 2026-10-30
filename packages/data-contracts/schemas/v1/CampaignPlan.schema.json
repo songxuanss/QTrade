@@ -1,0 +1,313 @@
+{
+  "$defs": {
+    "CollectionRange": {
+      "additionalProperties": false,
+      "properties": {
+        "end": {
+          "format": "date-time",
+          "title": "End",
+          "type": "string"
+        },
+        "start": {
+          "format": "date-time",
+          "title": "Start",
+          "type": "string"
+        }
+      },
+      "required": [
+        "start",
+        "end"
+      ],
+      "title": "CollectionRange",
+      "type": "object"
+    },
+    "CollectionSelection": {
+      "additionalProperties": false,
+      "properties": {
+        "actor_id": {
+          "format": "uuid",
+          "title": "Actor Id",
+          "type": "string"
+        },
+        "authorization_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Authorization Id",
+          "type": "string"
+        },
+        "correlation_id": {
+          "format": "uuid",
+          "title": "Correlation Id",
+          "type": "string"
+        },
+        "end": {
+          "format": "date-time",
+          "title": "End",
+          "type": "string"
+        },
+        "granularity": {
+          "enum": [
+            "tick",
+            "1m",
+            "5m",
+            "15m",
+            "1h",
+            "1d"
+          ],
+          "title": "Granularity",
+          "type": "string"
+        },
+        "instrument_ids": {
+          "default": [],
+          "items": {
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Instrument Ids",
+          "type": "array"
+        },
+        "mode": {
+          "default": "missing",
+          "enum": [
+            "missing",
+            "all"
+          ],
+          "title": "Mode",
+          "type": "string"
+        },
+        "request_id": {
+          "format": "uuid",
+          "title": "Request Id",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "scope_id": {
+          "format": "uuid",
+          "title": "Scope Id",
+          "type": "string"
+        },
+        "snapshot_ids": {
+          "items": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "maxItems": 100,
+          "minItems": 1,
+          "title": "Snapshot Ids",
+          "type": "array"
+        },
+        "source": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Source",
+          "type": "string"
+        },
+        "start": {
+          "format": "date-time",
+          "title": "Start",
+          "type": "string"
+        },
+        "transformation_version": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Transformation Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema_version",
+        "scope_id",
+        "request_id",
+        "actor_id",
+        "correlation_id",
+        "snapshot_ids",
+        "source",
+        "authorization_id",
+        "granularity",
+        "start",
+        "end",
+        "transformation_version"
+      ],
+      "title": "CollectionSelection",
+      "type": "object"
+    },
+    "MemberCollectionPlan": {
+      "additionalProperties": false,
+      "properties": {
+        "affiliations": {
+          "items": {
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Affiliations",
+          "type": "array"
+        },
+        "completed_task_ids": {
+          "default": [],
+          "items": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "title": "Completed Task Ids",
+          "type": "array"
+        },
+        "existing_ranges": {
+          "items": {
+            "$ref": "#/$defs/CollectionRange"
+          },
+          "title": "Existing Ranges",
+          "type": "array"
+        },
+        "instrument": {
+          "$ref": "#/$defs/ReferenceIdentity"
+        },
+        "planned_parts": {
+          "minimum": 0,
+          "title": "Planned Parts",
+          "type": "integer"
+        },
+        "reused_task_ids": {
+          "default": [],
+          "items": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "title": "Reused Task Ids",
+          "type": "array"
+        },
+        "submit_ranges": {
+          "items": {
+            "$ref": "#/$defs/CollectionRange"
+          },
+          "title": "Submit Ranges",
+          "type": "array"
+        }
+      },
+      "required": [
+        "instrument",
+        "affiliations",
+        "existing_ranges",
+        "submit_ranges",
+        "planned_parts"
+      ],
+      "title": "MemberCollectionPlan",
+      "type": "object"
+    },
+    "ReferenceIdentity": {
+      "additionalProperties": false,
+      "properties": {
+        "currency": {
+          "const": "CNY",
+          "default": "CNY",
+          "title": "Currency",
+          "type": "string"
+        },
+        "exchange": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Exchange",
+          "type": "string"
+        },
+        "instrument_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Instrument Id",
+          "type": "string"
+        },
+        "instrument_kind": {
+          "enum": [
+            "stock",
+            "index"
+          ],
+          "title": "Instrument Kind",
+          "type": "string"
+        },
+        "name": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "instrument_id",
+        "instrument_kind",
+        "name",
+        "exchange"
+      ],
+      "title": "ReferenceIdentity",
+      "type": "object"
+    }
+  },
+  "$id": "urn:qtrade:data:v1:CampaignPlan",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "coverage_version": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Coverage Version",
+      "type": "string"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "expires_at": {
+      "format": "date-time",
+      "title": "Expires At",
+      "type": "string"
+    },
+    "members": {
+      "items": {
+        "$ref": "#/$defs/MemberCollectionPlan"
+      },
+      "maxItems": 10000,
+      "minItems": 1,
+      "title": "Members",
+      "type": "array"
+    },
+    "plan_id": {
+      "format": "uuid",
+      "title": "Plan Id",
+      "type": "string"
+    },
+    "planned_parts": {
+      "minimum": 0,
+      "title": "Planned Parts",
+      "type": "integer"
+    },
+    "schema_version": {
+      "const": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "scope_id": {
+      "format": "uuid",
+      "title": "Scope Id",
+      "type": "string"
+    },
+    "selection": {
+      "$ref": "#/$defs/CollectionSelection"
+    }
+  },
+  "required": [
+    "schema_version",
+    "scope_id",
+    "plan_id",
+    "selection",
+    "coverage_version",
+    "created_at",
+    "expires_at",
+    "members",
+    "planned_parts"
+  ],
+  "title": "CampaignPlan",
+  "type": "object"
+}

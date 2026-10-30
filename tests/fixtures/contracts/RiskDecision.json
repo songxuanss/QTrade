@@ -1,0 +1,12 @@
+{
+  "decided_at": "2026-10-01T00:00:00Z",
+  "decision_id": "00000000-0000-4000-8000-000000000001",
+  "input_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "intent_id": "00000000-0000-4000-8000-000000000001",
+  "outcome": "allow",
+  "reasons": [],
+  "rule_set_version": "risk-v1",
+  "schema_version": 1,
+  "trace_id": "00000000-0000-4000-8000-000000000001",
+  "workspace_id": "00000000-0000-4000-8000-000000000001"
+}

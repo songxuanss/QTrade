@@ -1,0 +1,24 @@
+{
+  "$id": "urn:qtrade:data:v1:FreshnessNoticeClaim",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "consumer_id": {
+      "pattern": "^[a-zA-Z0-9_-]{1,64}$",
+      "title": "Consumer Id",
+      "type": "string"
+    },
+    "limit": {
+      "default": 20,
+      "maximum": 100,
+      "minimum": 1,
+      "title": "Limit",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "consumer_id"
+  ],
+  "title": "FreshnessNoticeClaim",
+  "type": "object"
+}

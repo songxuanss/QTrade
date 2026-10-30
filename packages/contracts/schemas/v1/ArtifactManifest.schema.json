@@ -1,0 +1,161 @@
+{
+  "$id": "urn:qtrade:contracts:v1:ArtifactManifest",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "adapter_version": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Adapter Version",
+      "type": "string"
+    },
+    "code_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Code Sha256",
+      "type": "string"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "created_by": {
+      "format": "uuid",
+      "title": "Created By",
+      "type": "string"
+    },
+    "dataset_id": {
+      "format": "uuid",
+      "title": "Dataset Id",
+      "type": "string"
+    },
+    "dataset_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Dataset Sha256",
+      "type": "string"
+    },
+    "engine_name": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Engine Name",
+      "type": "string"
+    },
+    "engine_version": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Engine Version",
+      "type": "string"
+    },
+    "environment_image_digest": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Environment Image Digest",
+      "type": "string"
+    },
+    "execution_config_json": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Execution Config Json"
+    },
+    "execution_config_sha256": {
+      "anyOf": [
+        {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Execution Config Sha256"
+    },
+    "kind": {
+      "enum": [
+        "backtest",
+        "research",
+        "paper",
+        "live"
+      ],
+      "title": "Kind",
+      "type": "string"
+    },
+    "manifest_id": {
+      "format": "uuid",
+      "title": "Manifest Id",
+      "type": "string"
+    },
+    "nondeterministic_sources": {
+      "default": [],
+      "items": {
+        "maxLength": 256,
+        "minLength": 1,
+        "type": "string"
+      },
+      "title": "Nondeterministic Sources",
+      "type": "array"
+    },
+    "parameters_json": {
+      "title": "Parameters Json",
+      "type": "string"
+    },
+    "parameters_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Parameters Sha256",
+      "type": "string"
+    },
+    "random_seed": {
+      "minimum": 0,
+      "title": "Random Seed",
+      "type": "integer"
+    },
+    "run_id": {
+      "format": "uuid",
+      "title": "Run Id",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "strategy_version_id": {
+      "format": "uuid",
+      "title": "Strategy Version Id",
+      "type": "string"
+    },
+    "workspace_id": {
+      "format": "uuid",
+      "title": "Workspace Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "workspace_id",
+    "manifest_id",
+    "run_id",
+    "kind",
+    "created_by",
+    "created_at",
+    "strategy_version_id",
+    "code_sha256",
+    "dataset_id",
+    "dataset_sha256",
+    "parameters_json",
+    "parameters_sha256",
+    "engine_name",
+    "engine_version",
+    "adapter_version",
+    "environment_image_digest",
+    "random_seed"
+  ],
+  "title": "ArtifactManifest",
+  "type": "object"
+}

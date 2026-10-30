@@ -1,0 +1,150 @@
+{
+  "$defs": {
+    "DataBar": {
+      "additionalProperties": false,
+      "properties": {
+        "batch_ids": {
+          "items": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Batch Ids",
+          "type": "array"
+        },
+        "close": {
+          "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$",
+          "title": "Close",
+          "type": "string"
+        },
+        "dataset_id": {
+          "format": "uuid",
+          "title": "Dataset Id",
+          "type": "string"
+        },
+        "granularity": {
+          "enum": [
+            "1m",
+            "5m",
+            "15m",
+            "1h",
+            "1d"
+          ],
+          "title": "Granularity",
+          "type": "string"
+        },
+        "high": {
+          "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$",
+          "title": "High",
+          "type": "string"
+        },
+        "instrument_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Instrument Id",
+          "type": "string"
+        },
+        "low": {
+          "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$",
+          "title": "Low",
+          "type": "string"
+        },
+        "open": {
+          "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$",
+          "title": "Open",
+          "type": "string"
+        },
+        "quality": {
+          "enum": [
+            "verified",
+            "warning",
+            "unverified"
+          ],
+          "title": "Quality",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "scope_id": {
+          "format": "uuid",
+          "title": "Scope Id",
+          "type": "string"
+        },
+        "timestamp": {
+          "format": "date-time",
+          "title": "Timestamp",
+          "type": "string"
+        },
+        "volume": {
+          "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$",
+          "title": "Volume",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema_version",
+        "scope_id",
+        "dataset_id",
+        "instrument_id",
+        "granularity",
+        "timestamp",
+        "open",
+        "high",
+        "low",
+        "close",
+        "volume",
+        "batch_ids",
+        "quality"
+      ],
+      "title": "DataBar",
+      "type": "object"
+    }
+  },
+  "$id": "urn:qtrade:data:v1:BarPage",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "bars": {
+      "items": {
+        "$ref": "#/$defs/DataBar"
+      },
+      "maxItems": 10000,
+      "title": "Bars",
+      "type": "array"
+    },
+    "next_cursor": {
+      "anyOf": [
+        {
+          "maxLength": 2048,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Next Cursor"
+    },
+    "schema_version": {
+      "const": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "scope_id": {
+      "format": "uuid",
+      "title": "Scope Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "scope_id",
+    "bars"
+  ],
+  "title": "BarPage",
+  "type": "object"
+}

@@ -1,0 +1,23 @@
+{
+  "$id": "urn:qtrade:data:v1:FreshnessNoticeAck",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "consumer_id": {
+      "pattern": "^[a-zA-Z0-9_-]{1,64}$",
+      "title": "Consumer Id",
+      "type": "string"
+    },
+    "token": {
+      "format": "uuid",
+      "title": "Token",
+      "type": "string"
+    }
+  },
+  "required": [
+    "consumer_id",
+    "token"
+  ],
+  "title": "FreshnessNoticeAck",
+  "type": "object"
+}

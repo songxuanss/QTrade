@@ -1,0 +1,81 @@
+schema: spec-driven
+
+context: |
+  Write all OpenSpec artifacts in Chinese.
+  QTrade is a greenfield professional trading analysis, alerting, strategy,
+  backtesting, paper-trading, and controlled live-trading platform.
+  Authentication comes from the sibling ../sso project using OIDC
+  Authorization Code + PKCE; QTrade must not implement password login or user
+  credential storage.
+  The core must use Ports & Adapters. Domain and API code must not import LEAN,
+  NautilusTrader, Qlib, CCXT, ClickHouse, TimescaleDB, or broker SDKs directly.
+  External engines and research frameworks run only through adapters and
+  isolated runners.
+  Phase 1 default stack: Next.js/React/TypeScript frontend; FastAPI/Python 3.12
+  backend; PostgreSQL domain store; TimescaleDB or ClickHouse market-data store
+  selected by the data-scale decision; Parquet artifacts; Celery/Arq jobs;
+  Valkey/Redis streams; Docker Compose deployment.
+  QuantConnect LEAN is the default Phase 1 trading-engine candidate behind a
+  TradingEnginePort. NautilusTrader is the alternative for a crypto/tick-first
+  scope. Qlib is not part of Phase 1; a future QlibResearchAdapter may be added
+  in Phase 2.
+  Every backtest/research artifact must be immutable and carry a manifest with
+  code, dataset, parameters, engine, and environment versions.
+  All live orders must pass QTrade's RiskEngine before reaching a broker port.
+
+rules:
+  proposal:
+    - Stay below 1200 words.
+    - Always include explicit non-goals and safety boundaries.
+    - State unresolved material assumptions in a dedicated section.
+  specs:
+    - Use requirement/scenario format exactly as instructed by the schema.
+    - Make behavior externally observable and testable.
+    - Do not couple requirements to a specific vendor SDK unless the capability
+      is explicitly about that adapter.
+  design:
+    - Explain module boundaries, ports, adapters, failure modes, and security.
+    - Prefer reversible decisions and replaceable infrastructure.
+  tasks:
+    - Break implementation tasks into chunks of roughly two hours or less.
+    - Each task must include concrete verification.
+    - Do not mark a task complete unless its specified behavior is implemented.
+
+operations:
+  apply:
+    guidance:
+      - Keep test summaries concise but include commands and results.
+      - Before implementation, restate the current task and acceptance criteria.
+      - Stop and update the OpenSpec artifacts rather than narrowing scope
+        silently.
+
+# Project context (optional)
+# Add only constraints that should guide OpenSpec artifacts and workflows.
+# Include constraints an agent cannot infer by reading the code.
+# Keep general project documentation and discoverable codebase facts out.
+# Example:
+#   context: |
+#     Designs and tasks must cover Windows, macOS, and Linux
+#     Write all artifacts in Spanish
+
+# Per-artifact rules (optional)
+# Add custom rules for specific artifacts.
+# Example:
+#   rules:
+#     proposal:
+#       - Keep proposals under 500 words
+#       - Always state what is out of scope
+#     tasks:
+#       - Break tasks into chunks of max 2 hours
+
+# Per-operation guidance (optional)
+# Add advisory guidance for how apply and archive work should be conducted.
+# This is separate from artifact rules above.
+# Example:
+#   operations:
+#     apply:
+#       guidance:
+#         - Keep test summaries concise
+#     archive:
+#       guidance:
+#         - Summarize the archive outcome before finishing

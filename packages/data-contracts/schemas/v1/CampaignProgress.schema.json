@@ -1,0 +1,102 @@
+{
+  "$id": "urn:qtrade:data:v1:CampaignProgress",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "campaign_id": {
+      "format": "uuid",
+      "title": "Campaign Id",
+      "type": "string"
+    },
+    "collected_parts": {
+      "minimum": 0,
+      "title": "Collected Parts",
+      "type": "integer"
+    },
+    "expanded_parts": {
+      "minimum": 0,
+      "title": "Expanded Parts",
+      "type": "integer"
+    },
+    "failed_parts": {
+      "minimum": 0,
+      "title": "Failed Parts",
+      "type": "integer"
+    },
+    "member_count": {
+      "minimum": 1,
+      "title": "Member Count",
+      "type": "integer"
+    },
+    "no_observation_members": {
+      "minimum": 0,
+      "title": "No Observation Members",
+      "type": "integer"
+    },
+    "plan_id": {
+      "format": "uuid",
+      "title": "Plan Id",
+      "type": "string"
+    },
+    "planned_parts": {
+      "minimum": 0,
+      "title": "Planned Parts",
+      "type": "integer"
+    },
+    "schema_version": {
+      "const": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "scope_id": {
+      "format": "uuid",
+      "title": "Scope Id",
+      "type": "string"
+    },
+    "state": {
+      "enum": [
+        "queued",
+        "running",
+        "partial",
+        "completed",
+        "failed",
+        "cancelled"
+      ],
+      "title": "State",
+      "type": "string"
+    },
+    "updated_at": {
+      "format": "date-time",
+      "title": "Updated At",
+      "type": "string"
+    },
+    "version": {
+      "minimum": 1,
+      "title": "Version",
+      "type": "integer"
+    },
+    "viewable_members": {
+      "minimum": 0,
+      "title": "Viewable Members",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "schema_version",
+    "scope_id",
+    "campaign_id",
+    "plan_id",
+    "version",
+    "state",
+    "planned_parts",
+    "expanded_parts",
+    "collected_parts",
+    "failed_parts",
+    "member_count",
+    "viewable_members",
+    "no_observation_members",
+    "updated_at"
+  ],
+  "title": "CampaignProgress",
+  "type": "object"
+}

@@ -1,0 +1,108 @@
+{
+  "$id": "urn:qtrade:contracts:v1:MarketDataset",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "batch_ids": {
+      "items": {
+        "format": "uuid",
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Batch Ids",
+      "type": "array"
+    },
+    "content_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Content Sha256",
+      "type": "string"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "dataset_id": {
+      "format": "uuid",
+      "title": "Dataset Id",
+      "type": "string"
+    },
+    "end": {
+      "format": "date-time",
+      "title": "End",
+      "type": "string"
+    },
+    "granularity": {
+      "enum": [
+        "tick",
+        "1m",
+        "5m",
+        "15m",
+        "30m",
+        "1h",
+        "1d"
+      ],
+      "title": "Granularity",
+      "type": "string"
+    },
+    "instrument_ids": {
+      "items": {
+        "maxLength": 256,
+        "minLength": 1,
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Instrument Ids",
+      "type": "array"
+    },
+    "quality_report_key": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Quality Report Key",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "start": {
+      "format": "date-time",
+      "title": "Start",
+      "type": "string"
+    },
+    "transformation_version": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Transformation Version",
+      "type": "string"
+    },
+    "version": {
+      "minimum": 1,
+      "title": "Version",
+      "type": "integer"
+    },
+    "workspace_id": {
+      "format": "uuid",
+      "title": "Workspace Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "workspace_id",
+    "dataset_id",
+    "version",
+    "created_at",
+    "batch_ids",
+    "instrument_ids",
+    "granularity",
+    "start",
+    "end",
+    "transformation_version",
+    "quality_report_key",
+    "content_sha256"
+  ],
+  "title": "MarketDataset",
+  "type": "object"
+}

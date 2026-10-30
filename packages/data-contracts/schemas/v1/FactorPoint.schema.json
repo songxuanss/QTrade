@@ -1,0 +1,102 @@
+{
+  "$id": "urn:qtrade:data:v1:FactorPoint",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "availability_evidence": {
+      "default": "unknown",
+      "enum": [
+        "unknown",
+        "provider_timestamp"
+      ],
+      "title": "Availability Evidence",
+      "type": "string"
+    },
+    "available_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Available At"
+    },
+    "calc_version": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Calc Version",
+      "type": "string"
+    },
+    "factor_id": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Factor Id",
+      "type": "string"
+    },
+    "instrument_id": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Instrument Id",
+      "type": "string"
+    },
+    "missing_reason": {
+      "anyOf": [
+        {
+          "enum": [
+            "provider_null",
+            "not_available"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Missing Reason"
+    },
+    "trade_date": {
+      "format": "date",
+      "title": "Trade Date",
+      "type": "string"
+    },
+    "value": {
+      "anyOf": [
+        {
+          "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$",
+          "type": "string"
+        },
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Value"
+    },
+    "value_kind": {
+      "enum": [
+        "number",
+        "signal",
+        "missing"
+      ],
+      "title": "Value Kind",
+      "type": "string"
+    }
+  },
+  "required": [
+    "instrument_id",
+    "factor_id",
+    "trade_date",
+    "value",
+    "value_kind",
+    "calc_version"
+  ],
+  "title": "FactorPoint",
+  "type": "object"
+}

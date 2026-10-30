@@ -1,0 +1,394 @@
+{
+  "$defs": {
+    "CollectionCostEstimate": {
+      "additionalProperties": false,
+      "description": "Uncached execution upper bound before retries, expressed in internal credit.\n\nPreview-time metadata is excluded; zero is a legitimate lower bound when\nevery needed source response is cached or every partition can be reused.",
+      "properties": {
+        "accounting": {
+          "const": "internal_credit_safeguard",
+          "title": "Accounting",
+          "type": "string"
+        },
+        "basis": {
+          "maxLength": 1000,
+          "minLength": 1,
+          "title": "Basis",
+          "type": "string"
+        },
+        "calls_max": {
+          "minimum": 0,
+          "title": "Calls Max",
+          "type": "integer"
+        },
+        "calls_min": {
+          "minimum": 0,
+          "title": "Calls Min",
+          "type": "integer"
+        },
+        "credits_max": {
+          "minimum": 0,
+          "title": "Credits Max",
+          "type": "integer"
+        },
+        "credits_min": {
+          "minimum": 0,
+          "title": "Credits Min",
+          "type": "integer"
+        },
+        "includes_retries": {
+          "const": false,
+          "title": "Includes Retries",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "calls_min",
+        "calls_max",
+        "credits_min",
+        "credits_max",
+        "accounting",
+        "basis",
+        "includes_retries"
+      ],
+      "title": "CollectionCostEstimate",
+      "type": "object"
+    },
+    "CollectionJobRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "actor_id": {
+          "format": "uuid",
+          "title": "Actor Id",
+          "type": "string"
+        },
+        "correlation_id": {
+          "format": "uuid",
+          "title": "Correlation Id",
+          "type": "string"
+        },
+        "dataset_kind": {
+          "enum": [
+            "bars",
+            "factors"
+          ],
+          "title": "Dataset Kind",
+          "type": "string"
+        },
+        "end": {
+          "format": "date-time",
+          "title": "End",
+          "type": "string"
+        },
+        "fields": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 200,
+          "title": "Fields",
+          "type": "array"
+        },
+        "granularity": {
+          "enum": [
+            "1m",
+            "5m",
+            "15m",
+            "30m",
+            "1h",
+            "1d"
+          ],
+          "title": "Granularity",
+          "type": "string"
+        },
+        "instrument_ids": {
+          "items": {
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 10000,
+          "minItems": 1,
+          "title": "Instrument Ids",
+          "type": "array"
+        },
+        "mode": {
+          "default": "missing",
+          "enum": [
+            "missing",
+            "all"
+          ],
+          "title": "Mode",
+          "type": "string"
+        },
+        "request_id": {
+          "format": "uuid",
+          "title": "Request Id",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "scope_id": {
+          "format": "uuid",
+          "title": "Scope Id",
+          "type": "string"
+        },
+        "source": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Source",
+          "type": "string"
+        },
+        "start": {
+          "format": "date-time",
+          "title": "Start",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema_version",
+        "scope_id",
+        "request_id",
+        "actor_id",
+        "correlation_id",
+        "source",
+        "dataset_kind",
+        "instrument_ids",
+        "granularity",
+        "start",
+        "end"
+      ],
+      "title": "CollectionJobRequest",
+      "type": "object"
+    },
+    "CollectionPlanGuard": {
+      "additionalProperties": false,
+      "description": "Operator limits for new plans, independent of provider history boundaries.\n\nConfirmation thresholds prompt acknowledgement; positive hard limits reject\nthe entire request. Neither changes previously frozen jobs or publications.",
+      "properties": {
+        "confirm_credits": {
+          "maximum": 1000000000,
+          "minimum": 1,
+          "title": "Confirm Credits",
+          "type": "integer"
+        },
+        "confirm_new_parts": {
+          "maximum": 1000000,
+          "minimum": 1,
+          "title": "Confirm New Parts",
+          "type": "integer"
+        },
+        "max_instruments": {
+          "maximum": 10000,
+          "minimum": 1,
+          "title": "Max Instruments",
+          "type": "integer"
+        },
+        "max_new_parts": {
+          "maximum": 1000000,
+          "minimum": 1,
+          "title": "Max New Parts",
+          "type": "integer"
+        },
+        "version": {
+          "const": "collection-plan-guard.v1",
+          "title": "Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "version",
+        "max_instruments",
+        "max_new_parts",
+        "confirm_new_parts",
+        "confirm_credits"
+      ],
+      "title": "CollectionPlanGuard",
+      "type": "object"
+    },
+    "FactorDefinition": {
+      "additionalProperties": false,
+      "properties": {
+        "available": {
+          "title": "Available",
+          "type": "boolean"
+        },
+        "calc_version": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Calc Version",
+          "type": "string"
+        },
+        "category": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Category",
+          "type": "string"
+        },
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "factor_id": {
+          "pattern": "^[a-zA-Z0-9_]{1,80}$",
+          "title": "Factor Id",
+          "type": "string"
+        },
+        "name": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "unavailable_reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Unavailable Reason"
+        },
+        "unit": {
+          "title": "Unit",
+          "type": "string"
+        },
+        "update_frequency": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Update Frequency",
+          "type": "string"
+        }
+      },
+      "required": [
+        "factor_id",
+        "name",
+        "category",
+        "unit",
+        "description",
+        "calc_version",
+        "update_frequency",
+        "available"
+      ],
+      "title": "FactorDefinition",
+      "type": "object"
+    }
+  },
+  "$id": "urn:qtrade:data:v1:CollectionPreview",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "active_parts": {
+      "minimum": 0,
+      "title": "Active Parts",
+      "type": "integer"
+    },
+    "completed_parts": {
+      "minimum": 0,
+      "title": "Completed Parts",
+      "type": "integer"
+    },
+    "confirmation_required": {
+      "default": false,
+      "title": "Confirmation Required",
+      "type": "boolean"
+    },
+    "coverage_version": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Coverage Version",
+      "type": "string"
+    },
+    "execution_estimate": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/CollectionCostEstimate"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "field_definitions": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/FactorDefinition"
+      },
+      "title": "Field Definitions",
+      "type": "array"
+    },
+    "instrument_names": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "default": {},
+      "title": "Instrument Names",
+      "type": "object"
+    },
+    "limitations": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "Limitations",
+      "type": "array"
+    },
+    "mapping_version": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Mapping Version",
+      "type": "string"
+    },
+    "missing_parts": {
+      "minimum": 0,
+      "title": "Missing Parts",
+      "type": "integer"
+    },
+    "plan_guard": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/CollectionPlanGuard"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "planned_parts": {
+      "minimum": 0,
+      "title": "Planned Parts",
+      "type": "integer"
+    },
+    "request": {
+      "$ref": "#/$defs/CollectionJobRequest"
+    },
+    "schema_version": {
+      "const": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "scope_id": {
+      "format": "uuid",
+      "title": "Scope Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "scope_id",
+    "request",
+    "mapping_version",
+    "coverage_version",
+    "planned_parts",
+    "completed_parts",
+    "active_parts",
+    "missing_parts"
+  ],
+  "title": "CollectionPreview",
+  "type": "object"
+}

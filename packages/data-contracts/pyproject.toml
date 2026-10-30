@@ -1,0 +1,13 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "qtrade-data-contracts"
+version = "0.1.0"
+description = "Portable market data and collection wire contracts"
+requires-python = ">=3.12"
+dependencies = ["pydantic>=2.13.5,<3"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/qtrade_data_contracts"]

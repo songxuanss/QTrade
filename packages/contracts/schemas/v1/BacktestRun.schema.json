@@ -1,0 +1,152 @@
+{
+  "$id": "urn:qtrade:contracts:v1:BacktestRun",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "benchmark_id": {
+      "anyOf": [
+        {
+          "maxLength": 256,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Benchmark Id"
+    },
+    "cost_model_version": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Cost Model Version",
+      "type": "string"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "created_by": {
+      "format": "uuid",
+      "title": "Created By",
+      "type": "string"
+    },
+    "currency": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Currency",
+      "type": "string"
+    },
+    "dataset_id": {
+      "format": "uuid",
+      "title": "Dataset Id",
+      "type": "string"
+    },
+    "end": {
+      "format": "date-time",
+      "title": "End",
+      "type": "string"
+    },
+    "error_code": {
+      "anyOf": [
+        {
+          "maxLength": 256,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Error Code"
+    },
+    "initial_cash": {
+      "pattern": "^(?:0\\.0*[1-9][0-9]*|[1-9][0-9]*(?:\\.[0-9]+)?)$",
+      "title": "Initial Cash",
+      "type": "string"
+    },
+    "manifest_id": {
+      "format": "uuid",
+      "title": "Manifest Id",
+      "type": "string"
+    },
+    "progress": {
+      "maximum": 100,
+      "minimum": 0,
+      "title": "Progress",
+      "type": "integer"
+    },
+    "result_object_key": {
+      "anyOf": [
+        {
+          "maxLength": 256,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Result Object Key"
+    },
+    "run_id": {
+      "format": "uuid",
+      "title": "Run Id",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "start": {
+      "format": "date-time",
+      "title": "Start",
+      "type": "string"
+    },
+    "status": {
+      "enum": [
+        "queued",
+        "running",
+        "cancelled",
+        "failed",
+        "completed"
+      ],
+      "title": "Status",
+      "type": "string"
+    },
+    "strategy_version_id": {
+      "format": "uuid",
+      "title": "Strategy Version Id",
+      "type": "string"
+    },
+    "workspace_id": {
+      "format": "uuid",
+      "title": "Workspace Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "workspace_id",
+    "run_id",
+    "strategy_version_id",
+    "dataset_id",
+    "manifest_id",
+    "created_by",
+    "created_at",
+    "start",
+    "end",
+    "initial_cash",
+    "currency",
+    "benchmark_id",
+    "cost_model_version",
+    "status",
+    "progress"
+  ],
+  "title": "BacktestRun",
+  "type": "object"
+}

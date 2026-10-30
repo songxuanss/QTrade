@@ -1,0 +1,673 @@
+{
+  "$defs": {
+    "FreshnessCheckpoint": {
+      "additionalProperties": false,
+      "description": "Verified complete period, not the maximum timestamp in an arbitrary page.\n\nThe producing adapter must verify the applicable coverage/calendar rules and\nattach a stable evidence digest. For sparse categories this means their own\nrelease rule; absence of an event is not proof of a missing daily bar.",
+      "properties": {
+        "complete_through": {
+          "format": "date",
+          "title": "Complete Through",
+          "type": "string"
+        },
+        "evidence_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Evidence Sha256",
+          "type": "string"
+        },
+        "observed_at": {
+          "format": "date-time",
+          "title": "Observed At",
+          "type": "string"
+        }
+      },
+      "required": [
+        "complete_through",
+        "observed_at",
+        "evidence_sha256"
+      ],
+      "title": "FreshnessCheckpoint",
+      "type": "object"
+    },
+    "FreshnessEvidence": {
+      "additionalProperties": false,
+      "properties": {
+        "collected": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FreshnessCheckpoint"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "key": {
+          "$ref": "#/$defs/FreshnessKey"
+        },
+        "published": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FreshnessCheckpoint"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "source": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FreshnessCheckpoint"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "source_health": {
+          "enum": [
+            "available",
+            "unavailable",
+            "unknown"
+          ],
+          "title": "Source Health",
+          "type": "string"
+        }
+      },
+      "required": [
+        "key",
+        "source_health"
+      ],
+      "title": "FreshnessEvidence",
+      "type": "object"
+    },
+    "FreshnessExpectation": {
+      "additionalProperties": false,
+      "properties": {
+        "available_at": {
+          "format": "date-time",
+          "title": "Available At",
+          "type": "string"
+        },
+        "basis": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Basis",
+          "type": "string"
+        },
+        "complete_through": {
+          "format": "date",
+          "title": "Complete Through",
+          "type": "string"
+        },
+        "grace_seconds": {
+          "default": 0,
+          "maximum": 604800,
+          "minimum": 0,
+          "title": "Grace Seconds",
+          "type": "integer"
+        },
+        "rule_version": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Rule Version",
+          "type": "string"
+        },
+        "timezone": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Timezone",
+          "type": "string"
+        }
+      },
+      "required": [
+        "complete_through",
+        "available_at",
+        "timezone",
+        "rule_version",
+        "basis"
+      ],
+      "title": "FreshnessExpectation",
+      "type": "object"
+    },
+    "FreshnessKey": {
+      "additionalProperties": false,
+      "properties": {
+        "adjustment": {
+          "anyOf": [
+            {
+              "enum": [
+                "unadjusted",
+                "forward",
+                "backward"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Adjustment"
+        },
+        "dataset_kind": {
+          "enum": [
+            "bars",
+            "factors",
+            "financial_statement",
+            "corporate_action"
+          ],
+          "title": "Dataset Kind",
+          "type": "string"
+        },
+        "date_axis": {
+          "enum": [
+            "observation_date",
+            "report_period",
+            "event_date"
+          ],
+          "title": "Date Axis",
+          "type": "string"
+        },
+        "field": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Field"
+        },
+        "instrument_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Instrument Id",
+          "type": "string"
+        },
+        "mapping_version": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Mapping Version",
+          "type": "string"
+        },
+        "period": {
+          "anyOf": [
+            {
+              "const": "1d",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Period"
+        },
+        "scope_id": {
+          "format": "uuid",
+          "title": "Scope Id",
+          "type": "string"
+        },
+        "source": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Source",
+          "type": "string"
+        }
+      },
+      "required": [
+        "scope_id",
+        "source",
+        "instrument_id",
+        "dataset_kind",
+        "adjustment",
+        "date_axis",
+        "mapping_version"
+      ],
+      "title": "FreshnessKey",
+      "type": "object"
+    },
+    "FreshnessNotice": {
+      "additionalProperties": false,
+      "properties": {
+        "actor_id": {
+          "format": "uuid",
+          "title": "Actor Id",
+          "type": "string"
+        },
+        "episode_id": {
+          "format": "uuid",
+          "title": "Episode Id",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "opened",
+            "recovered"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "notice_id": {
+          "format": "uuid",
+          "title": "Notice Id",
+          "type": "string"
+        },
+        "occurred_at": {
+          "format": "date-time",
+          "title": "Occurred At",
+          "type": "string"
+        },
+        "opened_at": {
+          "format": "date-time",
+          "title": "Opened At",
+          "type": "string"
+        },
+        "result": {
+          "$ref": "#/$defs/FreshnessResult"
+        },
+        "schema_version": {
+          "const": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "scope_id": {
+          "format": "uuid",
+          "title": "Scope Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema_version",
+        "scope_id",
+        "actor_id",
+        "notice_id",
+        "episode_id",
+        "kind",
+        "opened_at",
+        "occurred_at",
+        "result"
+      ],
+      "title": "FreshnessNotice",
+      "type": "object"
+    },
+    "FreshnessResult": {
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "enum": [
+            "none",
+            "check_source",
+            "collect_missing",
+            "check_publication",
+            "verify_rule"
+          ],
+          "title": "Action",
+          "type": "string"
+        },
+        "checked_at": {
+          "format": "date-time",
+          "title": "Checked At",
+          "type": "string"
+        },
+        "evidence": {
+          "$ref": "#/$defs/FreshnessEvidence"
+        },
+        "expectation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FreshnessExpectation"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "key": {
+          "$ref": "#/$defs/FreshnessKey"
+        },
+        "overdue_seconds": {
+          "minimum": 0,
+          "title": "Overdue Seconds",
+          "type": "integer"
+        },
+        "reason": {
+          "enum": [
+            "published_current",
+            "source_behind",
+            "collection_behind",
+            "publication_behind",
+            "source_unavailable",
+            "rule_unknown",
+            "source_unknown"
+          ],
+          "title": "Reason",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "scope_id": {
+          "format": "uuid",
+          "title": "Scope Id",
+          "type": "string"
+        },
+        "stage": {
+          "enum": [
+            "none",
+            "source",
+            "collection",
+            "publication",
+            "unknown"
+          ],
+          "title": "Stage",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "current",
+            "within_grace",
+            "late",
+            "unknown",
+            "unavailable"
+          ],
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema_version",
+        "scope_id",
+        "key",
+        "checked_at",
+        "expectation",
+        "evidence",
+        "status",
+        "stage",
+        "reason",
+        "overdue_seconds",
+        "action"
+      ],
+      "title": "FreshnessResult",
+      "type": "object"
+    },
+    "FreshnessWatch": {
+      "additionalProperties": false,
+      "properties": {
+        "actor_id": {
+          "format": "uuid",
+          "title": "Actor Id",
+          "type": "string"
+        },
+        "created_at": {
+          "format": "date-time",
+          "title": "Created At",
+          "type": "string"
+        },
+        "enabled": {
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "interval_seconds": {
+          "maximum": 86400,
+          "minimum": 60,
+          "title": "Interval Seconds",
+          "type": "integer"
+        },
+        "key": {
+          "$ref": "#/$defs/FreshnessKey"
+        },
+        "last_attempt_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Last Attempt At"
+        },
+        "last_checked_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Last Checked At"
+        },
+        "last_error_code": {
+          "anyOf": [
+            {
+              "enum": [
+                "invalid_input",
+                "unauthorized",
+                "forbidden",
+                "not_found",
+                "conflict",
+                "unsupported",
+                "unverified",
+                "rate_limited",
+                "timeout",
+                "unavailable"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Last Error Code"
+        },
+        "next_due_at": {
+          "format": "date-time",
+          "title": "Next Due At",
+          "type": "string"
+        },
+        "paused_reason": {
+          "anyOf": [
+            {
+              "enum": [
+                "invalid_input",
+                "unauthorized",
+                "forbidden",
+                "not_found",
+                "conflict",
+                "unsupported",
+                "unverified",
+                "rate_limited",
+                "timeout",
+                "unavailable"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Paused Reason"
+        },
+        "reference_publication_id": {
+          "format": "uuid",
+          "title": "Reference Publication Id",
+          "type": "string"
+        },
+        "revision": {
+          "minimum": 1,
+          "title": "Revision",
+          "type": "integer"
+        },
+        "schema_version": {
+          "const": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "scope_id": {
+          "format": "uuid",
+          "title": "Scope Id",
+          "type": "string"
+        },
+        "updated_at": {
+          "format": "date-time",
+          "title": "Updated At",
+          "type": "string"
+        },
+        "watch_id": {
+          "format": "uuid",
+          "title": "Watch Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema_version",
+        "scope_id",
+        "watch_id",
+        "actor_id",
+        "key",
+        "reference_publication_id",
+        "revision",
+        "enabled",
+        "interval_seconds",
+        "created_at",
+        "updated_at",
+        "next_due_at"
+      ],
+      "title": "FreshnessWatch",
+      "type": "object"
+    }
+  },
+  "$id": "urn:qtrade:data:v1:FreshnessHealthEntry",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "age_seconds": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Age Seconds"
+    },
+    "consumer_lease_expired": {
+      "default": false,
+      "title": "Consumer Lease Expired",
+      "type": "boolean"
+    },
+    "consumer_state": {
+      "enum": [
+        "not_applicable",
+        "not_claimed",
+        "pending",
+        "leased",
+        "delivered"
+      ],
+      "title": "Consumer State",
+      "type": "string"
+    },
+    "effective_status": {
+      "enum": [
+        "current",
+        "within_grace",
+        "late",
+        "unknown",
+        "unavailable",
+        "unchecked",
+        "expired",
+        "check_failed",
+        "clock_skew",
+        "source_unconfigured"
+      ],
+      "title": "Effective Status",
+      "type": "string"
+    },
+    "instrument_name": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Instrument Name",
+      "type": "string"
+    },
+    "key": {
+      "$ref": "#/$defs/FreshnessKey"
+    },
+    "key_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Key Sha256",
+      "type": "string"
+    },
+    "last_notice": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/FreshnessNotice"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "snapshot": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/FreshnessResult"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "source_configuration": {
+      "enum": [
+        "configured",
+        "unconfigured",
+        "unknown"
+      ],
+      "title": "Source Configuration",
+      "type": "string"
+    },
+    "watch": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/FreshnessWatch"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "key_sha256",
+    "key",
+    "instrument_name",
+    "snapshot",
+    "watch",
+    "last_notice",
+    "consumer_state",
+    "source_configuration",
+    "effective_status",
+    "age_seconds"
+  ],
+  "title": "FreshnessHealthEntry",
+  "type": "object"
+}
