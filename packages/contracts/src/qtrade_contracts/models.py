@@ -379,6 +379,7 @@ class BacktestOrder(BaseModel):
         "partially_filled_end_of_data",
         "unfilled_end_of_data",
     ]
+    reason: Literal["signal", "membership_end"] | None = None
 
 
 class BacktestFill(BaseModel):
@@ -667,6 +668,63 @@ class BacktestWalkForwardRun(Contract):
         return self
 
 
+class UniverseMembership(Contract):
+    """Workspace-defined effective window for a research universe member."""
+
+    membership_id: UUID
+    instrument_id: Text
+    effective_from: AwareDatetime
+    effective_to: AwareDatetime
+    source: Literal["workspace.definition", "supplier.membership"]
+    evidence: Text
+    content_version: Hash
+    created_by: UUID
+    created_at: AwareDatetime
+
+    @model_validator(mode="after")
+    def ordered_interval(self) -> Self:
+        if self.effective_from >= self.effective_to:
+            raise ValueError("membership interval must be nonempty")
+        return self
+
+
+class BacktestUniverseMembership(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
+    instrument_id: Text
+    effective_from: AwareDatetime
+    effective_to: AwareDatetime
+    source: Text
+    evidence: Text
+    content_version: Hash
+
+    @model_validator(mode="after")
+    def ordered_interval(self) -> Self:
+        if self.effective_from >= self.effective_to:
+            raise ValueError("frozen membership interval must be nonempty")
+        return self
+
+
+class BacktestUniverse(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
+    mode: Literal["dataset", "membership"]
+    memberships: tuple[BacktestUniverseMembership, ...] = ()
+    instruments: Annotated[int, Field(ge=0)] = 0
+    full_coverage: Annotated[int, Field(ge=0)] = 0
+    partial_coverage: Annotated[int, Field(ge=0)] = 0
+    unknown: Annotated[int, Field(ge=0)] = 0
+    disclosure: Text
+
+    @model_validator(mode="after")
+    def consistent_coverage(self) -> Self:
+        if (
+            self.full_coverage + self.partial_coverage + self.unknown != self.instruments
+            or (self.mode == "dataset" and self.memberships)
+            or (self.mode == "membership" and self.unknown)
+        ):
+            raise ValueError("universe coverage must match its memberships")
+        return self
+
+
 class OrderIntent(Contract):
     intent_id: UUID
     account_id: UUID
@@ -809,6 +867,7 @@ CONTRACTS: tuple[type[Contract], ...] = (
     BacktestWalkForwardRun,
     BacktestWalkForwardWindowOutcome,
     BacktestWalkForwardWindowPlan,
+    UniverseMembership,
     BacktestComparison,
     OrderIntent,
     RiskDecision,

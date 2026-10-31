@@ -20,6 +20,7 @@ from qtrade_api.kill_switch import kill_switch_router
 from qtrade_api.logout_bridge import logout_bridge
 from qtrade_api.market_data import market_data_router
 from qtrade_api.market_watch import market_watch_router
+from qtrade_api.memberships import membership_router
 from qtrade_api.portfolio import portfolio_router
 from qtrade_api.realtime import realtime_router
 from qtrade_api.risk import risk_router
@@ -52,6 +53,7 @@ from qtrade_application.runtime_control import (
 )
 from qtrade_application.strategies import StrategyService
 from qtrade_application.strategy_lifecycle import StrategyLifecycleService
+from qtrade_application.universe_memberships import UniverseMembershipService
 from qtrade_application.workspaces import WorkspaceService
 from qtrade_composition.backtest_queue import QueuedBacktestEngine
 from qtrade_composition.collection_gateway import collection_gateway_from_env
@@ -81,6 +83,7 @@ from qtrade_postgres.instruments import PostgresInstrumentStore
 from qtrade_postgres.kill_switch import PostgresKillSwitchStore
 from qtrade_postgres.logout import PostgresLogoutStore
 from qtrade_postgres.market_data import TimescaleMarketData
+from qtrade_postgres.memberships import PostgresMembershipStore
 from qtrade_postgres.quality import PostgresQualityIssueStore
 from qtrade_postgres.realtime import PostgresRealtimeHealthStore
 from qtrade_postgres.risk import PostgresRiskDecisionStore, PostgresRiskLimitStore
@@ -213,6 +216,8 @@ if service is not None:
         if os.environ.get("MARKET_DATABASE_URL")
         else None
     )
+    membership_store = PostgresMembershipStore(os.environ["DATABASE_URL"])
+    membership_service = UniverseMembershipService(membership_store)
     if os.environ.get("QTRADE_ENV") == "local" and backtest_market_data is not None:
         # API only freezes inputs and enqueues. The Worker owns source execution,
         # result publication, leases, retry and restart recovery.
@@ -237,6 +242,7 @@ if service is not None:
                 else None
             ),
             walk_forwards=PostgresWalkForwardStore(os.environ["DATABASE_URL"]),
+            memberships=membership_store,
         )
     else:
         backtests = None
@@ -328,6 +334,7 @@ app.include_router(
         universe_source_profiles_from_env(workspaces),
     )
 )
+app.include_router(membership_router(membership_service, security, audit))
 
 app.include_router(
     campaign_router(

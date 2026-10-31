@@ -181,6 +181,25 @@ function DrawdownChart({ report }: { report: BacktestReportInfo }) {
   );
 }
 
+type UniverseMembershipInfo = {
+  instrument_id?: string;
+  effective_from?: string;
+  effective_to?: string;
+  source?: string;
+  evidence?: string;
+  content_version?: string;
+};
+
+type UniverseConfig = {
+  mode?: "dataset" | "membership";
+  disclosure?: string;
+  instruments?: number;
+  full_coverage?: number;
+  partial_coverage?: number;
+  unknown?: number;
+  memberships?: UniverseMembershipInfo[];
+};
+
 export function BacktestReport({
   run,
   report,
@@ -217,6 +236,7 @@ export function BacktestReport({
   const metrics = report.metrics;
   let parameters: Record<string, unknown> = {};
   let execution: Record<string, unknown> = {};
+  let universe: UniverseConfig | null = null;
   let corporateActions: {
     ex_date?: string;
     action?: string;
@@ -232,8 +252,10 @@ export function BacktestReport({
     const config = JSON.parse(manifest?.execution_config_json ?? "{}") as {
       execution_model?: Record<string, unknown>;
       corporate_actions?: unknown[];
+      universe?: UniverseConfig;
     };
     execution = config.execution_model ?? {};
+    universe = config.universe ?? null;
     corporateActions = Array.isArray(config.corporate_actions)
       ? (config.corporate_actions as typeof corporateActions)
       : [];
@@ -432,6 +454,7 @@ export function BacktestReport({
                   <th>数量</th>
                   <th>成交数量</th>
                   <th>状态</th>
+                  <th>原因</th>
                 </tr>
               </thead>
               <tbody>
@@ -456,6 +479,11 @@ export function BacktestReport({
                               ? "部分成交，剩余未成交"
                               : "未成交"}
                       </td>
+                      <td>
+                        {order.reason === "membership_end"
+                          ? "成员区间结束"
+                          : "策略信号"}
+                      </td>
                     </tr>
                   ))}
               </tbody>
@@ -468,6 +496,72 @@ export function BacktestReport({
           </div>
         )}
       </section>
+      {universe && (
+        <section className="panel backtest-report-table-panel">
+          <div className="panel-heading">
+            <div>
+              <p className="eyebrow">UNIVERSE</p>
+              <h2>成员区间与幸存者偏差</h2>
+            </div>
+            <span className="backtest-count">
+              {universe.mode === "membership" ? "区间校验" : "未校验"}
+            </span>
+          </div>
+          <p className="backtest-model-note" role="note">
+            {universe.disclosure ?? "未提供成员区间披露。"}
+          </p>
+          <dl className="backtest-report-inputs backtest-universe-coverage">
+            <div>
+              <dt>数据集标的</dt>
+              <dd>{universe.instruments ?? "—"}</dd>
+            </div>
+            <div>
+              <dt>全程覆盖</dt>
+              <dd>{universe.full_coverage ?? 0}</dd>
+            </div>
+            <div>
+              <dt>区间不完整</dt>
+              <dd>{universe.partial_coverage ?? 0}</dd>
+            </div>
+            <div>
+              <dt>未知区间</dt>
+              <dd>{universe.unknown ?? 0}</dd>
+            </div>
+          </dl>
+          {(universe.memberships?.length ?? 0) > 0 && (
+            <div className="table-scroll">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>标的</th>
+                    <th>生效起</th>
+                    <th>生效止</th>
+                    <th>来源</th>
+                    <th>证据</th>
+                    <th>区间版本</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(universe.memberships ?? []).map((item, index) => (
+                    <tr
+                      key={`${item.instrument_id}-${item.effective_from}-${index}`}
+                    >
+                      <td>{item.instrument_id}</td>
+                      <td>{item.effective_from?.slice(0, 10)}</td>
+                      <td>{item.effective_to?.slice(0, 10)}</td>
+                      <td>{item.source}</td>
+                      <td>{item.evidence}</td>
+                      <td className="backtest-hash">
+                        {item.content_version?.slice(0, 12) ?? "—"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      )}
       {corporateActions.length > 0 && (
         <section className="panel backtest-report-table-panel">
           <div className="panel-heading">
@@ -647,6 +741,14 @@ export function BacktestReport({
                 {execution.daily_price_limit_fraction == null
                   ? "无"
                   : percent(String(execution.daily_price_limit_fraction))}
+              </dd>
+            </div>
+            <div>
+              <dt>成员校验</dt>
+              <dd>
+                {universe?.mode === "membership"
+                  ? `已启用 · ${universe.full_coverage ?? 0} 全程 / ${universe.partial_coverage ?? 0} 不完整`
+                  : "未启用（存在幸存者偏差）"}
               </dd>
             </div>
             <div>

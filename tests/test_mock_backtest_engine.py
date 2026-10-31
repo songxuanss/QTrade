@@ -427,3 +427,63 @@ def test_corporate_action_cash_and_bonus_shares_are_applied_on_ex_date():
     assert Decimal(result["equity_curve"][-1]["cash"]) == Decimal("10000") - Decimal(
         "1000"
     ) + Decimal("50")
+
+
+def membership_config(start, end, instrument="MOCK:ABC"):
+    from qtrade_contracts import BacktestUniverse, BacktestUniverseMembership
+
+    return BacktestUniverse(
+        mode="membership",
+        memberships=(
+            BacktestUniverseMembership(
+                instrument_id=instrument,
+                effective_from=start,
+                effective_to=end,
+                source="workspace.definition",
+                evidence="fixture interval",
+                content_version="a" * 64,
+            ),
+        ),
+        instruments=1,
+        full_coverage=0,
+        partial_coverage=1,
+        unknown=0,
+        disclosure="fixture disclosure",
+    )
+
+
+def test_membership_end_liquidates_position_at_last_available_close():
+    from datetime import UTC, datetime
+
+    bar = Bar.model_validate_json((FIXTURES / "Bar.json").read_text())
+    run = BacktestRun.model_validate_json((FIXTURES / "BacktestRun.json").read_text())
+    manifest = ArtifactManifest.model_validate_json(
+        (FIXTURES / "ArtifactManifest.json").read_text()
+    )
+    day = bar.model_copy(update={"open": Decimal("10"), "close": Decimal("10")})
+    second = day.model_copy(
+        update={
+            "timestamp": day.timestamp + timedelta(days=1),
+            "close": Decimal("12"),
+        }
+    )
+    third = day.model_copy(update={"timestamp": day.timestamp + timedelta(days=2)})
+    universe = membership_config(
+        datetime(2026, 10, 1, tzinfo=UTC), datetime(2026, 10, 2, 12, tzinfo=UTC)
+    )
+    result = MockEngineAdapter._replay(
+        run,
+        manifest,
+        (day, second, third),
+        BuyHundredOnce(),
+        BacktestExecutionModel(lot_size=100),
+        universe=universe,
+    )
+
+    exit_orders = [order for order in result["orders"] if order.get("reason") == "membership_end"]
+    assert len(exit_orders) == 1
+    assert exit_orders[0]["filled_at"] == second.timestamp.isoformat()
+    assert exit_orders[0]["price"] == "12"
+    assert exit_orders[0]["filled_quantity"] == "100"
+    assert result["equity_curve"][-1]["positions"] == []
+    assert Decimal(result["equity_curve"][-1]["cash"]) == Decimal("10000") + Decimal("200")

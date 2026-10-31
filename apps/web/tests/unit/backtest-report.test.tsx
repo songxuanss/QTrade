@@ -152,6 +152,56 @@ describe("BacktestReport", () => {
     expect(html).toContain("d".repeat(64));
   });
 
+  it("shows membership coverage, disclosure and forced-exit reasons", () => {
+    const membershipManifest: BacktestManifestInfo = {
+      ...manifest,
+      execution_config_json: JSON.stringify({
+        ...(JSON.parse(manifest.execution_config_json) as Record<
+          string,
+          unknown
+        >),
+        universe: {
+          mode: "membership",
+          instruments: 1,
+          full_coverage: 0,
+          partial_coverage: 1,
+          unknown: 0,
+          disclosure:
+            "已按 1 个标的的成员区间回放：0 个全程覆盖、1 个区间不完整、0 个未知。",
+          memberships: [
+            {
+              instrument_id: "SSE:600000",
+              effective_from: "2026-01-01T00:00:00Z",
+              effective_to: "2026-01-15T00:00:00Z",
+              source: "workspace.definition",
+              evidence: "研究口径定义",
+              content_version: "e".repeat(64),
+            },
+          ],
+        },
+      }),
+    };
+    const forcedExit = {
+      ...report.orders[0],
+      side: "sell" as const,
+      status: "filled" as const,
+      reason: "membership_end" as const,
+    };
+    const html = renderToStaticMarkup(
+      createElement(BacktestReport, {
+        run,
+        report: { ...report, orders: [forcedExit] },
+        manifest: membershipManifest,
+      }),
+    );
+
+    expect(html).toContain("成员区间与幸存者偏差");
+    expect(html).toContain("区间不完整");
+    expect(html).toContain("workspace.definition");
+    expect(html).toContain("成员区间结束");
+    expect(html).toContain("1 个区间不完整");
+  });
+
   it("explains unavailable and failed reports", () => {
     const html = renderToStaticMarkup(
       createElement(BacktestReport, {

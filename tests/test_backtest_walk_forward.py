@@ -13,6 +13,7 @@ from qtrade_application.artifacts import ManifestService
 from qtrade_application.backtesting import (
     BacktestEngineIdentity,
     BacktestService,
+    BacktestSubmission,
     WalkForwardSubmission,
 )
 from qtrade_application.strategies import StrategyService
@@ -60,7 +61,7 @@ class MemoryWalkForwardStore:
             raise PortError(ErrorCode.NOT_FOUND, "walk-forward batch unavailable") from None
 
 
-def build_service(market: MockMarketData, run_store=None):
+def build_service(market: MockMarketData, run_store=None, memberships=None):
     actor, workspace_id = uuid4(), uuid4()
     now = datetime.now(UTC)
     strategy_id, version_id, dataset_id = uuid4(), uuid4(), uuid4()
@@ -125,6 +126,7 @@ def build_service(market: MockMarketData, run_store=None):
         BacktestEngineIdentity("mock", "1", "1", "sha256:" + "a" * 64),
         market_data=market,
         walk_forwards=batches,
+        memberships=memberships,
     )
     workspace = Workspace(workspace_id, "Research", "team", actor, False, False, now)
     access = WorkspaceAccess(workspace, actor, Role.ADMIN)
@@ -439,3 +441,116 @@ def test_submission_tolerates_a_worker_claiming_before_the_job_attach():
     assert result.windows[0].status == "running"
     second = runs.get(access.workspace.workspace_id, result.windows[1].run_id)
     assert second.run.status == "queued"
+
+
+class MemoryMemberships:
+    def __init__(self, records):
+        self.records = tuple(records)
+
+    def for_instruments(self, workspace_id, instrument_ids):
+        wanted = set(instrument_ids)
+        return tuple(item for item in self.records if item.instrument_id in wanted)
+
+
+def membership_record(workspace_id, start, end):
+    from hashlib import sha256
+
+    from qtrade_contracts import UniverseMembership
+
+    return UniverseMembership(
+        schema_version=1,
+        workspace_id=workspace_id,
+        membership_id=uuid4(),
+        instrument_id="MOCK:ABC",
+        effective_from=start,
+        effective_to=end,
+        source="workspace.definition",
+        evidence="fixture interval",
+        content_version=sha256(b"membership").hexdigest(),
+        created_by=uuid4(),
+        created_at=datetime.now(UTC),
+    )
+
+
+def test_membership_mode_requires_a_membership_source():
+    market = MockMarketData()
+    service, access, strategy_id, dataset_id, _, _ = build_service(market)
+    start = datetime(2026, 10, 1, tzinfo=UTC)
+    with pytest.raises(PortError) as unavailable:
+        service.create(
+            access,
+            BacktestSubmission(
+                strategy_id,
+                1,
+                dataset_id,
+                start,
+                start + timedelta(hours=12),
+                Decimal("10000"),
+                "USD",
+                "cost.v1",
+                {},
+                universe_mode="membership",
+            ),
+        )
+    assert unavailable.value.code == ErrorCode.UNAVAILABLE
+
+
+def test_membership_mode_freezes_intervals_and_discloses_partial_coverage():
+    market = MockMarketData()
+    start = datetime(2026, 10, 1, tzinfo=UTC)
+    # The interval must belong to the same workspace as the run.
+    holder = MemoryMemberships(())
+    service, access, strategy_id, dataset_id, runs, _ = build_service(market, memberships=holder)
+    holder.records = (
+        membership_record(access.workspace.workspace_id, start, start + timedelta(hours=6)),
+    )
+
+    created = service.create(
+        access,
+        BacktestSubmission(
+            strategy_id,
+            1,
+            dataset_id,
+            start,
+            start + timedelta(hours=12),
+            Decimal("10000"),
+            "USD",
+            "cost.v1",
+            {},
+            universe_mode="membership",
+        ),
+    )
+    manifest = service.manifest(access, created.run.run_id)
+    universe = json.loads(manifest.execution_config_json or "{}")["universe"]
+
+    assert universe["mode"] == "membership"
+    assert universe["partial_coverage"] == 1
+    assert universe["unknown"] == 0
+    assert universe["memberships"][0]["effective_to"].startswith("2026-10-01T06:00:00")
+    assert "强制平仓" in universe["disclosure"]
+
+
+def test_membership_mode_rejects_instruments_without_intervals():
+    market = MockMarketData()
+    start = datetime(2026, 10, 1, tzinfo=UTC)
+    service, access, strategy_id, dataset_id, _, _ = build_service(
+        market, memberships=MemoryMemberships(())
+    )
+    with pytest.raises(PortError) as missing:
+        service.create(
+            access,
+            BacktestSubmission(
+                strategy_id,
+                1,
+                dataset_id,
+                start,
+                start + timedelta(hours=12),
+                Decimal("10000"),
+                "USD",
+                "cost.v1",
+                {},
+                universe_mode="membership",
+            ),
+        )
+    assert missing.value.code == ErrorCode.INVALID_INPUT
+    assert "membership intervals are missing" in str(missing.value)

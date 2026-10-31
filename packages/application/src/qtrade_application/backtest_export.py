@@ -80,6 +80,20 @@ def _parameters(manifest: ArtifactManifest) -> dict[str, object]:
     return value if isinstance(value, dict) else {}
 
 
+def _universe(manifest: ArtifactManifest) -> dict[str, object]:
+    value = _execution_config(manifest).get("universe")
+    return value if isinstance(value, dict) else {}
+
+
+def _universe_memberships(manifest: ArtifactManifest) -> list[dict[str, object]]:
+    memberships = _universe(manifest).get("memberships", [])
+    return (
+        [item for item in memberships if isinstance(item, dict)]
+        if isinstance(memberships, list)
+        else []
+    )
+
+
 def _corporate_actions(manifest: ArtifactManifest) -> list[dict[str, object]]:
     actions = _execution_config(manifest).get("corporate_actions", [])
     return [item for item in actions if isinstance(item, dict)] if isinstance(actions, list) else []
@@ -169,6 +183,43 @@ def run_csv(run: BacktestRun, result: BacktestResult, manifest: ArtifactManifest
         if isinstance(execution, dict)
         else [],
     )
+    universe = _universe(manifest)
+    _section(
+        writer,
+        "universe",
+        ("field", "value"),
+        [
+            ("mode", universe.get("mode")),
+            ("instruments", universe.get("instruments")),
+            ("full_coverage", universe.get("full_coverage")),
+            ("partial_coverage", universe.get("partial_coverage")),
+            ("unknown", universe.get("unknown")),
+            ("disclosure", universe.get("disclosure")),
+        ],
+    )
+    _section(
+        writer,
+        "universe_memberships",
+        (
+            "instrument_id",
+            "effective_from",
+            "effective_to",
+            "source",
+            "evidence",
+            "content_version",
+        ),
+        [
+            (
+                item.get("instrument_id"),
+                item.get("effective_from"),
+                item.get("effective_to"),
+                item.get("source"),
+                item.get("evidence"),
+                item.get("content_version"),
+            )
+            for item in _universe_memberships(manifest)
+        ],
+    )
     _section(
         writer,
         "corporate_actions",
@@ -217,7 +268,16 @@ def run_csv(run: BacktestRun, result: BacktestResult, manifest: ArtifactManifest
     _section(
         writer,
         "orders",
-        ("submitted_at", "instrument_id", "side", "quantity", "filled_quantity", "price", "status"),
+        (
+            "submitted_at",
+            "instrument_id",
+            "side",
+            "quantity",
+            "filled_quantity",
+            "price",
+            "status",
+            "reason",
+        ),
         [
             (
                 order.submitted_at.isoformat(),
@@ -227,6 +287,7 @@ def run_csv(run: BacktestRun, result: BacktestResult, manifest: ArtifactManifest
                 _decimal(order.filled_quantity),
                 _decimal(order.price) if order.price is not None else "",
                 order.status,
+                order.reason or "signal",
             )
             for order in result.orders
         ],
@@ -427,6 +488,7 @@ def run_html(
             _decimal(order.filled_quantity),
             _decimal(order.price) if order.price is not None else "—",
             order.status,
+            "成员区间结束" if order.reason == "membership_end" else "策略信号",
         )
         for order in result.orders
     ]
@@ -454,12 +516,19 @@ def run_html(
 <div class="bar">
   <div>
     <h1>QTrade 回测报告</h1>
-    <p class="meta">Run {escape(str(run.run_id))} · {escape(str(strategy_label or run.strategy_version_id))} · {escape(str(dataset_label or run.dataset_id))}</p>
+    <p class="meta">Run {escape(str(run.run_id))} · {
+        escape(str(strategy_label or run.strategy_version_id))
+    } · {escape(str(dataset_label or run.dataset_id))}</p>
   </div>
   <div class="actions"><button type="button" onclick="window.print()">打印 / 另存为 PDF</button></div>
 </div>
 <div class="grid">
-{"".join(f'<div class="card"><span>{escape(label)}</span><strong>{escape(value)}</strong></div>' for label, value in cards)}
+{
+        "".join(
+            f'<div class="card"><span>{escape(label)}</span><strong>{escape(value)}</strong></div>'
+            for label, value in cards
+        )
+    }
 </div>
 {_sparkline(equity)}
 <h2>绩效指标</h2>
@@ -470,15 +539,71 @@ def run_html(
 {_table(("参数", "值"), parameter_rows, set())}
 <h2>执行假设</h2>
 {_table(("参数", "值"), execution_rows, set())}
+<h2>成员区间与幸存者偏差</h2>
+<p class="note">{escape(str(_universe(manifest).get("disclosure") or "未提供成员区间披露。"))}</p>
+{
+        _table(
+            ("项目", "值"),
+            [
+                ("校验模式", str(_universe(manifest).get("mode") or "dataset")),
+                ("数据集标的", str(_universe(manifest).get("instruments") or 0)),
+                ("全程覆盖", str(_universe(manifest).get("full_coverage") or 0)),
+                ("区间不完整", str(_universe(manifest).get("partial_coverage") or 0)),
+                ("未知区间", str(_universe(manifest).get("unknown") or 0)),
+            ],
+            set(),
+        )
+    }
+{
+        _table(
+            ("标的", "生效起", "生效止", "来源", "证据", "区间版本"),
+            [
+                (
+                    str(item.get("instrument_id") or ""),
+                    str(item.get("effective_from") or ""),
+                    str(item.get("effective_to") or ""),
+                    str(item.get("source") or ""),
+                    str(item.get("evidence") or ""),
+                    str(item.get("content_version") or ""),
+                )
+                for item in _universe_memberships(manifest)
+            ],
+            set(),
+        )
+    }
 <h2>已冻结公司行为</h2>
-{_table(("除权日", "类型", "基准股数", "每股金额", "币种", "送股", "转增", "拆并比例", "事件版本"), action_rows, set())}
+{
+        _table(
+            (
+                "除权日",
+                "类型",
+                "基准股数",
+                "每股金额",
+                "币种",
+                "送股",
+                "转增",
+                "拆并比例",
+                "事件版本",
+            ),
+            action_rows,
+            set(),
+        )
+    }
 <h2>期末持仓</h2>
 {_table(("标的", "数量", "市值"), position_rows, {1, 2})}
 <h2>订单 ({len(order_rows)})</h2>
-{_table(("提交时间", "标的", "方向", "数量", "成交数量", "价格", "状态"), order_rows, {3, 4, 5})}
+{
+        _table(
+            ("提交时间", "标的", "方向", "数量", "成交数量", "价格", "状态", "原因"),
+            order_rows,
+            {3, 4, 5},
+        )
+    }
 <h2>成交 ({len(fill_rows)})</h2>
 {_table(("成交时间", "标的", "方向", "数量", "价格", "费用"), fill_rows, {3, 4, 5})}
-<p class="note">本文件由 QTrade 从已校验的不可变结果、manifest 与运行记录生成，生成时间 {escape(datetime.now(UTC).isoformat())}。
+<p class="note">本文件由 QTrade 从已校验的不可变结果、manifest 与运行记录生成，生成时间 {
+        escape(datetime.now(UTC).isoformat())
+    }。
 用于研究复核，不构成实盘可用性或收益承诺。</p>
 </body>
 </html>

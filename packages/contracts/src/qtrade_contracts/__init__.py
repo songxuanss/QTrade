@@ -14,6 +14,8 @@ from .models import (
     BacktestResult,
     BacktestRun,
     BacktestSummary,
+    BacktestUniverse,
+    BacktestUniverseMembership,
     BacktestWalkForwardAggregate,
     BacktestWalkForwardBatch,
     BacktestWalkForwardPlan,
@@ -37,6 +39,7 @@ from .models import (
     RiskDecision,
     RiskReason,
     StrategyVersion,
+    UniverseMembership,
 )
 
 __all__ = [
@@ -55,6 +58,8 @@ __all__ = [
     "BacktestSummary",
     "BacktestWalkForwardAggregate",
     "BacktestWalkForwardBatch",
+    "BacktestUniverse",
+    "BacktestUniverseMembership",
     "BacktestWalkForwardPlan",
     "BacktestWalkForwardRun",
     "BacktestWalkForwardWindow",
@@ -76,4 +81,5 @@ __all__ = [
     "RiskDecision",
     "RiskReason",
     "StrategyVersion",
+    "UniverseMembership",
 ]

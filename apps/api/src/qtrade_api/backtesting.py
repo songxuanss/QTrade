@@ -2,7 +2,7 @@
 
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from typing import Annotated
+from typing import Annotated, Literal
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
@@ -39,6 +39,7 @@ class WalkForwardInput(BaseModel):
     random_seed: int = Field(default=0, ge=0, le=2**63 - 1)
     benchmark_id: str | None = Field(default=None, max_length=128)
     execution_model: dict[str, object] = Field(default_factory=dict, max_length=32)
+    universe_mode: Literal["dataset", "membership"] = "dataset"
 
 
 class BacktestInput(BaseModel):
@@ -54,6 +55,7 @@ class BacktestInput(BaseModel):
     random_seed: int = Field(default=0, ge=0, le=2**63 - 1)
     benchmark_id: str | None = Field(default=None, max_length=128)
     execution_model: dict[str, object] = Field(default_factory=dict, max_length=32)
+    universe_mode: Literal["dataset", "membership"] = "dataset"
 
 
 def backtesting_router(
@@ -94,6 +96,7 @@ def backtesting_router(
                     body.random_seed,
                     body.benchmark_id,
                     execution_model=body.execution_model,
+                    universe_mode=body.universe_mode,
                 ),
             )
             _audit(audit, access, request, "backtest.create", record.run.run_id)
@@ -175,6 +178,7 @@ def backtesting_router(
                     body.random_seed,
                     body.benchmark_id,
                     body.execution_model,
+                    body.universe_mode,
                 ),
             )
             _audit(audit, access, request, "backtest.walk_forward", result.walk_forward_id)

@@ -4,7 +4,7 @@ import json
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from typing import Protocol, cast
+from typing import Literal, Protocol, cast
 from uuid import UUID, uuid4
 
 from qtrade_application.artifacts import ManifestService
@@ -23,6 +23,8 @@ from qtrade_contracts import (
     BacktestComparisonRun,
     BacktestResult,
     BacktestRun,
+    BacktestUniverse,
+    BacktestUniverseMembership,
     BacktestWalkForwardAggregate,
     BacktestWalkForwardBatch,
     BacktestWalkForwardPlan,
@@ -31,6 +33,7 @@ from qtrade_contracts import (
     BacktestWalkForwardWindowOutcome,
     BacktestWalkForwardWindowPlan,
     MarketDataset,
+    UniverseMembership,
 )
 from qtrade_data_contracts.research import CorporateAction
 from qtrade_domain.artifacts import ManifestInputs
@@ -54,6 +57,11 @@ from qtrade_domain.ports import (
     TradingEnginePort,
 )
 from qtrade_domain.strategies import StrategyLifecyclePort, StrategyVersionState
+from qtrade_domain.universe import (
+    MembershipWindow,
+    coverage_for,
+    disclosure,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -96,6 +104,7 @@ class BacktestSubmission:
     benchmark_id: str | None = None
     resource_profile: str = "standard.v1"
     execution_model: dict[str, object] | None = None
+    universe_mode: Literal["dataset", "membership"] = "dataset"
 
     def __post_init__(self) -> None:
         if (
@@ -128,6 +137,7 @@ class BacktestSubmission:
                     not isinstance(self.benchmark_id, str) or not 1 <= len(self.benchmark_id) <= 128
                 )
             )
+            or self.universe_mode not in {"dataset", "membership"}
         ):
             raise PortError(ErrorCode.INVALID_INPUT, "invalid backtest request")
         try:
@@ -157,6 +167,7 @@ class WalkForwardSubmission:
     random_seed: int = 0
     benchmark_id: str | None = None
     execution_model: dict[str, object] | None = None
+    universe_mode: Literal["dataset", "membership"] = "dataset"
 
     def __post_init__(self) -> None:
         if (
@@ -169,8 +180,17 @@ class WalkForwardSubmission:
             or self.step < self.validation_window
             or type(self.random_seed) is not int
             or self.random_seed < 0
+            or self.universe_mode not in {"dataset", "membership"}
         ):
             raise PortError(ErrorCode.INVALID_INPUT, "invalid walk-forward request")
+
+
+class MembershipQueryPort(Protocol):
+    """Load workspace membership intervals for dataset instruments."""
+
+    def for_instruments(
+        self, workspace_id: UUID, instrument_ids: tuple[str, ...]
+    ) -> tuple[UniverseMembership, ...]: ...
 
 
 class WalkForwardStorePort(Protocol):
@@ -207,6 +227,7 @@ class BacktestService:
         market_data: MarketDataPort | None = None,
         corporate_actions: CorporateActionPort | None = None,
         walk_forwards: WalkForwardStorePort | None = None,
+        memberships: MembershipQueryPort | None = None,
     ) -> None:
         self._runs = runs
         self._strategies = strategies
@@ -219,6 +240,62 @@ class BacktestService:
         self._market_data = market_data
         self._corporate_actions = corporate_actions
         self._walk_forwards = walk_forwards
+        self._memberships = memberships
+
+    def _universe(
+        self,
+        access: WorkspaceAccess,
+        instrument_ids: tuple[str, ...],
+        start: datetime,
+        end: datetime,
+        mode: str,
+    ) -> BacktestUniverse:
+        """Resolve and disclose membership coverage before anything is frozen."""
+        if mode == "dataset":
+            coverage = coverage_for(instrument_ids, (), start, end)
+            return BacktestUniverse(
+                mode="dataset",
+                instruments=coverage.instruments,
+                full_coverage=coverage.full_coverage,
+                partial_coverage=coverage.partial_coverage,
+                unknown=coverage.unknown,
+                disclosure=disclosure("dataset", coverage),
+            )
+        if mode != "membership":
+            raise PortError(ErrorCode.INVALID_INPUT, "invalid universe mode")
+        if self._memberships is None:
+            raise PortError(ErrorCode.UNAVAILABLE, "universe membership data is unavailable")
+        records = self._memberships.for_instruments(access.workspace.workspace_id, instrument_ids)
+        windows = tuple(
+            MembershipWindow(item.instrument_id, item.effective_from, item.effective_to)
+            for item in records
+        )
+        coverage = coverage_for(instrument_ids, windows, start, end)
+        if coverage.unknown:
+            missing = sorted(set(instrument_ids) - {item.instrument_id for item in records})
+            raise PortError(
+                ErrorCode.INVALID_INPUT,
+                "membership intervals are missing for: " + ", ".join(missing[:8]),
+            )
+        return BacktestUniverse(
+            mode="membership",
+            memberships=tuple(
+                BacktestUniverseMembership(
+                    instrument_id=item.instrument_id,
+                    effective_from=item.effective_from,
+                    effective_to=item.effective_to,
+                    source=item.source,
+                    evidence=item.evidence,
+                    content_version=item.content_version,
+                )
+                for item in records
+            ),
+            instruments=coverage.instruments,
+            full_coverage=coverage.full_coverage,
+            partial_coverage=coverage.partial_coverage,
+            unknown=coverage.unknown,
+            disclosure=disclosure("membership", coverage),
+        )
 
     def create(self, access: WorkspaceAccess, request: BacktestSubmission) -> BacktestRunRecord:
         access.require(Permission.BACKTEST_RUN)
@@ -248,6 +325,9 @@ class BacktestService:
             raise PortError(
                 ErrorCode.INVALID_INPUT, "benchmark must be present in the selected dataset"
             )
+        universe = self._universe(
+            access, dataset.instrument_ids, request.start, request.end, request.universe_mode
+        )
         actions = (
             self._corporate_actions.load(access, dataset.instrument_ids, request.start, request.end)
             if self._corporate_actions is not None
@@ -275,6 +355,7 @@ class BacktestService:
                 ],
                 "execution_model": execution_model.to_config(),
                 "resource_profile": request.resource_profile,
+                "universe": universe.model_dump(mode="json"),
                 "start": request.start.astimezone(UTC).isoformat().replace("+00:00", "Z"),
             },
             sort_keys=True,
@@ -589,6 +670,7 @@ class BacktestService:
                     request.random_seed,
                     request.benchmark_id,
                     execution_model=request.execution_model,
+                    universe_mode=request.universe_mode,
                 ),
             )
             first_record = first_record or record

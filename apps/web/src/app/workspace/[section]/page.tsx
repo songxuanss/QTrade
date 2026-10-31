@@ -420,6 +420,7 @@ export default async function WorkspaceSection({
         runs={data.runs}
         datasets={data.datasets}
         strategies={data.strategies}
+        memberships={data.memberships}
         error={data.error}
         canRun={["admin", "analyst"].includes(identity.workspace?.role ?? "")}
       />

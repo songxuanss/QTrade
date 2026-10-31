@@ -4,6 +4,7 @@ import {
   cancelBacktest as cancelBacktestRequest,
   createBacktestWalkForwardPlan,
   createBacktest as createBacktestRequest,
+  createMembership as createMembershipRequest,
   downloadBacktestExport as downloadBacktestExportRequest,
   readBacktestWalkForward as readBacktestWalkForwardRequest,
   startBacktestWalkForward as startBacktestWalkForwardRequest,
@@ -44,4 +45,10 @@ export async function exportWalkForward(
   format: "csv" | "html",
 ) {
   return downloadBacktestExportRequest("walk-forward", walkForwardId, format);
+}
+
+export async function addMembership(
+  input: Parameters<typeof createMembershipRequest>[0],
+) {
+  return createMembershipRequest(input);
 }

@@ -304,6 +304,7 @@ export type BacktestReportInfo = {
       | "rejected"
       | "partially_filled_end_of_data"
       | "unfilled_end_of_data";
+    reason?: "signal" | "membership_end" | null;
   }[];
   fills: {
     instrument_id: string;
@@ -501,6 +502,7 @@ export async function startBacktestWalkForward(input: {
   parameters: Record<string, unknown>;
   executionModel: Record<string, unknown>;
   benchmarkId?: string;
+  universeMode?: "dataset" | "membership";
 }): Promise<{
   run: BacktestWalkForwardRunInfo | null;
   error?: string;
@@ -542,6 +544,7 @@ export async function startBacktestWalkForward(input: {
           parameters: input.parameters,
           execution_model: input.executionModel,
           benchmark_id: input.benchmarkId,
+          universe_mode: input.universeMode ?? "dataset",
           random_seed: 0,
         }),
         signal: AbortSignal.timeout(60_000),
@@ -806,42 +809,130 @@ export async function validateStrategyVersion(
   }
 }
 
+export type MembershipInfo = {
+  membership_id: string;
+  instrument_id: string;
+  effective_from: string;
+  effective_to: string;
+  source: "workspace.definition" | "supplier.membership";
+  evidence: string;
+  content_version: string;
+  created_at: string;
+};
+
+export async function createMembership(input: {
+  instrumentId: string;
+  effectiveFrom: string;
+  effectiveTo: string;
+  evidence: string;
+}): Promise<{ ok: boolean; membership?: MembershipInfo; error?: string }> {
+  const session = await readSession();
+  if (!session) return { ok: false, error: "登录已失效，请重新登录" };
+  try {
+    const authHeaders = { Cookie: `${session.name}=${session.cookie}` };
+    const csrfResponse = await fetch(
+      `${session.config.apiOrigin}/auth/session`,
+      {
+        cache: "no-store",
+        redirect: "error",
+        headers: authHeaders,
+      },
+    );
+    if (!csrfResponse.ok) return { ok: false, error: "无法验证当前会话" };
+    const csrf = await csrfResponse.json();
+    const response = await fetch(
+      `${session.config.apiOrigin}/api/v1/workspaces/${session.workspaceId}/data/memberships`,
+      {
+        method: "POST",
+        cache: "no-store",
+        redirect: "error",
+        headers: {
+          ...authHeaders,
+          "X-CSRF-Token": csrf.csrf_token,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          instrument_id: input.instrumentId,
+          effective_from: new Date(input.effectiveFrom).toISOString(),
+          effective_to: new Date(input.effectiveTo).toISOString(),
+          evidence: input.evidence,
+        }),
+        signal: AbortSignal.timeout(20_000),
+      },
+    );
+    if (!response.ok)
+      return {
+        ok: false,
+        error:
+          response.status === 409
+            ? "该标的已有重叠的成员区间"
+            : response.status === 400
+              ? "标的格式或区间不合法"
+              : response.status === 403
+                ? "当前角色无权维护成员区间"
+                : "成员区间保存失败",
+      };
+    return { ok: true, membership: (await response.json()) as MembershipInfo };
+  } catch {
+    return { ok: false, error: "成员区间服务暂不可用" };
+  }
+}
+
 export async function workspaceBacktests(): Promise<{
   runs: BacktestRunInfo[];
   datasets: BacktestDatasetInfo[];
   strategies: WorkspaceStrategy[];
+  memberships: MembershipInfo[];
   error: boolean;
 }> {
-  const empty = { runs: [], datasets: [], strategies: [], error: false };
+  const empty = {
+    runs: [],
+    datasets: [],
+    strategies: [],
+    memberships: [],
+    error: false,
+  };
   const session = await readSession();
   if (!session) return empty;
   try {
     const headers = { Cookie: `${session.name}=${session.cookie}` };
     const root = `${session.config.apiOrigin}/api/v1/workspaces/${session.workspaceId}`;
-    const [runsResponse, datasetsResponse, strategiesResponse] =
-      await Promise.all([
-        fetch(`${root}/backtests?limit=200`, {
-          cache: "no-store",
-          redirect: "error",
-          headers,
-        }),
-        fetch(`${root}/backtests/datasets?limit=200`, {
-          cache: "no-store",
-          redirect: "error",
-          headers,
-        }),
-        fetch(`${root}/strategies?limit=200`, {
-          cache: "no-store",
-          redirect: "error",
-          headers,
-        }),
-      ]);
+    const [
+      runsResponse,
+      datasetsResponse,
+      strategiesResponse,
+      membershipsResponse,
+    ] = await Promise.all([
+      fetch(`${root}/backtests?limit=200`, {
+        cache: "no-store",
+        redirect: "error",
+        headers,
+      }),
+      fetch(`${root}/backtests/datasets?limit=200`, {
+        cache: "no-store",
+        redirect: "error",
+        headers,
+      }),
+      fetch(`${root}/strategies?limit=200`, {
+        cache: "no-store",
+        redirect: "error",
+        headers,
+      }),
+      fetch(`${root}/data/memberships?limit=200`, {
+        cache: "no-store",
+        redirect: "error",
+        headers,
+      }),
+    ]);
     if (!runsResponse.ok || !datasetsResponse.ok || !strategiesResponse.ok)
       throw Error("Backtests unavailable");
-    const [runs, datasets, strategies] = await Promise.all([
+    const [runs, datasets, strategies, memberships] = await Promise.all([
       runsResponse.json() as Promise<BacktestRunInfo[]>,
       datasetsResponse.json() as Promise<BacktestDatasetInfo[]>,
       strategiesResponse.json() as Promise<WorkspaceStrategy[]>,
+      membershipsResponse.ok
+        ? (membershipsResponse.json() as Promise<MembershipInfo[]>)
+        : Promise.resolve([] as MembershipInfo[]),
     ]);
     if (
       !Array.isArray(runs) ||
@@ -876,7 +967,13 @@ export async function workspaceBacktests(): Promise<{
         }
       }),
     );
-    return { runs, datasets, strategies: withVersions, error: false };
+    return {
+      runs,
+      datasets,
+      strategies: withVersions,
+      memberships: Array.isArray(memberships) ? memberships : [],
+      error: false,
+    };
   } catch {
     return { ...empty, error: true };
   }
@@ -944,6 +1041,7 @@ export async function createBacktest(input: {
   parameters: Record<string, unknown>;
   executionModel: Record<string, unknown>;
   benchmarkId?: string;
+  universeMode?: "dataset" | "membership";
 }): Promise<{ ok: boolean; runId?: string; error?: string }> {
   const session = await readSession();
   if (!session) return { ok: false, error: "登录已失效，请重新登录" };
@@ -982,6 +1080,7 @@ export async function createBacktest(input: {
           parameters: input.parameters,
           execution_model: input.executionModel,
           benchmark_id: input.benchmarkId,
+          universe_mode: input.universeMode ?? "dataset",
           random_seed: 0,
         }),
         signal: AbortSignal.timeout(20_000),

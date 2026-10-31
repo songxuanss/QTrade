@@ -6,6 +6,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import type {
   BacktestDatasetInfo,
   BacktestRunInfo,
+  MembershipInfo,
   WorkspaceStrategy,
 } from "../auth/server";
 import {
@@ -13,6 +14,7 @@ import {
   submitBacktest,
 } from "../../app/workspace/backtest-actions";
 import { WalkForwardPlanner } from "./walk-forward";
+import { MembershipPanel } from "./membership-panel";
 
 const statusLabels: Record<BacktestRunInfo["status"], string> = {
   queued: "排队中",
@@ -69,12 +71,14 @@ export function BacktestWorkbench({
   runs,
   datasets,
   strategies,
+  memberships,
   canRun,
   error,
 }: {
   runs: BacktestRunInfo[];
   datasets: BacktestDatasetInfo[];
   strategies: WorkspaceStrategy[];
+  memberships: MembershipInfo[];
   canRun: boolean;
   error: boolean;
 }) {
@@ -134,6 +138,9 @@ export function BacktestWorkbench({
   const [sellTaxBps, setSellTaxBps] = useState("5");
   const [participation, setParticipation] = useState("0.1");
   const [dailyLimitPercent, setDailyLimitPercent] = useState("10");
+  const [universeMode, setUniverseMode] = useState<"dataset" | "membership">(
+    "dataset",
+  );
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
@@ -259,6 +266,7 @@ export function BacktestWorkbench({
                     : {}),
       },
       ...(benchmarkId.trim() ? { benchmarkId: benchmarkId.trim() } : {}),
+      universeMode,
     });
     setBusy(false);
     if (!result.ok) {
@@ -646,6 +654,24 @@ export function BacktestWorkbench({
                   </select>
                 </label>
               </div>
+              <label>
+                <span>成员区间校验</span>
+                <select
+                  value={universeMode}
+                  onChange={(event) =>
+                    setUniverseMode(
+                      event.target.value === "membership"
+                        ? "membership"
+                        : "dataset",
+                    )
+                  }
+                >
+                  <option value="dataset">
+                    仅数据集（默认，披露幸存者偏差）
+                  </option>
+                  <option value="membership">按成员区间交易</option>
+                </select>
+              </label>
               <div className="backtest-frozen-note">
                 <strong>不可变运行输入</strong>
                 <span>
@@ -656,7 +682,8 @@ export function BacktestWorkbench({
               </div>
               <p className="backtest-model-note" role="note">
                 模型边界：现金分红、送转/拆并已按除权日入账，T+1、整手和最小价位已建模；
-                配股、供应商复权因子、历史成分和逐笔盘口仍未处理，结果用于研究比较，
+                成员校验可启用工作区/供应方区间并在区间结束强制平仓，但区间若非官方历史仍可能有幸存者偏差；
+                配股、供应商复权因子和逐笔盘口仍未处理，结果用于研究比较，
                 不构成实盘可用性证明。
               </p>
               <button
@@ -789,6 +816,7 @@ export function BacktestWorkbench({
         strategies={strategies}
         canRun={canRun}
       />
+      <MembershipPanel memberships={memberships} canManage={canRun} />
     </div>
   );
 }

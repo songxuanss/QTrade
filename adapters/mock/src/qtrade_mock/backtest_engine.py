@@ -18,7 +18,7 @@ from qtrade_contracts import (
     BacktestRun,
     Bar,
 )
-from qtrade_contracts.models import BarGranularity
+from qtrade_contracts.models import BacktestUniverse, BarGranularity
 from qtrade_data_contracts.research import CorporateAction
 from qtrade_domain.backtest_execution import BacktestExecutionModel
 from qtrade_domain.backtest_metrics import calculate_backtest_metrics
@@ -148,6 +148,7 @@ class MockEngineAdapter(TradingEnginePort):
             raise PortError(ErrorCode.INVALID_INPUT, "invalid frozen corporate actions") from None
         if any(action.scope_id != run.workspace_id for action in actions):
             raise PortError(ErrorCode.INVALID_INPUT, "corporate action scope mismatch")
+        universe = self._universe(execution_config.get("universe"))
         key = (run.workspace_id, run.run_id)
         identity = run.model_dump_json() + manifest.model_dump_json()
         if key in self._inputs and self._inputs[key] != identity:
@@ -173,6 +174,7 @@ class MockEngineAdapter(TradingEnginePort):
                 program,
                 self._execution_model(execution_config.get("execution_model")),
                 actions,
+                universe,
             )
         except PortError:
             raise
@@ -305,6 +307,61 @@ class MockEngineAdapter(TradingEnginePort):
         return BacktestExecutionModel.from_config(config)
 
     @staticmethod
+    def _universe(value: object) -> BacktestUniverse | None:
+        if value is None:
+            return None
+        try:
+            return BacktestUniverse.model_validate_json(json.dumps(value))
+        except ValueError:
+            raise PortError(ErrorCode.INVALID_INPUT, "invalid frozen universe") from None
+
+    @staticmethod
+    def _membership_windows(
+        universe: BacktestUniverse | None,
+    ) -> dict[str, tuple[tuple[datetime, datetime], ...]]:
+        if universe is None or universe.mode == "dataset":
+            return {}
+        grouped: dict[str, list[tuple[datetime, datetime]]] = {}
+        for item in universe.memberships:
+            grouped.setdefault(item.instrument_id, []).append(
+                (item.effective_from.astimezone(UTC), item.effective_to.astimezone(UTC))
+            )
+        return {instrument: tuple(sorted(intervals)) for instrument, intervals in grouped.items()}
+
+    @staticmethod
+    def _allows(
+        windows: dict[str, tuple[tuple[datetime, datetime], ...]],
+        instrument_id: str,
+        moment: datetime,
+    ) -> bool:
+        if not windows:
+            return True
+        moment = moment.astimezone(UTC)
+        return any(start <= moment < end for start, end in windows.get(instrument_id, ()))
+
+    @staticmethod
+    def _final_membership_bars(
+        bars: tuple[Bar, ...], windows: dict[str, tuple[tuple[datetime, datetime], ...]]
+    ) -> set[int]:
+        if not windows:
+            return set()
+        by_instrument: dict[str, list[int]] = {}
+        for index, bar in enumerate(bars):
+            by_instrument.setdefault(bar.instrument_id, []).append(index)
+        final: set[int] = set()
+        for instrument, indices in by_instrument.items():
+            for position, index in enumerate(indices):
+                bar = bars[index]
+                if not MockEngineAdapter._allows(windows, instrument, bar.timestamp):
+                    continue
+                following = indices[position + 1] if position + 1 < len(indices) else None
+                if following is None or not MockEngineAdapter._allows(
+                    windows, instrument, bars[following].timestamp
+                ):
+                    final.add(index)
+        return final
+
+    @staticmethod
     def _replay(
         run: BacktestRun,
         manifest: ArtifactManifest,
@@ -312,6 +369,7 @@ class MockEngineAdapter(TradingEnginePort):
         program: MockStrategyProgram | BatchStrategyProgram,
         execution: BacktestExecutionModel,
         corporate_actions: tuple[CorporateAction, ...] = (),
+        universe: BacktestUniverse | None = None,
     ) -> dict[str, object]:
         parameters = json.loads(manifest.parameters_json)
         batch = getattr(program, "signals_for_bars", None)
@@ -324,6 +382,8 @@ class MockEngineAdapter(TradingEnginePort):
             raise PortError(ErrorCode.REJECTED, "invalid batch strategy proposals")
         cash = run.initial_cash
         ledger = CorporateActionLedger(corporate_actions)
+        membership = MockEngineAdapter._membership_windows(universe)
+        final_membership = MockEngineAdapter._final_membership_bars(bars, membership)
         positions: dict[str, Decimal] = {}
         available: dict[str, Decimal] = {}
         history: list[Bar] = []
@@ -365,6 +425,12 @@ class MockEngineAdapter(TradingEnginePort):
                 positions[bar.instrument_id] = adjusted.quantity
                 available[bar.instrument_id] = adjusted.available
                 cash = adjusted.cash
+            member = MockEngineAdapter._allows(membership, bar.instrument_id, bar.timestamp)
+            if not member:
+                # Bars outside the frozen membership cannot trade or fill.
+                pending = [
+                    item for item in pending if item.signal.instrument_id != bar.instrument_id
+                ]
             local_time = local_timestamp.time()
             still_pending: list[_PendingOrder] = []
             for pending_order in pending:
@@ -477,6 +543,41 @@ class MockEngineAdapter(TradingEnginePort):
                     )
             pending = still_pending
             closes[bar.instrument_id] = bar.close
+            if bar_index in final_membership and positions.get(bar.instrument_id, Decimal(0)) > 0:
+                # Leaving the universe settles the whole position at the last
+                # observable close; T+1 does not apply to a membership exit.
+                quantity = positions[bar.instrument_id]
+                notional = quantity * bar.close
+                fee = execution.fee(notional, "sell")
+                cash += notional - fee
+                positions[bar.instrument_id] = Decimal(0)
+                available[bar.instrument_id] = Decimal(0)
+                pending = [
+                    item for item in pending if item.signal.instrument_id != bar.instrument_id
+                ]
+                fills.append(
+                    {
+                        "instrument_id": bar.instrument_id,
+                        "side": "sell",
+                        "filled_quantity": format(quantity, "f"),
+                        "filled_at": bar.timestamp.isoformat(),
+                        "price": format(bar.close, "f"),
+                        "fee": format(fee, "f"),
+                    }
+                )
+                orders.append(
+                    {
+                        "instrument_id": bar.instrument_id,
+                        "side": "sell",
+                        "quantity": format(quantity, "f"),
+                        "filled_quantity": format(quantity, "f"),
+                        "submitted_at": bar.timestamp.isoformat(),
+                        "filled_at": bar.timestamp.isoformat(),
+                        "price": format(bar.close, "f"),
+                        "status": "filled",
+                        "reason": "membership_end",
+                    }
+                )
             marked = cash + sum(
                 (
                     quantity * closes.get(instrument, Decimal(0))
@@ -520,14 +621,19 @@ class MockEngineAdapter(TradingEnginePort):
                         ],
                     }
                 )
-            for signal in MockEngineAdapter._signals(
-                program,
-                batch_signals,
-                bar_index,
-                bar,
-                tuple(history),
-                parameters,
-            ):
+            signals = (
+                ()
+                if not member
+                else MockEngineAdapter._signals(
+                    program,
+                    batch_signals,
+                    bar_index,
+                    bar,
+                    tuple(history),
+                    parameters,
+                )
+            )
+            for signal in signals:
                 requested = execution.round_quantity(signal.quantity)
                 if requested <= 0:
                     orders.append(
@@ -548,7 +654,8 @@ class MockEngineAdapter(TradingEnginePort):
                             requested,
                         )
                     )
-            history.append(bar)
+            if member:
+                history.append(bar)
 
         for pending_order in pending:
             signal = pending_order.signal

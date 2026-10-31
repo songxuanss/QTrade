@@ -112,6 +112,8 @@ def test_csv_export_reproduces_metrics_orders_and_fills():
     assert artifact.filename.endswith(".csv")
     assert set(parsed) >= {
         "run",
+        "universe",
+        "universe_memberships",
         "metrics",
         "parameters",
         "equity_curve",
@@ -153,6 +155,7 @@ def test_html_export_escapes_parameters_and_includes_key_sections():
     assert "<script>alert(1)</script>" not in document
     assert "&lt;script&gt;alert(1)&lt;/script&gt;" in document
     assert "绩效指标" in document
+    assert "成员区间与幸存者偏差" in document
     assert "冻结输入" in document
     assert "订单" in document
     assert "成交" in document
