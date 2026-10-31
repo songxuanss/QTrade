@@ -15,15 +15,25 @@ from qtrade_contracts import (
     BacktestComparisonRun,
     BacktestResult,
     BacktestRun,
+    BacktestWalkForwardAggregate,
+    BacktestWalkForwardBatch,
     BacktestWalkForwardPlan,
+    BacktestWalkForwardRun,
     BacktestWalkForwardWindow,
+    BacktestWalkForwardWindowOutcome,
+    BacktestWalkForwardWindowPlan,
     MarketDataset,
 )
 from qtrade_data_contracts.research import CorporateAction
 from qtrade_domain.artifacts import ManifestInputs
 from qtrade_domain.authorization import Permission, WorkspaceAccess
 from qtrade_domain.backtest_execution import BacktestExecutionModel
-from qtrade_domain.backtest_experiments import compare_backtests, plan_walk_forward
+from qtrade_domain.backtest_experiments import (
+    WalkForwardOutcome,
+    compare_backtests,
+    plan_walk_forward,
+    summarize_walk_forward,
+)
 from qtrade_domain.backtesting import BacktestRunEvent, BacktestRunPort, BacktestRunRecord
 from qtrade_domain.datasets import DatasetRepositoryPort
 from qtrade_domain.ports import (
@@ -121,6 +131,48 @@ class BacktestSubmission:
             ) from None
 
 
+@dataclass(frozen=True, slots=True)
+class WalkForwardSubmission:
+    strategy_id: UUID
+    strategy_version: int
+    dataset_id: UUID
+    instrument_id: str
+    start: datetime
+    end: datetime
+    train_window: timedelta
+    validation_window: timedelta
+    step: timedelta
+    initial_cash: Decimal
+    currency: str
+    cost_model_version: str
+    parameters: dict[str, object]
+    random_seed: int = 0
+    benchmark_id: str | None = None
+    execution_model: dict[str, object] | None = None
+
+    def __post_init__(self) -> None:
+        if (
+            not isinstance(self.instrument_id, str)
+            or not 1 <= len(self.instrument_id) <= 256
+            or any(
+                item <= timedelta(0)
+                for item in (self.train_window, self.validation_window, self.step)
+            )
+            or self.step < self.validation_window
+            or type(self.random_seed) is not int
+            or self.random_seed < 0
+        ):
+            raise PortError(ErrorCode.INVALID_INPUT, "invalid walk-forward request")
+
+
+class WalkForwardStorePort(Protocol):
+    """Durable batch of window runs; outcomes are re-derived, never mutated."""
+
+    def create(self, batch: BacktestWalkForwardBatch) -> None: ...
+
+    def get(self, workspace_id: UUID, walk_forward_id: UUID) -> BacktestWalkForwardBatch: ...
+
+
 class CorporateActionPort(Protocol):
     """Load only published corporate actions for the frozen dataset scope."""
 
@@ -146,6 +198,7 @@ class BacktestService:
         identity: BacktestEngineIdentity,
         market_data: MarketDataPort | None = None,
         corporate_actions: CorporateActionPort | None = None,
+        walk_forwards: WalkForwardStorePort | None = None,
     ) -> None:
         self._runs = runs
         self._strategies = strategies
@@ -157,6 +210,7 @@ class BacktestService:
         self._identity = identity
         self._market_data = market_data
         self._corporate_actions = corporate_actions
+        self._walk_forwards = walk_forwards
 
     def create(self, access: WorkspaceAccess, request: BacktestSubmission) -> BacktestRunRecord:
         access.require(Permission.BACKTEST_RUN)
@@ -279,7 +333,18 @@ class BacktestService:
                 ),
             )
         attached = BacktestRunRecord(run, job.job_id, 2)
-        record = self._runs.update(1, attached, None)
+        try:
+            record = self._runs.update(1, attached, None)
+        except PortError as error:
+            # A durable worker may claim the queued row before the API attaches
+            # the submission job. The claim is authoritative and must not fail
+            # the request; the engine job id is only an in-memory convenience.
+            if error.code != ErrorCode.CONFLICT:
+                raise
+            current = self._runs.get(run.workspace_id, run.run_id)
+            if current.run.run_id != run.run_id or current.revision < 2:
+                raise
+            return current
         return self._apply_job(record, job)
 
     def get(self, access: WorkspaceAccess, run_id: UUID) -> BacktestRunRecord:
@@ -450,6 +515,195 @@ class BacktestService:
                 )
                 for window in plan.windows
             ),
+        )
+
+    def start_walk_forward(
+        self, access: WorkspaceAccess, request: WalkForwardSubmission
+    ) -> BacktestWalkForwardRun:
+        """Plan disjoint validation windows and queue one real run per window."""
+        access.require(Permission.BACKTEST_RUN)
+        if self._walk_forwards is None:
+            raise PortError(ErrorCode.UNAVAILABLE, "walk-forward execution is unavailable")
+        plan = self.plan_walk_forward(
+            access,
+            request.dataset_id,
+            request.instrument_id,
+            request.start,
+            request.end,
+            request.train_window,
+            request.validation_window,
+            request.step,
+        )
+        if len(plan.windows) > 60:
+            raise PortError(
+                ErrorCode.INVALID_INPUT,
+                "walk-forward is limited to 60 windows; widen the step or range",
+            )
+        created_at = datetime.now(UTC)
+        windows: list[BacktestWalkForwardWindowPlan] = []
+        first_record: BacktestRunRecord | None = None
+        for index, window in enumerate(plan.windows, start=1):
+            record = self.create(
+                access,
+                BacktestSubmission(
+                    request.strategy_id,
+                    request.strategy_version,
+                    request.dataset_id,
+                    window.validation_start,
+                    window.validation_end,
+                    request.initial_cash,
+                    request.currency,
+                    request.cost_model_version,
+                    request.parameters,
+                    request.random_seed,
+                    request.benchmark_id,
+                    execution_model=request.execution_model,
+                ),
+            )
+            first_record = first_record or record
+            windows.append(
+                BacktestWalkForwardWindowPlan(
+                    schema_version=1,
+                    workspace_id=access.workspace.workspace_id,
+                    index=index,
+                    train_start=window.train_start,
+                    train_end=window.train_end,
+                    validation_start=window.validation_start,
+                    validation_end=window.validation_end,
+                    train_samples=window.train_samples,
+                    validation_samples=window.validation_samples,
+                    run_id=record.run.run_id,
+                )
+            )
+        if first_record is None:
+            raise PortError(ErrorCode.INVALID_INPUT, "walk-forward plan has no windows")
+        manifest = self.manifest(access, first_record.run.run_id)
+        batch = BacktestWalkForwardBatch(
+            schema_version=1,
+            workspace_id=access.workspace.workspace_id,
+            walk_forward_id=uuid4(),
+            created_at=created_at,
+            created_by=access.user_id,
+            strategy_id=request.strategy_id,
+            strategy_version=request.strategy_version,
+            strategy_version_id=first_record.run.strategy_version_id,
+            dataset_id=request.dataset_id,
+            instrument_id=request.instrument_id,
+            start=request.start,
+            end=request.end,
+            initial_cash=request.initial_cash,
+            currency=request.currency.upper(),
+            benchmark_id=request.benchmark_id,
+            cost_model_version=request.cost_model_version,
+            parameters_json=manifest.parameters_json,
+            execution_config_json=manifest.execution_config_json or "{}",
+            random_seed=request.random_seed,
+            train_window_seconds=int(request.train_window.total_seconds()),
+            validation_window_seconds=int(request.validation_window.total_seconds()),
+            step_seconds=int(request.step.total_seconds()),
+            windows=tuple(windows),
+        )
+        self._walk_forwards.create(batch)
+        return self.walk_forward(access, batch.walk_forward_id)
+
+    def walk_forward(
+        self, access: WorkspaceAccess, walk_forward_id: UUID
+    ) -> BacktestWalkForwardRun:
+        """Derive window outcomes and aggregate from the durable run rows."""
+        access.require(Permission.READ)
+        if self._walk_forwards is None:
+            raise PortError(ErrorCode.UNAVAILABLE, "walk-forward execution is unavailable")
+        workspace_id = access.workspace.workspace_id
+        batch = self._walk_forwards.get(workspace_id, walk_forward_id)
+        outcomes: list[WalkForwardOutcome] = []
+        windows: list[BacktestWalkForwardWindowOutcome] = []
+        for window in batch.windows:
+            record = self._runs.get(workspace_id, window.run_id)
+            status = record.run.status
+            result = self.report(access, window.run_id) if status == "completed" else None
+            if result is not None and result.metrics is None:
+                raise PortError(ErrorCode.CHECKSUM_MISMATCH, "completed window has no metrics")
+            metrics = result.metrics if result is not None else None
+            if result is not None and metrics is not None:
+                outcomes.append(
+                    WalkForwardOutcome(
+                        validation_start=window.validation_start,
+                        validation_end=window.validation_end,
+                        total_return=result.summary.total_return,
+                        max_drawdown=metrics.max_drawdown,
+                        trade_count=metrics.trade_count,
+                    )
+                )
+            windows.append(
+                BacktestWalkForwardWindowOutcome(
+                    schema_version=1,
+                    workspace_id=workspace_id,
+                    index=window.index,
+                    train_start=window.train_start,
+                    train_end=window.train_end,
+                    validation_start=window.validation_start,
+                    validation_end=window.validation_end,
+                    train_samples=window.train_samples,
+                    validation_samples=window.validation_samples,
+                    run_id=window.run_id,
+                    status=status,
+                    total_return=result.summary.total_return if result else None,
+                    max_drawdown=metrics.max_drawdown if metrics else None,
+                    sharpe_ratio=metrics.sharpe_ratio if metrics else None,
+                    trade_count=metrics.trade_count if metrics else None,
+                    error_code=record.run.error_code,
+                )
+            )
+        aggregate = None
+        if outcomes:
+            summary = summarize_walk_forward(tuple(outcomes))
+            aggregate = BacktestWalkForwardAggregate(
+                schema_version=1,
+                workspace_id=workspace_id,
+                completed_windows=summary.windows,
+                failed_windows=sum(item.status in {"failed", "cancelled"} for item in windows),
+                mean_validation_return=summary.mean_return,
+                median_validation_return=summary.median_return,
+                mean_max_drawdown=summary.mean_max_drawdown,
+                worst_max_drawdown=summary.worst_max_drawdown,
+                positive_window_ratio=summary.positive_ratio,
+                compounded_validation_return=summary.compounded_return,
+                total_trade_count=summary.total_trades,
+            )
+        return BacktestWalkForwardRun(
+            schema_version=1,
+            workspace_id=workspace_id,
+            walk_forward_id=walk_forward_id,
+            created_at=batch.created_at,
+            strategy_id=batch.strategy_id,
+            strategy_version=batch.strategy_version,
+            dataset_id=batch.dataset_id,
+            instrument_id=batch.instrument_id,
+            start=batch.start,
+            end=batch.end,
+            initial_cash=batch.initial_cash,
+            currency=batch.currency,
+            benchmark_id=batch.benchmark_id,
+            cost_model_version=batch.cost_model_version,
+            parameters_json=batch.parameters_json,
+            execution_config_json=batch.execution_config_json,
+            random_seed=batch.random_seed,
+            train_window_seconds=batch.train_window_seconds,
+            validation_window_seconds=batch.validation_window_seconds,
+            step_seconds=batch.step_seconds,
+            status=(
+                "running"
+                if any(item.status == "running" for item in windows)
+                else "queued"
+                if any(item.status in {"queued", "running"} for item in windows)
+                else "completed"
+                if all(item.status == "completed" for item in windows)
+                else "partial"
+                if any(item.status == "completed" for item in windows)
+                else "failed"
+            ),
+            windows=tuple(windows),
+            aggregate=aggregate,
         )
 
     def list(self, access: WorkspaceAccess, limit: int = 100) -> tuple[BacktestRunRecord, ...]:

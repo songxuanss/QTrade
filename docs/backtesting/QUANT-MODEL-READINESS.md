@@ -93,6 +93,22 @@
 - `.tools/verification-local/review/design/backtest-corporate-report-1440.png`
 - `.tools/verification-local/review/design/backtest-corporate-report-390.png`
 
+### Walk-forward 真实运行（600519.SH 日线，2025 全年）
+
+- 切分：训练 120 天、验证 30 天、步长 30 天，生成 9 个互不重叠的验证窗口
+- 批次 `f6311814-a419-4e11-852e-2116f832f865`（API 验收）与 `0efb425f-6325-4687-bd92-ca4303176e6c`（UI 验收）
+- 每个验证窗口都是一个通过持久队列执行的独立回测，状态全部 `completed`
+- 聚合与各窗口报告逐项对账：验证均值 `-0.22%`、中位 `-0.21%`、窗口复利 `-1.94%`、正收益窗口 `33.33%`、平均回撤 `0.60%`、最差回撤 `1.12%`
+- 窗口成交数为 0，因为买入持有策略在 30 天窗口内没有平仓交易；收益来自持仓盯市，不是伪造成交
+- 失败/取消窗口单独计数，不进入均值；批次状态会显示 `partial`
+
+证据：
+
+- `.tools/verification-local/review/walk-forward-report.json`
+- `.tools/verification-local/review/walk-forward-result.json`
+- `.tools/verification-local/review/design/walk-forward-result-1440.png`
+- `.tools/verification-local/review/design/walk-forward-result-390.png`
+
 ## 5. 用户体验改进
 
 - 回测表单按策略版本 schema 渲染参数字段，不再要求用户手写 JSON。
@@ -112,7 +128,7 @@
 - 逐笔盘口、订单簿冲击和逐笔成交概率未建模；当前仅有最小价位取整。
 - 未实现订单类型/TIF 的完整撮合、涨跌停拒单原因和停牌处理。
 - 未实现基准相对指标（alpha/beta/超额/跟踪误差/信息比率）与基准时间对齐。
-- Walk-forward 目前只生成切分计划，未逐窗口执行和汇总。
+- Walk-forward 已逐窗口执行并聚合；训练区间不参与参数寻优，当前是冻结参数的滚动样本外评估，不是参数选择流程。
 - 回测任务已改为持久队列 + Worker 消费；重启恢复和取消已验证。多 Worker 公平调度、租约心跳和细粒度执行中断仍未实现。
 - 没有 HTML/PDF/CSV 导出和报告下载。
 - 风险引擎未接入回测/Paper 订单路径，qualification 可被伪造。
@@ -123,5 +139,5 @@
 2. 逐笔/盘口执行模型与订单类型/TIF 完整撮合。
 3. 多 Worker 公平调度、租约心跳和执行中断。
 4. 历史成分/退市数据接入，回测提交显式选择 universe 快照。
-5. 基准相对指标、walk-forward 执行和导出。
+5. 基准相对指标、Walk-forward 参数寻优和报告导出。
 6. 风险引擎与 Paper/实盘订单路径统一。

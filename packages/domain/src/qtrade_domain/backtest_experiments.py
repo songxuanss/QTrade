@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from uuid import UUID
 
 from qtrade_contracts import BacktestComparison, BacktestComparisonRun
@@ -174,4 +175,86 @@ def plan_walk_forward(
         train_window=train_window,
         validation_window=validation_window,
         step=step,
+    )
+
+
+@dataclass(frozen=True)
+class WalkForwardOutcome:
+    """Completed validation-window result used for aggregation."""
+
+    validation_start: datetime
+    validation_end: datetime
+    total_return: Decimal
+    max_drawdown: Decimal
+    trade_count: int
+
+    def __post_init__(self) -> None:
+        if (
+            self.validation_start.tzinfo is None
+            or self.validation_end.tzinfo is None
+            or self.validation_start >= self.validation_end
+            or not isinstance(self.total_return, Decimal)
+            or not isinstance(self.max_drawdown, Decimal)
+            or self.max_drawdown < 0
+            or type(self.trade_count) is not int
+            or self.trade_count < 0
+        ):
+            raise PortError(ErrorCode.INVALID_INPUT, "invalid walk-forward outcome")
+
+
+@dataclass(frozen=True)
+class WalkForwardSummary:
+    """Aggregate of out-of-sample windows; never claims parameter optimality."""
+
+    windows: int
+    mean_return: Decimal
+    median_return: Decimal
+    mean_max_drawdown: Decimal
+    worst_max_drawdown: Decimal
+    positive_ratio: Decimal
+    compounded_return: Decimal
+    total_trades: int
+
+    def __post_init__(self) -> None:
+        if (
+            type(self.windows) is not int
+            or self.windows < 1
+            or not isinstance(self.compounded_return, Decimal)
+            or not Decimal(0) <= self.positive_ratio <= Decimal(1)
+            or type(self.total_trades) is not int
+            or self.total_trades < 0
+        ):
+            raise PortError(ErrorCode.INVALID_INPUT, "invalid walk-forward summary")
+
+
+def summarize_walk_forward(outcomes: Iterable[WalkForwardOutcome]) -> WalkForwardSummary:
+    """Summarize ordered validation windows without dropping failed-return outliers."""
+    rows = tuple(outcomes)
+    if not rows:
+        raise PortError(ErrorCode.INVALID_INPUT, "walk-forward summary requires outcomes")
+    if any(
+        left.validation_start >= right.validation_start
+        for left, right in zip(rows, rows[1:], strict=False)
+    ):
+        raise PortError(ErrorCode.INVALID_INPUT, "walk-forward outcomes must be ordered")
+    ordered = sorted(item.total_return for item in rows)
+    compounded = Decimal(1)
+    for item in rows:
+        compounded *= Decimal(1) + item.total_return
+    middle = len(ordered) // 2
+    median = (
+        ordered[middle]
+        if len(ordered) % 2
+        else (ordered[middle - 1] + ordered[middle]) / Decimal(2)
+    )
+    return WalkForwardSummary(
+        windows=len(rows),
+        mean_return=sum((item.total_return for item in rows), Decimal(0)) / Decimal(len(rows)),
+        median_return=median,
+        mean_max_drawdown=sum((item.max_drawdown for item in rows), Decimal(0))
+        / Decimal(len(rows)),
+        worst_max_drawdown=max(item.max_drawdown for item in rows),
+        positive_ratio=Decimal(sum(item.total_return > 0 for item in rows)) / Decimal(len(rows)),
+        compounded_return=compounded - Decimal(1),
+        total_trades=sum(item.trade_count for item in rows),
     )

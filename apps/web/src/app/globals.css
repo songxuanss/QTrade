@@ -4077,8 +4077,99 @@ main {
   justify-self: start;
 }
 
+.backtest-table-scroll {
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+}
+
 .walk-forward-results {
   margin: 0 20px 20px;
+}
+
+.walk-forward-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.walk-forward-batch {
+  display: grid;
+  gap: 14px;
+  margin: 0 20px 20px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-raised);
+}
+
+.walk-forward-batch .panel-heading {
+  margin: 0;
+  padding: 0;
+}
+
+.walk-forward-batch h3 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.walk-forward-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+  margin: 0;
+}
+
+.walk-forward-summary > div {
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.walk-forward-summary dt {
+  color: var(--muted);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+}
+
+.walk-forward-summary dd {
+  margin: 4px 0 0;
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
+}
+
+.walk-forward-error,
+.walk-forward-run-link {
+  color: var(--danger);
+  font-size: 11px;
+}
+
+.walk-forward-run-link {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.walk-forward-run-link:hover {
+  text-decoration: underline;
+}
+
+.walk-forward-batch .backtest-status.status-queued,
+.walk-forward-batch .backtest-status.status-partial {
+  background: #2b2a1c;
+  color: #e5c98f;
+}
+
+.walk-forward-batch .backtest-status.status-running {
+  background: #1b3145;
+  color: #abd5fb;
+}
+
+.walk-forward-batch .backtest-status.status-failed,
+.walk-forward-batch .backtest-status.status-cancelled {
+  background: #382021;
+  color: var(--danger);
 }
 
 @media (max-width: 720px) {

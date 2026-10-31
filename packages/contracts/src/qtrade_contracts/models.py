@@ -21,6 +21,7 @@ from pydantic import (
 )
 
 Text = Annotated[str, Field(min_length=1, max_length=256)]
+JSONText = Annotated[str, Field(min_length=1, max_length=1_000_000)]
 Hash = Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]
 ImageDigest = Annotated[str, Field(pattern=r"^sha256:[0-9a-f]{64}$")]
 BarGranularity = Literal["1m", "5m", "15m", "30m", "1h", "1d"]
@@ -513,6 +514,159 @@ class BacktestWalkForwardPlan(Contract):
         return self
 
 
+class BacktestWalkForwardWindowPlan(Contract):
+    index: Annotated[int, Field(ge=1)]
+    train_start: AwareDatetime
+    train_end: AwareDatetime
+    validation_start: AwareDatetime
+    validation_end: AwareDatetime
+    train_samples: Annotated[int, Field(ge=1)]
+    validation_samples: Annotated[int, Field(ge=1)]
+    run_id: UUID
+
+    @model_validator(mode="after")
+    def chronological(self) -> Self:
+        if (
+            self.train_start >= self.train_end
+            or self.train_end != self.validation_start
+            or self.validation_start >= self.validation_end
+        ):
+            raise ValueError("walk-forward window must be ordered and nonempty")
+        return self
+
+
+class BacktestWalkForwardBatch(Contract):
+    walk_forward_id: UUID
+    created_at: AwareDatetime
+    created_by: UUID
+    strategy_id: UUID
+    strategy_version: Annotated[int, Field(ge=1)]
+    strategy_version_id: UUID
+    dataset_id: UUID
+    instrument_id: Text
+    start: AwareDatetime
+    end: AwareDatetime
+    initial_cash: PositiveDecimal
+    currency: Annotated[str, Field(pattern=r"^[A-Z]{3}$")]
+    benchmark_id: Text | None = None
+    cost_model_version: Text
+    parameters_json: JSONText
+    execution_config_json: JSONText
+    random_seed: Annotated[int, Field(ge=0)]
+    train_window_seconds: Annotated[int, Field(gt=0)]
+    validation_window_seconds: Annotated[int, Field(gt=0)]
+    step_seconds: Annotated[int, Field(gt=0)]
+    windows: Annotated[tuple[BacktestWalkForwardWindowPlan, ...], Field(min_length=1)]
+
+    @model_validator(mode="after")
+    def ordered_windows(self) -> Self:
+        if self.start >= self.end or any(
+            left.validation_end > right.validation_start
+            for left, right in zip(self.windows, self.windows[1:], strict=False)
+        ):
+            raise ValueError("walk-forward windows must be ordered and disjoint")
+        return self
+
+
+class BacktestWalkForwardWindowOutcome(Contract):
+    index: Annotated[int, Field(ge=1)]
+    train_start: AwareDatetime
+    train_end: AwareDatetime
+    validation_start: AwareDatetime
+    validation_end: AwareDatetime
+    train_samples: Annotated[int, Field(ge=1)]
+    validation_samples: Annotated[int, Field(ge=1)]
+    run_id: UUID
+    status: Literal["queued", "running", "completed", "cancelled", "failed"]
+    total_return: DecimalValue | None = None
+    max_drawdown: NonNegativeDecimal | None = None
+    sharpe_ratio: DecimalValue | None = None
+    trade_count: Annotated[int, Field(ge=0)] | None = None
+    error_code: Text | None = None
+
+    @model_validator(mode="after")
+    def chronologized_metrics(self) -> Self:
+        if (
+            self.train_start >= self.train_end
+            or self.train_end != self.validation_start
+            or self.validation_start >= self.validation_end
+        ):
+            raise ValueError("walk-forward outcome window must be ordered")
+        completed = self.status == "completed"
+        measured = (
+            self.total_return is not None
+            and self.max_drawdown is not None
+            and self.trade_count is not None
+        )
+        if completed != measured:
+            raise ValueError("walk-forward outcome metrics must match its status")
+        return self
+
+
+class BacktestWalkForwardAggregate(Contract):
+    completed_windows: Annotated[int, Field(ge=0)]
+    failed_windows: Annotated[int, Field(ge=0)]
+    mean_validation_return: DecimalValue | None = None
+    median_validation_return: DecimalValue | None = None
+    mean_max_drawdown: NonNegativeDecimal | None = None
+    worst_max_drawdown: NonNegativeDecimal | None = None
+    positive_window_ratio: NonNegativeDecimal | None = None
+    compounded_validation_return: DecimalValue | None = None
+    total_trade_count: Annotated[int, Field(ge=0)] = 0
+
+
+class BacktestWalkForwardRun(Contract):
+    walk_forward_id: UUID
+    created_at: AwareDatetime
+    strategy_id: UUID
+    strategy_version: Annotated[int, Field(ge=1)]
+    dataset_id: UUID
+    instrument_id: Text
+    start: AwareDatetime
+    end: AwareDatetime
+    initial_cash: PositiveDecimal
+    currency: Annotated[str, Field(pattern=r"^[A-Z]{3}$")]
+    benchmark_id: Text | None = None
+    cost_model_version: Text
+    parameters_json: JSONText
+    execution_config_json: JSONText
+    random_seed: Annotated[int, Field(ge=0)]
+    train_window_seconds: Annotated[int, Field(gt=0)]
+    validation_window_seconds: Annotated[int, Field(gt=0)]
+    step_seconds: Annotated[int, Field(gt=0)]
+    status: Literal["queued", "running", "completed", "partial", "failed"]
+    windows: Annotated[tuple[BacktestWalkForwardWindowOutcome, ...], Field(min_length=1)]
+    aggregate: BacktestWalkForwardAggregate | None = None
+
+    @model_validator(mode="after")
+    def consistent_rollup(self) -> Self:
+        completed = sum(item.status == "completed" for item in self.windows)
+        failed = sum(item.status in {"failed", "cancelled"} for item in self.windows)
+        pending = sum(item.status in {"queued", "running"} for item in self.windows)
+        expected = (
+            "running"
+            if any(item.status == "running" for item in self.windows)
+            else "queued"
+            if pending
+            else "completed"
+            if completed == len(self.windows)
+            else "partial"
+            if completed
+            else "failed"
+        )
+        if self.status != expected:
+            raise ValueError("walk-forward status must follow its window statuses")
+        if completed and (
+            self.aggregate is None
+            or self.aggregate.completed_windows != completed
+            or self.aggregate.failed_windows != failed
+        ):
+            raise ValueError("walk-forward aggregate must match completed windows")
+        if not completed and self.aggregate is not None:
+            raise ValueError("walk-forward aggregate requires a completed window")
+        return self
+
+
 class OrderIntent(Contract):
     intent_id: UUID
     account_id: UUID
@@ -614,9 +768,7 @@ class Order(Contract):
             raise ValueError("filled orders require an average fill price")
         if self.status == "filled" and self.filled_quantity != self.quantity:
             raise ValueError("filled status requires the full order quantity")
-        if self.status == "partially_filled" and not (
-            0 < self.filled_quantity < self.quantity
-        ):
+        if self.status == "partially_filled" and not (0 < self.filled_quantity < self.quantity):
             raise ValueError("partially filled status requires a partial quantity")
         if self.updated_at < self.created_at:
             raise ValueError("order update cannot precede creation")
@@ -653,6 +805,10 @@ CONTRACTS: tuple[type[Contract], ...] = (
     BacktestComparisonRun,
     BacktestWalkForwardPlan,
     BacktestWalkForwardWindow,
+    BacktestWalkForwardBatch,
+    BacktestWalkForwardRun,
+    BacktestWalkForwardWindowOutcome,
+    BacktestWalkForwardWindowPlan,
     BacktestComparison,
     OrderIntent,
     RiskDecision,

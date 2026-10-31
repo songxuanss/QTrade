@@ -100,3 +100,77 @@ def test_walk_forward_rejects_unsorted_or_unpopulated_inputs():
             train_window=timedelta(days=1),
             validation_window=timedelta(days=1),
         )
+
+
+def test_summarize_walk_forward_reports_return_and_risk_aggregates():
+    from decimal import Decimal
+
+    from qtrade_domain.backtest_experiments import (
+        WalkForwardOutcome,
+        summarize_walk_forward,
+    )
+
+    start = datetime(2026, 1, 1, tzinfo=UTC)
+    outcomes = (
+        WalkForwardOutcome(
+            start,
+            start + timedelta(days=1),
+            Decimal("0.10"),
+            Decimal("0.02"),
+            2,
+        ),
+        WalkForwardOutcome(
+            start + timedelta(days=1),
+            start + timedelta(days=2),
+            Decimal("-0.05"),
+            Decimal("0.06"),
+            4,
+        ),
+        WalkForwardOutcome(
+            start + timedelta(days=2),
+            start + timedelta(days=3),
+            Decimal("0.03"),
+            Decimal("0.01"),
+            3,
+        ),
+    )
+
+    summary = summarize_walk_forward(outcomes)
+
+    assert summary.windows == 3
+    assert summary.mean_return == Decimal("0.08") / Decimal(3)
+    assert summary.median_return == Decimal("0.03")
+    assert summary.mean_max_drawdown == Decimal("0.09") / Decimal(3)
+    assert summary.worst_max_drawdown == Decimal("0.06")
+    assert summary.positive_ratio == Decimal(2) / Decimal(3)
+    assert summary.compounded_return == Decimal("1.1") * Decimal("0.95") * Decimal("1.03") - 1
+    assert summary.total_trades == 9
+
+
+def test_summarize_walk_forward_rejects_empty_or_unordered_windows():
+    from decimal import Decimal
+
+    from qtrade_domain.backtest_experiments import (
+        WalkForwardOutcome,
+        summarize_walk_forward,
+    )
+
+    start = datetime(2026, 1, 1, tzinfo=UTC)
+    with pytest.raises(PortError):
+        summarize_walk_forward(())
+    later = WalkForwardOutcome(
+        start + timedelta(days=1),
+        start + timedelta(days=2),
+        Decimal("0.01"),
+        Decimal("0.01"),
+        1,
+    )
+    earlier = WalkForwardOutcome(
+        start,
+        start + timedelta(days=1),
+        Decimal("0.01"),
+        Decimal("0.01"),
+        1,
+    )
+    with pytest.raises(PortError):
+        summarize_walk_forward((later, earlier))

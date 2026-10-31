@@ -17,7 +17,7 @@
 | T+1 可卖数量 | 已实现 | `test_mock_backtest_engine.py` | 当日买入不可卖，下一时段可卖 |
 | 历史成分/退市 | 未实现 | — | 存在幸存者偏差 |
 | tick size | 已实现 | `test_backtest_execution.py` | 买卖方向向不利方向取整；盘口仍未建模 |
-| Walk-forward 执行 | 仅计划 | `walk-forward` UI | 没有逐窗口运行和汇总 |
+| Walk-forward 执行 | 真实 Worker | batch `f6311814-a419-4e11-852e-2116f832f865` | 9 个窗口全部完成，聚合与各窗口报告对账；不做参数寻优 |
 | 导出 HTML/PDF/CSV | 未实现 | — | 报告只能页面查看 |
 | 持久化 Worker 回测队列 | 已实现 | `backtest_run.lease_*`, Worker consumer | REST 重启后 queued 运行恢复 |
 

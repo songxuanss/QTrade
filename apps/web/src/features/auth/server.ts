@@ -434,6 +434,157 @@ export async function createBacktestWalkForwardPlan(input: {
   }
 }
 
+export type BacktestWalkForwardWindowInfo = {
+  index: number;
+  train_start: string;
+  train_end: string;
+  validation_start: string;
+  validation_end: string;
+  train_samples: number;
+  validation_samples: number;
+  run_id: string;
+  status: "queued" | "running" | "completed" | "cancelled" | "failed";
+  total_return: string | null;
+  max_drawdown: string | null;
+  sharpe_ratio: string | null;
+  trade_count: number | null;
+  error_code: string | null;
+};
+
+export type BacktestWalkForwardRunInfo = {
+  walk_forward_id: string;
+  created_at: string;
+  strategy_id: string;
+  strategy_version: number;
+  dataset_id: string;
+  instrument_id: string;
+  start: string;
+  end: string;
+  initial_cash: string;
+  currency: string;
+  benchmark_id: string | null;
+  cost_model_version: string;
+  parameters_json: string;
+  execution_config_json: string;
+  random_seed: number;
+  train_window_seconds: number;
+  validation_window_seconds: number;
+  step_seconds: number;
+  status: "queued" | "running" | "completed" | "partial" | "failed";
+  windows: BacktestWalkForwardWindowInfo[];
+  aggregate: {
+    completed_windows: number;
+    failed_windows: number;
+    mean_validation_return: string | null;
+    median_validation_return: string | null;
+    mean_max_drawdown: string | null;
+    worst_max_drawdown: string | null;
+    positive_window_ratio: string | null;
+    compounded_validation_return: string | null;
+    total_trade_count: number;
+  } | null;
+};
+
+export async function startBacktestWalkForward(input: {
+  strategyId: string;
+  version: number;
+  datasetId: string;
+  instrumentId: string;
+  start: string;
+  end: string;
+  trainWindowSeconds: number;
+  validationWindowSeconds: number;
+  stepSeconds: number;
+  initialCash: string;
+  currency: string;
+  costModelVersion: string;
+  parameters: Record<string, unknown>;
+  executionModel: Record<string, unknown>;
+  benchmarkId?: string;
+}): Promise<{
+  run: BacktestWalkForwardRunInfo | null;
+  error?: string;
+}> {
+  const session = await readSession();
+  if (!session) return { run: null, error: "登录已失效，请重新登录" };
+  try {
+    const authHeaders = { Cookie: `${session.name}=${session.cookie}` };
+    const csrfResponse = await fetch(
+      `${session.config.apiOrigin}/auth/session`,
+      { cache: "no-store", redirect: "error", headers: authHeaders },
+    );
+    if (!csrfResponse.ok) return { run: null, error: "无法验证当前会话" };
+    const csrf = await csrfResponse.json();
+    const response = await fetch(
+      `${session.config.apiOrigin}/api/v1/workspaces/${session.workspaceId}/backtests/walk-forward`,
+      {
+        method: "POST",
+        cache: "no-store",
+        redirect: "error",
+        headers: {
+          ...authHeaders,
+          "X-CSRF-Token": csrf.csrf_token,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          strategy_id: input.strategyId,
+          strategy_version: input.version,
+          dataset_id: input.datasetId,
+          instrument_id: input.instrumentId,
+          start: new Date(input.start).toISOString(),
+          end: new Date(input.end).toISOString(),
+          train_window_seconds: input.trainWindowSeconds,
+          validation_window_seconds: input.validationWindowSeconds,
+          step_seconds: input.stepSeconds,
+          initial_cash: input.initialCash,
+          currency: input.currency,
+          cost_model_version: input.costModelVersion,
+          parameters: input.parameters,
+          execution_model: input.executionModel,
+          benchmark_id: input.benchmarkId,
+          random_seed: 0,
+        }),
+        signal: AbortSignal.timeout(60_000),
+      },
+    );
+    if (!response.ok)
+      return {
+        run: null,
+        error:
+          response.status === 403
+            ? "版本尚未通过静态校验，或当前角色无权运行"
+            : response.status === 400
+              ? "窗口样本不足或区间不合法，请调整切分参数"
+              : "Walk-forward 运行创建失败",
+      };
+    return { run: (await response.json()) as BacktestWalkForwardRunInfo };
+  } catch {
+    return { run: null, error: "回测服务暂不可用" };
+  }
+}
+
+export async function readBacktestWalkForward(
+  walkForwardId: string,
+): Promise<{ run: BacktestWalkForwardRunInfo | null; error?: string }> {
+  const session = await readSession();
+  if (!session) return { run: null, error: "登录已失效，请重新登录" };
+  try {
+    const response = await fetch(
+      `${session.config.apiOrigin}/api/v1/workspaces/${session.workspaceId}/backtests/walk-forward/${walkForwardId}`,
+      {
+        cache: "no-store",
+        redirect: "error",
+        headers: { Cookie: `${session.name}=${session.cookie}` },
+        signal: AbortSignal.timeout(20_000),
+      },
+    );
+    if (!response.ok) return { run: null, error: "Walk-forward 结果暂不可用" };
+    return { run: (await response.json()) as BacktestWalkForwardRunInfo };
+  } catch {
+    return { run: null, error: "回测服务暂不可用" };
+  }
+}
+
 export async function workspaceBacktestComparison(runIds: string[]): Promise<{
   comparison: BacktestComparisonInfo | null;
   error: boolean;

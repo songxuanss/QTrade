@@ -10,11 +10,34 @@ from pydantic import AwareDatetime, BaseModel, Field
 
 from qtrade_api.audit_context import request_context
 from qtrade_api.security import ApiSecurity, public_error
-from qtrade_application.backtesting import BacktestService, BacktestSubmission
+from qtrade_application.backtesting import (
+    BacktestService,
+    BacktestSubmission,
+    WalkForwardSubmission,
+)
 from qtrade_domain.audit_port import AuditDetails, AuditRecord, AuditStorePort, contextualize
 from qtrade_domain.authorization import Permission, WorkspaceAccess
 from qtrade_domain.backtesting import BacktestRunRecord
 from qtrade_domain.ports import PortError
+
+
+class WalkForwardInput(BaseModel):
+    strategy_id: UUID
+    strategy_version: int = Field(ge=1)
+    dataset_id: UUID
+    instrument_id: str = Field(min_length=1, max_length=256)
+    start: AwareDatetime
+    end: AwareDatetime
+    train_window_seconds: int = Field(gt=0, le=315_360_000)
+    validation_window_seconds: int = Field(gt=0, le=31_536_000)
+    step_seconds: int = Field(gt=0, le=31_536_000)
+    initial_cash: Decimal = Field(gt=0, max_digits=24, decimal_places=8)
+    currency: str = Field(min_length=3, max_length=3, pattern="^[A-Za-z]{3}$")
+    cost_model_version: str = Field(min_length=1, max_length=128)
+    parameters: dict[str, object] = Field(default_factory=dict, max_length=128)
+    random_seed: int = Field(default=0, ge=0, le=2**63 - 1)
+    benchmark_id: str | None = Field(default=None, max_length=128)
+    execution_model: dict[str, object] = Field(default_factory=dict, max_length=32)
 
 
 class BacktestInput(BaseModel):
@@ -120,6 +143,51 @@ def backtesting_router(
                 timedelta(seconds=step_seconds),
             )
             return plan.model_dump(mode="json")
+        except PortError as error:
+            raise public_error(error) from None
+
+    @router.post("/walk-forward", status_code=202)
+    def start_walk_forward(
+        body: WalkForwardInput,
+        request: Request,
+        access: Annotated[
+            WorkspaceAccess, Depends(security.workspace(Permission.BACKTEST_RUN, mutate=True))
+        ],
+    ) -> dict[str, object]:
+        try:
+            result = configured().start_walk_forward(
+                access,
+                WalkForwardSubmission(
+                    body.strategy_id,
+                    body.strategy_version,
+                    body.dataset_id,
+                    body.instrument_id,
+                    body.start,
+                    body.end,
+                    timedelta(seconds=body.train_window_seconds),
+                    timedelta(seconds=body.validation_window_seconds),
+                    timedelta(seconds=body.step_seconds),
+                    body.initial_cash,
+                    body.currency,
+                    body.cost_model_version,
+                    body.parameters,
+                    body.random_seed,
+                    body.benchmark_id,
+                    body.execution_model,
+                ),
+            )
+            _audit(audit, access, request, "backtest.walk_forward", result.walk_forward_id)
+            return result.model_dump(mode="json")
+        except PortError as error:
+            raise public_error(error) from None
+
+    @router.get("/walk-forward/{walk_forward_id}")
+    def get_walk_forward(
+        walk_forward_id: UUID,
+        access: Annotated[WorkspaceAccess, Depends(security.workspace(Permission.READ))],
+    ) -> dict[str, object]:
+        try:
+            return configured().walk_forward(access, walk_forward_id).model_dump(mode="json")
         except PortError as error:
             raise public_error(error) from None
 

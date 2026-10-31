@@ -1,9 +1,43 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
-import type { BacktestDatasetInfo } from "../auth/server";
-import { submitWalkForwardPlan } from "../../app/workspace/backtest-actions";
-import type { BacktestWalkForwardPlanInfo } from "../auth/server";
+import { FormEvent, useEffect, useMemo, useState } from "react";
+import { WalkForwardBatchResults } from "./walk-forward-results";
+import type {
+  BacktestDatasetInfo,
+  BacktestWalkForwardPlanInfo,
+  BacktestWalkForwardRunInfo,
+  WorkspaceStrategy,
+} from "../auth/server";
+import {
+  refreshWalkForward,
+  startWalkForward,
+  submitWalkForwardPlan,
+} from "../../app/workspace/backtest-actions";
+
+type ParameterRule = {
+  type?: string;
+  default?: unknown;
+  minimum?: number;
+  maximum?: number;
+  title?: string;
+};
+
+function parameterDefaults(schema: Record<string, unknown> | undefined) {
+  const properties = schema?.properties;
+  if (
+    !properties ||
+    typeof properties !== "object" ||
+    Array.isArray(properties)
+  )
+    return {};
+  const result: Record<string, unknown> = {};
+  for (const [name, value] of Object.entries(properties)) {
+    const rule = value as ParameterRule;
+    if (rule && typeof rule === "object" && "default" in rule)
+      result[name] = rule.default;
+  }
+  return result;
+}
 
 function toLocalInput(value: string, roundUp = false) {
   const subMillisecond = value.match(/\.(\d+)/)?.[1]?.slice(3) ?? "";
@@ -17,11 +51,19 @@ function toLocalInput(value: string, roundUp = false) {
 
 export function WalkForwardPlanner({
   datasets,
+  strategies,
+  canRun,
 }: {
   datasets: BacktestDatasetInfo[];
+  strategies: WorkspaceStrategy[];
+  canRun: boolean;
 }) {
   const supported = datasets.filter(
     (dataset) => dataset.granularity !== "tick",
+  );
+  const runnableStrategies = useMemo(
+    () => strategies.filter((item) => !item.archived),
+    [strategies],
   );
   const [datasetId, setDatasetId] = useState(supported[0]?.dataset_id ?? "");
   const selected = supported.find(
@@ -37,9 +79,38 @@ export function WalkForwardPlanner({
   const [trainDays, setTrainDays] = useState("20");
   const [validationDays, setValidationDays] = useState("5");
   const [stepDays, setStepDays] = useState("5");
+  const [strategyId, setStrategyId] = useState(
+    runnableStrategies[0]?.strategy_id ?? "",
+  );
+  const [version, setVersion] = useState(
+    runnableStrategies[0]?.current_version ?? 1,
+  );
+  const [initialCash, setInitialCash] = useState("100000");
+  const [currency, setCurrency] = useState("CNY");
+  const [parameters, setParameters] = useState<Record<string, unknown>>(() =>
+    parameterDefaults(
+      runnableStrategies[0]?.strategy_versions?.find(
+        (item) => item.version === runnableStrategies[0]?.current_version,
+      )?.parameter_schema,
+    ),
+  );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
   const [plan, setPlan] = useState<BacktestWalkForwardPlanInfo | null>(null);
+  const [batch, setBatch] = useState<BacktestWalkForwardRunInfo | null>(null);
+
+  const selectedStrategy = strategies.find(
+    (item) => item.strategy_id === strategyId,
+  );
+  const versions = selectedStrategy?.strategy_versions ?? [];
+  const selectedVersion = versions.find((item) => item.version === version);
+  const parameterRules = Object.entries(
+    (selectedVersion?.parameter_schema?.properties ?? {}) as Record<
+      string,
+      ParameterRule
+    >,
+  );
 
   const fields = useMemo(
     () =>
@@ -51,14 +122,68 @@ export function WalkForwardPlanner({
     [trainDays, validationDays, stepDays],
   );
 
-  async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setError("");
-    setPlan(null);
+  const pending = batch?.status === "queued" || batch?.status === "running";
+
+  useEffect(() => {
+    if (!batch || !pending) return;
+    const timer = window.setInterval(async () => {
+      const result = await refreshWalkForward(batch.walk_forward_id);
+      if (result.run) setBatch(result.run);
+    }, 4000);
+    return () => window.clearInterval(timer);
+  }, [batch, pending]);
+
+  function chooseVersion(nextStrategyId: string, nextVersion: number) {
+    setStrategyId(nextStrategyId);
+    setVersion(nextVersion);
+    const next = strategies.find((item) => item.strategy_id === nextStrategyId);
+    setParameters(
+      parameterDefaults(
+        next?.strategy_versions?.find((item) => item.version === nextVersion)
+          ?.parameter_schema,
+      ),
+    );
+  }
+
+  function executionModel() {
+    const intraday = selected?.granularity !== "1d";
+    return {
+      lot_size: 100,
+      fee_bps: "3",
+      minimum_fee: "5",
+      sell_tax_bps: "5",
+      slippage_bps: "5",
+      tick_size: "0.01",
+      settlement_days: 1,
+      max_volume_fraction: "0.1",
+      latency_bars: 1,
+      ...(intraday
+        ? {
+            session_open: "09:30:00",
+            session_close: "15:00:00",
+            timezone_name: "Asia/Shanghai",
+            session_breaks: [["11:30:00", "13:00:00"]],
+          }
+        : {}),
+      daily_price_limit_fraction: "0.1",
+      periods_per_year: selected?.granularity === "1d" ? 252 : 240,
+    };
+  }
+
+  function validSelection() {
     if (!selected || !instrumentId || new Date(start) >= new Date(end)) {
       setError("请选择数据集与标的，并确认时间范围有效。");
-      return;
+      return false;
     }
+    return true;
+  }
+
+  async function preview(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError("");
+    setMessage("");
+    setPlan(null);
+    if (!validSelection()) return;
     setBusy(true);
     const seconds = (value: string) => Math.round(Number(value) * 86_400);
     const result = await submitWalkForwardPlan({
@@ -78,6 +203,44 @@ export function WalkForwardPlanner({
     setPlan(result.plan);
   }
 
+  async function run() {
+    setError("");
+    setMessage("");
+    if (!validSelection()) return;
+    if (!strategyId || !initialCash) {
+      setError("请选择策略版本并填写初始资金。");
+      return;
+    }
+    setBusy(true);
+    const seconds = (value: string) => Math.round(Number(value) * 86_400);
+    const result = await startWalkForward({
+      strategyId,
+      version,
+      datasetId,
+      instrumentId,
+      start,
+      end,
+      trainWindowSeconds: seconds(trainDays),
+      validationWindowSeconds: seconds(validationDays),
+      stepSeconds: seconds(stepDays),
+      initialCash,
+      currency,
+      costModelVersion: "cost.v1",
+      parameters,
+      executionModel: executionModel(),
+    });
+    setBusy(false);
+    if (!result.run) {
+      setError(result.error ?? "Walk-forward 运行创建失败。");
+      return;
+    }
+    setPlan(null);
+    setBatch(result.run);
+    setMessage(
+      `已排队 ${result.run.windows.length} 个验证窗口，每个窗口都是一个独立回测。`,
+    );
+  }
+
   return (
     <section
       className="panel walk-forward-panel"
@@ -86,19 +249,20 @@ export function WalkForwardPlanner({
       <div className="panel-heading">
         <div>
           <p className="eyebrow">OUT-OF-SAMPLE REVIEW</p>
-          <h2 id="walk-forward-title">Walk-forward 时间切分</h2>
+          <h2 id="walk-forward-title">Walk-forward 样本外运行</h2>
         </div>
       </div>
       <p className="page-description">
-        使用数据集内的实际 bar
-        时间戳规划滚动训练与验证区间；验证窗口与训练窗口分离，样本不足时拒绝生成。
+        用数据集内的真实 bar
+        时间戳切分滚动训练/验证区间，并为每个验证窗口排队真实回测；
+        训练区间仅用于切分核对，当前不做参数寻优，验证结果是对冻结参数的样本外评估。
       </p>
       {supported.length === 0 ? (
         <p className="backtest-empty">
           当前没有可用于切分的已发布 bar 数据集。
         </p>
       ) : (
-        <form className="backtest-form walk-forward-form" onSubmit={submit}>
+        <form className="backtest-form walk-forward-form" onSubmit={preview}>
           <label>
             <span>Market Dataset</span>
             <select
@@ -115,7 +279,8 @@ export function WalkForwardPlanner({
             >
               {supported.map((dataset) => (
                 <option key={dataset.dataset_id} value={dataset.dataset_id}>
-                  {dataset.dataset_id.slice(0, 8)} · {dataset.granularity}
+                  {dataset.instrument_ids.slice(0, 2).join(", ")} ·{" "}
+                  {dataset.granularity} · v{dataset.version}
                 </option>
               ))}
             </select>
@@ -171,14 +336,115 @@ export function WalkForwardPlanner({
               </label>
             ))}
           </div>
-          <button className="button button-secondary" disabled={busy}>
-            {busy ? "正在计算样本…" : "生成 Walk-forward 切分"}
-          </button>
+          <label>
+            <span>策略版本</span>
+            <select
+              value={`${strategyId}:${version}`}
+              onChange={(event) => {
+                const [nextStrategy, nextVersion] =
+                  event.target.value.split(":");
+                chooseVersion(nextStrategy, Number(nextVersion));
+              }}
+            >
+              {runnableStrategies.flatMap((strategy) =>
+                (strategy.strategy_versions ?? []).map((item) => (
+                  <option
+                    key={`${strategy.strategy_id}:${item.version}`}
+                    value={`${strategy.strategy_id}:${item.version}`}
+                  >
+                    {strategy.name} · v{item.version}
+                  </option>
+                )),
+              )}
+            </select>
+          </label>
+          {parameterRules.length > 0 && (
+            <div className="backtest-date-grid">
+              {parameterRules.map(([name, rule]) => (
+                <label key={name}>
+                  <span>{rule.title ?? name}</span>
+                  <input
+                    type={
+                      rule.type === "integer" || rule.type === "number"
+                        ? "number"
+                        : "text"
+                    }
+                    min={rule.minimum}
+                    max={rule.maximum}
+                    step={rule.type === "integer" ? 1 : "any"}
+                    value={String(parameters[name] ?? "")}
+                    onChange={(event) =>
+                      setParameters((current) => ({
+                        ...current,
+                        [name]:
+                          rule.type === "integer" || rule.type === "number"
+                            ? event.target.value === ""
+                              ? ""
+                              : Number(event.target.value)
+                            : event.target.value,
+                      }))
+                    }
+                  />
+                </label>
+              ))}
+            </div>
+          )}
+          <div className="backtest-date-grid">
+            <label>
+              <span>初始资金</span>
+              <input
+                type="number"
+                min="1"
+                step="1000"
+                value={initialCash}
+                onChange={(event) => setInitialCash(event.target.value)}
+                required
+              />
+            </label>
+            <label>
+              <span>计价币种</span>
+              <select
+                value={currency}
+                onChange={(event) => setCurrency(event.target.value)}
+              >
+                <option value="CNY">CNY · 人民币</option>
+                <option value="USD">USD · 美元</option>
+              </select>
+            </label>
+          </div>
+          <div className="walk-forward-actions">
+            <button className="button button-secondary" disabled={busy}>
+              {busy ? "正在处理…" : "预览切分"}
+            </button>
+            <button
+              type="button"
+              className="button button-primary"
+              onClick={run}
+              disabled={busy || !canRun || runnableStrategies.length === 0}
+            >
+              运行 Walk-forward
+            </button>
+          </div>
+          <p className="backtest-model-note" role="note">
+            执行假设与回测配置默认一致：整手 100、手续费 3bps、最低佣金 5
+            元、卖出印花税 5bps、0.01 最小价位、T+1。每个窗口独立使用初始资金，
+            不做跨窗口资金复利；训练区间不参与参数优化。窗口失败会在汇总中显式计数。
+          </p>
         </form>
+      )}
+      {!canRun && (
+        <p className="backtest-empty">
+          当前角色可以查看切分，但没有创建 Walk-forward 运行的权限。
+        </p>
       )}
       {error && (
         <p className="strategy-message error" role="alert">
           {error}
+        </p>
+      )}
+      {message && (
+        <p className="strategy-message success" role="status">
+          {message}
         </p>
       )}
       {plan && (
@@ -213,6 +479,7 @@ export function WalkForwardPlanner({
           </table>
         </div>
       )}
+      {batch && <WalkForwardBatchResults batch={batch} />}
     </section>
   );
 }

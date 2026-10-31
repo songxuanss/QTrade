@@ -86,6 +86,7 @@ from qtrade_postgres.realtime import PostgresRealtimeHealthStore
 from qtrade_postgres.risk import PostgresRiskDecisionStore, PostgresRiskLimitStore
 from qtrade_postgres.runtime_control import PostgresExecutionRuntimeStore
 from qtrade_postgres.strategies import PostgresStrategyStore
+from qtrade_postgres.walk_forward import PostgresWalkForwardStore
 from qtrade_postgres.workspaces import PostgresWorkspaceStore
 from qtrade_runtime.health import create_health_app
 
@@ -235,6 +236,7 @@ if service is not None:
                 if collector_client is not None
                 else None
             ),
+            walk_forwards=PostgresWalkForwardStore(os.environ["DATABASE_URL"]),
         )
     else:
         backtests = None

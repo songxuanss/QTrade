@@ -21,4 +21,4 @@ Manifest 绑定 `strategy_version_id`、`code_sha256`、`dataset_sha256`、规�
 
 ## 已知缺口
 
-已实现 T+1 可卖数量、tick size、最低佣金、卖出印花税和持久化 Worker 队列；未实现公司行为/复权、历史有效成分、逐笔盘口、Walk-forward 逐窗执行和导出。页面明确提示模型边界。
+已实现 T+1 可卖数量、tick size、最低佣金、卖出印花税、持久化 Worker 队列、公司行为账本和 Walk-forward 逐窗执行/汇总；未实现配股、供应商复权因子、历史有效成分、逐笔盘口和报告导出。页面明确提示模型边界。

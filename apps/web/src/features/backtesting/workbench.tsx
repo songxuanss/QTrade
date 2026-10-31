@@ -784,7 +784,11 @@ export function BacktestWorkbench({
           )}
         </section>
       </div>
-      <WalkForwardPlanner datasets={datasets} />
+      <WalkForwardPlanner
+        datasets={datasets}
+        strategies={strategies}
+        canRun={canRun}
+      />
     </div>
   );
 }
