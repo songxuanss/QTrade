@@ -1,8 +1,12 @@
 import "server-only";
+import { cache } from "react";
 import { cookies } from "next/headers";
 import { authConfig } from "./config";
 
-export async function readSession() {
+/** One session lookup per request. Page composition fans out into many
+ * independent workspace readers; without request-scoped memoization each one
+ * repeats the same /auth/session round trip before its own data request. */
+export const readSession = cache(async function readSession() {
   const config = authConfig();
   if (!config) return null;
   const name = config.secureCookies
@@ -38,4 +42,4 @@ export async function readSession() {
   } catch {
     return null;
   }
-}
+});

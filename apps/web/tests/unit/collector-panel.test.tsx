@@ -4,7 +4,10 @@ import { act, type ComponentProps } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CollectorPanel } from "../../src/features/data/collector-panel";
-import type { CollectorJob } from "../../src/features/data/collector-types";
+import type {
+  CollectorJob,
+  CollectorSource,
+} from "../../src/features/data/collector-types";
 
 const actions = vi.hoisted(() => ({ readCollectorJob: vi.fn() }));
 vi.mock("../../src/features/auth/workspace-request", () => ({
@@ -290,6 +293,64 @@ describe("CollectorPanel job observability", () => {
     const note = container.querySelector(".collector-scope-note");
     expect(note?.textContent).toContain("2 个股票池、1 个手工标的");
     expect(note?.textContent).toContain("去重后 4 个标的");
+  });
+
+  it("estimates 7-day segments and offers the yearly Pro source", async () => {
+    const source = (id: string, name: string): CollectorSource => ({
+      source: id,
+      name,
+      provider: "mairui",
+      dataset_kind: "bars",
+      periods: ["1d", "5m"],
+      instrument_kinds: ["stock"],
+      markets: ["CN"],
+      timezone: "Asia/Shanghai",
+      configured: true,
+      evidence: "configured",
+      limitations: [],
+    });
+    await act(async () => {
+      root.render(
+        <CollectorPanel
+          catalog={[
+            source("mairui.history.bars", "MaiRui 日线/分钟历史"),
+            source("mairui.pro.bars", "MaiRui Pro 日线/分钟历史"),
+          ]}
+          factors={[]}
+          factorsAvailable={false}
+          initialJobs={[]}
+          available
+          canManage
+          snapshots={[]}
+          initialPreferences={{
+            schema_version: 1,
+            dataset_kind: "bars",
+            source: "mairui.history.bars",
+            granularity: "5m",
+            first: "2024-01-01",
+            last: "2024-12-31",
+            instruments: "601288.SH, 600036.SH, 600519.SH",
+            snapshot_id: null,
+            snapshot_ids: [],
+            fields: [],
+            mode: "missing",
+          }}
+        />,
+      );
+    });
+    const estimate = container.querySelector(".collector-segment-estimate");
+    expect(estimate?.textContent).toContain("159 个采集分段");
+    expect(estimate?.textContent).toContain("普通历史分钟接口按最多 7 天拆分");
+    const button = estimate?.querySelector<HTMLButtonElement>("button");
+    expect(button?.textContent).toContain("改用 Pro 分钟历史");
+    await act(async () => button?.click());
+    expect(
+      container.querySelector<HTMLSelectElement>(
+        "select[aria-label='采集数据来源']",
+      )?.value,
+    ).toBe("mairui.pro.bars");
+    expect(estimate?.textContent).toContain("3 个采集分段");
+    expect(estimate?.textContent).toContain("当前来源按日历年组织分段");
   });
 
   it("does not let a slower previous selection replace the latest selection", async () => {

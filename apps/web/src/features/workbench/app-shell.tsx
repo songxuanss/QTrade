@@ -26,6 +26,7 @@ export function AppShell({
   const pathname = usePathname();
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [hoveredHref, setHoveredHref] = useState("");
   const [logoutError, setLogoutError] = useState(false);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const sidebarRef = useRef<HTMLElement>(null);
@@ -168,8 +169,11 @@ export function AppShell({
                   <Link
                     key={item.href}
                     href={item.href}
+                    prefetch={hoveredHref === item.href ? true : undefined}
                     className={`nav-item ${pathname === item.href ? "active" : ""}`}
                     aria-current={pathname === item.href ? "page" : undefined}
+                    onMouseEnter={() => setHoveredHref(item.href)}
+                    onFocus={() => setHoveredHref(item.href)}
                     onClick={closeMenu}
                   >
                     <Icon name={item.icon} />

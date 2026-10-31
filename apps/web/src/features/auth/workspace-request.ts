@@ -17,16 +17,28 @@ export async function workspaceRequest(
   };
   try {
     if (method !== "GET") {
-      const response = await fetch(`${session.config.apiOrigin}/auth/session`, {
-        headers,
-        cache: "no-store",
-        redirect: "error",
-        signal: AbortSignal.timeout(10_000),
-      });
-      if (!response.ok) return response;
-      const state = await response.json();
-      if (typeof state.csrf_token !== "string") return null;
-      headers["X-CSRF-Token"] = state.csrf_token;
+      // The request-scoped session already carries the CSRF token minted with
+      // this cookie. Refresh only when it is absent instead of paying a second
+      // round trip before every mutation.
+      let token = session.csrfToken;
+      if (!token) {
+        const response = await fetch(
+          `${session.config.apiOrigin}/auth/session`,
+          {
+            headers,
+            cache: "no-store",
+            redirect: "error",
+            signal: AbortSignal.timeout(10_000),
+          },
+        );
+        if (!response.ok) return response;
+        const state = (await response.json()) as { csrf_token?: unknown };
+        if (typeof state.csrf_token !== "string") return null;
+        token = state.csrf_token;
+      }
+      const csrf = token;
+      if (!csrf) return null;
+      headers["X-CSRF-Token"] = csrf;
     }
     if (body !== undefined) headers["Content-Type"] = "application/json";
     const response = await fetch(

@@ -468,6 +468,30 @@ export function CollectorPanel({
       item.members.map((member) => member.instrument.instrument_id),
     ),
   ]);
+  const startDay = Date.parse(`${first}T00:00:00Z`);
+  const endDay = Date.parse(`${last}T00:00:00Z`);
+  const dayCount =
+    Number.isFinite(startDay) && Number.isFinite(endDay) && endDay >= startDay
+      ? Math.floor((endDay - startDay) / 86_400_000) + 1
+      : 0;
+  // Mirror the provider strategy: daily and Pro history are organized by
+  // calendar year, while ordinary intraday history caps each part at 7 days.
+  const annual = period === "1d" || source?.source === "mairui.pro.bars";
+  const firstYear = Number(first.slice(0, 4));
+  const lastYear = Number(last.slice(0, 4));
+  const yearCount =
+    first && last && lastYear >= firstYear && lastYear - firstYear < 1000
+      ? lastYear - firstYear + 1
+      : 0;
+  const segmentsPerInstrument = annual
+    ? yearCount
+    : dayCount
+      ? Math.max(1, Math.ceil(dayCount / 7))
+      : 0;
+  const estimatedSegments = combinedIds.size * segmentsPerInstrument;
+  const proMinuteSource = sources.find(
+    (item) => item.source === "mairui.pro.bars" && item.configured,
+  );
 
   return (
     <section
@@ -676,6 +700,38 @@ export function CollectorPanel({
                     ? `本次合并范围：${selectedPools.length} 个股票池、${manualIds.length} 个手工标的，去重后 ${combinedIds.size} 个标的。提交时冻结所选池成员。`
                     : "尚未选择范围：勾选至少一个行业/指数池，或填写公司代码后才能预览。"}
                 </p>
+                {estimatedSegments > 0 && (
+                  <div className="collector-wide collector-segment-estimate">
+                    <strong>
+                      粗估约 {estimatedSegments.toLocaleString("zh-CN")}{" "}
+                      个采集分段
+                    </strong>
+                    <span>
+                      {combinedIds.size} 个标的 × 每标的约{" "}
+                      {segmentsPerInstrument.toLocaleString("zh-CN")}{" "}
+                      段；最终以预览处理。
+                      {annual
+                        ? " 当前来源按日历年组织分段。"
+                        : " 普通历史分钟接口按最多 7 天拆分。"}
+                    </span>
+                    {!annual && proMinuteSource && (
+                      <p className="data-notice warning">
+                        当前分钟范围会产生大量分段。可显式切换到 MaiRui Pro
+                        分钟历史，按年组织范围通常显著减少分段。
+                        <button
+                          type="button"
+                          className="button button-secondary"
+                          onClick={() => {
+                            invalidateSelection();
+                            setSourceId(proMinuteSource.source);
+                          }}
+                        >
+                          改用 Pro 分钟历史
+                        </button>
+                      </p>
+                    )}
+                  </div>
+                )}
                 <div className="collector-form-section-title">
                   <span>时间范围与下载策略</span>
                 </div>

@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { DistributionCollectionPanel } from "../../../features/data/distribution-collection-panel";
 import { ResearchCollectionPanel } from "../../../features/data/research-collection-panel";
 import { CollectorPanel } from "../../../features/data/collector-panel";
@@ -51,6 +52,49 @@ import { TradingConsole } from "../../../features/trading/console";
 import { workspaceResearchDatasets } from "../../../features/data/research-server";
 import { RiskPanel } from "../../../features/risk/panel";
 import { workspaceRisk } from "../../../features/risk/server";
+
+/** The reference catalog can fall back to a slow provider call. Keep it in its
+ * own boundary so the downloaded-data and collection panels are not blocked. */
+async function UniverseSection({
+  search,
+  category,
+  offset,
+  memberPage,
+  result,
+  canManage,
+  periods,
+  recent,
+  snapshotId,
+}: {
+  search: string;
+  category: string;
+  offset: number;
+  memberPage: number;
+  result?: string;
+  canManage: boolean;
+  periods: string[];
+  recent: Awaited<ReturnType<typeof workspaceUniverseSnapshots>>;
+  snapshotId?: string;
+}) {
+  const [catalog, snapshot] = await Promise.all([
+    workspaceUniverseCatalog(search, category, offset),
+    snapshotId ? workspaceUniverseSnapshot(snapshotId) : Promise.resolve(null),
+  ]);
+  return (
+    <UniversePanel
+      catalog={catalog}
+      periods={periods}
+      snapshot={snapshot}
+      recent={recent}
+      canManage={canManage}
+      search={search}
+      category={category}
+      offset={offset}
+      memberPage={memberPage}
+      result={result}
+    />
+  );
+}
 
 export default async function WorkspaceSection({
   params,
@@ -155,8 +199,6 @@ export default async function WorkspaceSection({
       identity,
       data,
       research,
-      catalog,
-      snapshot,
       recent,
       collector,
       researchCollection,
@@ -165,10 +207,6 @@ export default async function WorkspaceSection({
       currentIdentity(),
       workspaceData(),
       workspaceResearchDatasets(),
-      workspaceUniverseCatalog(search, category, offset),
-      query.universe_snapshot
-        ? workspaceUniverseSnapshot(query.universe_snapshot)
-        : Promise.resolve(null),
       workspaceUniverseSnapshots(),
       workspaceCollector(),
       workspaceResearchCollection(),
@@ -244,24 +282,31 @@ export default async function WorkspaceSection({
           <SourceProfilePanel key={`profiles-${usageScope}`} />
         }
         universePanel={
-          <UniversePanel
-            catalog={catalog}
-            periods={[
-              ...new Set(
-                (data?.sourceOptions ?? []).flatMap(
-                  (item) => item.granularities,
+          <Suspense
+            fallback={
+              <div className="panel data-section">
+                <p className="data-empty">正在加载股票池目录…</p>
+              </div>
+            }
+          >
+            <UniverseSection
+              search={search}
+              category={category}
+              offset={offset}
+              memberPage={memberPage}
+              result={query.universe_result}
+              canManage={identity.workspace?.role === "admin"}
+              periods={[
+                ...new Set(
+                  (data?.sourceOptions ?? []).flatMap(
+                    (item) => item.granularities,
+                  ),
                 ),
-              ),
-            ]}
-            snapshot={snapshot}
-            recent={recent}
-            canManage={identity.workspace?.role === "admin"}
-            search={search}
-            category={category}
-            offset={offset}
-            memberPage={memberPage}
-            result={query.universe_result}
-          />
+              ]}
+              recent={recent}
+              snapshotId={query.universe_snapshot}
+            />
+          </Suspense>
         }
         research={research}
         sourceOptions={data?.sourceOptions ?? []}
