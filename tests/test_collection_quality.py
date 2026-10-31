@@ -5,7 +5,7 @@ from dataclasses import replace
 from datetime import timedelta
 from decimal import Decimal
 from types import SimpleNamespace
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from pydantic import ValidationError
@@ -193,8 +193,24 @@ def test_quality_wire_version_requires_explicit_integer_one(version):
 
 def test_explicit_v1_dispatch_preserves_wire_result_and_archive_reads(tmp_path):
     task = part()
+    task = replace(
+        task,
+        part_id=UUID(int=1),
+        request=task.request.model_copy(update={"scope_id": UUID(int=2)}),
+    )
     data = result()
     frozen = evaluate_v1(task, data, "Asia/Shanghai", START, source_captured=True)
+    assert frozen.rule_version == "collection-quality.v1"
+    assert (str(frozen.quality_id), frozen.input_digest, frozen.records_sha256) == (
+        "f4e3bef8-cef2-5f04-b1a6-d795e6416c78",
+        "ae951a2367d1b7d834f1e91c46f04ede066f3afa0caf6845e9a4d9699e61cb16",
+        "8b2bc09b54b6571c97c88c2adb91e34ed3c514fcf7bb908bb9e5050b9adfcee0",
+    )
+    assert frozen.status == "warning"
+    assert [(i.code, i.severity, i.affected_records) for i in frozen.issues] == [
+        ("calendar_unknown", "warning", 1),
+        ("intraday_completeness_unknown", "warning", 1),
+    ]
     dispatched = evaluate(
         task,
         data,

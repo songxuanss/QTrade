@@ -183,7 +183,7 @@ def evaluate_v1(
         quality_id=uuid5(part.part_id, identity),
         scope_id=part.request.scope_id,
         part_id=part.part_id,
-        rule_version=RULE_VERSION,
+        rule_version="collection-quality.v1",
         input_digest=input_hash,
         records_sha256=records_hash,
         record_count=len(records),

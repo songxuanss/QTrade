@@ -69,7 +69,14 @@ for run in v["runs"]:
         assert {digest(row) for row in result.raw} <= rows
         quality = archive.qualities(part)
         assert any(
-            evaluate(part, result, "Asia/Shanghai", q.checked_at, source_captured=True) == q
+            evaluate(
+                part,
+                result,
+                "Asia/Shanghai",
+                q.checked_at,
+                source_captured=True,
+                rule_version=q.rule_version,
+            ) == q
             for q in quality
         )
         if run["kind"] == "factors":

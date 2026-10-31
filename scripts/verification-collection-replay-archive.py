@@ -86,7 +86,8 @@ else:
   from dataclasses import replace
   result=replace(result,evidence=pub.evidence)
   assert any(q.status in {'passed','warning'} and q.rule_version==intent.rule_version
-     and evaluate(part,result,intent.timezone,q.checked_at,source_captured=True)==q for q in checks)
+     and evaluate(part,result,intent.timezone,q.checked_at,source_captured=True,
+                  rule_version=q.rule_version)==q for q in checks)
   auth=StaticScopeAuthorizer({f'{intent.command.actor_id}:{scope}':'read'})
   replays=CollectionReplayService(auth,archive,repo,())
   freshness_status='not_applicable'
