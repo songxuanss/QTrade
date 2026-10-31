@@ -21,6 +21,7 @@ const paths = {
   close: "M5 5l14 14 M19 5L5 19",
   alert: "M12 3L2 21h20z M12 9v5 M12 17v1",
   clock: "M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20 M12 6v6l4 2",
+  calendar: "M4 6h16v15H4z M8 3v6 M16 3v6 M4 11h16",
   folder: "M3 6h7l2 3h9v11H3z M3 6V4h7l2 2h9v3",
   activity: "M2 12h5l3-8 4 16 3-8h5",
 } as const;

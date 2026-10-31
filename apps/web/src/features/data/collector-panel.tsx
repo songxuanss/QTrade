@@ -1,6 +1,7 @@
 "use client";
 
 import { CollectionReplayControl } from "./collection-replay";
+import { IsoDateInput } from "../../components/ui/iso-date";
 import Link from "next/link";
 import workspaceStyles from "./collector-workspace.module.css";
 import {
@@ -36,6 +37,12 @@ import type {
   CollectorPreferences,
 } from "./collector-types";
 import type { UniverseSnapshot } from "./universe-server";
+
+const observedDate = (value: string) =>
+  new Intl.DateTimeFormat("zh-CN", {
+    dateStyle: "short",
+    timeZone: "Asia/Shanghai",
+  }).format(new Date(value));
 
 function subscribeView(onChange: () => void) {
   window.addEventListener("popstate", onChange);
@@ -451,6 +458,12 @@ export function CollectorPanel({
   const selectedPools = snapshots.filter((item) =>
     snapshotIds.includes(item.snapshot_id),
   );
+  const poolNameCounts = new Map<string, number>();
+  for (const item of snapshots)
+    poolNameCounts.set(item.name, (poolNameCounts.get(item.name) ?? 0) + 1);
+  const duplicatePoolNames = new Set(
+    [...poolNameCounts].filter(([, count]) => count > 1).map(([name]) => name),
+  );
   const unresolvedPools = snapshotIds.filter(
     (id) => !snapshots.some((item) => item.snapshot_id === id),
   );
@@ -645,34 +658,53 @@ export function CollectorPanel({
                   className="collector-wide collector-pool-picker"
                   aria-label="独立采集股票池"
                 >
-                  <legend>行业、主题与指数股票池（可多选）</legend>
+                  <legend>
+                    行业、主题与指数股票池（可多选）
+                    {snapshotIds.length > 0 && (
+                      <span className="collector-pool-selected">
+                        已选 {snapshotIds.length}
+                      </span>
+                    )}
+                  </legend>
                   <p>
                     可同时选择多个行业/主题/指数池，也可在下方追加公司代码；成员合并去重后提交，提交时冻结当前成员快照。
                   </p>
                   <div className="collector-pool-options">
-                    {snapshots.map((item) => (
-                      <label key={item.snapshot_id}>
-                        <input
-                          type="checkbox"
-                          value={item.snapshot_id}
-                          checked={snapshotIds.includes(item.snapshot_id)}
-                          onChange={(event) => {
-                            invalidateSelection();
-                            setSnapshotIds((current) =>
-                              event.target.checked
-                                ? [...new Set([...current, item.snapshot_id])]
-                                : current.filter(
-                                    (id) => id !== item.snapshot_id,
-                                  ),
-                            );
-                          }}
-                        />
-                        <span>
-                          {item.name}
-                          <small>{item.members.length} 个成员</small>
-                        </span>
-                      </label>
-                    ))}
+                    {snapshots.map((item) => {
+                      const selected = snapshotIds.includes(item.snapshot_id);
+                      return (
+                        <label
+                          key={item.snapshot_id}
+                          className={selected ? "is-selected" : undefined}
+                        >
+                          <input
+                            type="checkbox"
+                            value={item.snapshot_id}
+                            checked={selected}
+                            onChange={(event) => {
+                              invalidateSelection();
+                              setSnapshotIds((current) =>
+                                event.target.checked
+                                  ? [...new Set([...current, item.snapshot_id])]
+                                  : current.filter(
+                                      (id) => id !== item.snapshot_id,
+                                    ),
+                              );
+                            }}
+                          />
+                          <span>
+                            {item.name}
+                            <small>
+                              v{item.version} · {item.members.length} 个成员 ·{" "}
+                              {observedDate(item.observed_at)}
+                              {duplicatePoolNames.has(item.name)
+                                ? ` · #${item.snapshot_id.slice(0, 8)}`
+                                : ""}
+                            </small>
+                          </span>
+                        </label>
+                      );
+                    })}
                     {snapshots.length === 0 && <span>暂无已保存股票池</span>}
                   </div>
                   {unresolvedPools.length > 0 && (
@@ -735,26 +767,22 @@ export function CollectorPanel({
                 <div className="collector-form-section-title">
                   <span>时间范围与下载策略</span>
                 </div>
-                <label className="collector-date-field">
-                  开始日期（{source?.timezone ?? "UTC"}）
-                  <input
-                    name="first"
-                    aria-label="独立采集开始日期"
-                    type="date"
-                    value={first}
-                    onChange={(event) => setFirst(event.target.value)}
-                  />
-                </label>
-                <label className="collector-date-field">
-                  结束日期（含当日）
-                  <input
-                    name="last"
-                    aria-label="独立采集结束日期"
-                    type="date"
-                    value={last}
-                    onChange={(event) => setLast(event.target.value)}
-                  />
-                </label>
+                <IsoDateInput
+                  className="collector-date-field"
+                  label={`开始日期（${source?.timezone ?? "UTC"}）`}
+                  ariaLabel="独立采集开始日期"
+                  name="first"
+                  value={first}
+                  onChange={setFirst}
+                />
+                <IsoDateInput
+                  className="collector-date-field"
+                  label="结束日期（含当日）"
+                  ariaLabel="独立采集结束日期"
+                  name="last"
+                  value={last}
+                  onChange={setLast}
+                />
                 <label className="collector-mode-field">
                   下载方式
                   <select

@@ -165,7 +165,7 @@
 .help {
   min-width: 0;
   color: var(--muted);
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.65;
 }
 .help summary {
@@ -203,11 +203,11 @@
     flex: auto;
   }
 }
-@media (max-width: 430px) {
-  /* Paired dates fit 390px phones with full native date controls. Keep source,
-     instrument and strategy full width; touch targets remain at least 40px. */
+@media (max-width: 560px) {
+  /* ISO date fields include a picker button; stack them so each date and its
+     touch target get the full form width. */
   .form :global(.collector-date-field) {
-    grid-column: span 1;
+    grid-column: 1 / -1;
   }
   .heading {
     flex-wrap: wrap;

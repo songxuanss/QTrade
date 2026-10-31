@@ -1,4 +1,5 @@
 import { createHistoryTaskAction } from "../../app/workspace/data-actions";
+import { IsoDateInput } from "../../components/ui/iso-date";
 
 export type SourceOption = {
   source: string;
@@ -69,24 +70,18 @@ export function HistoryDownloadForm({
             ))}
           </select>
         </label>
-        <label>
-          开始日期（北京时间）
-          <input
-            name="start_date"
-            aria-label="历史行情开始日期"
-            type="date"
-            required
-          />
-        </label>
-        <label>
-          结束日期（北京时间，含当日）
-          <input
-            name="end_date"
-            aria-label="历史行情结束日期"
-            type="date"
-            required
-          />
-        </label>
+        <IsoDateInput
+          label="开始日期（北京时间）"
+          ariaLabel="历史行情开始日期"
+          name="start_date"
+          required
+        />
+        <IsoDateInput
+          label="结束日期（北京时间，含当日）"
+          ariaLabel="历史行情结束日期"
+          name="end_date"
+          required
+        />
         <button
           className="button button-primary"
           disabled={!available || !source}

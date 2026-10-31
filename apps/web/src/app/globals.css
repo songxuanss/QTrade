@@ -5657,3 +5657,250 @@ main {
     padding: 16px;
   }
 }
+
+/* ISO date entry keeps the native picker but removes locale-dependent
+   mm/dd/yyyy text from a Chinese operations interface. */
+.iso-date-field {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 38px;
+  align-items: stretch;
+  gap: 6px;
+  min-width: 0;
+}
+.iso-date-field > input[type="text"] {
+  min-width: 0;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+.iso-date-picker {
+  display: grid;
+  place-items: center;
+  min-width: 38px;
+  min-height: 42px;
+  padding: 0;
+  border: 1px solid var(--control-border);
+  border-radius: 7px;
+  background: var(--surface-raised);
+  color: var(--secondary);
+}
+.iso-date-picker:hover {
+  border-color: #6d879f;
+  color: var(--text);
+}
+.iso-date-picker:focus-visible {
+  border-color: var(--accent);
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.iso-date-field > input.iso-date-native {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 1px;
+  height: 1px;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Readable operations type scale. Dense does not mean 9px matter: keep
+   decorative brand microtype small, but all functional text at 11px or more. */
+:root {
+  font-size: 14px;
+  --text-display: 28px;
+  --text-heading: 15px;
+  --text-body: 13px;
+  --text-meta: 12px;
+  --text-micro: 11px;
+}
+h1 {
+  font-size: var(--text-display);
+  letter-spacing: -0.012em;
+}
+h2 {
+  font-size: var(--text-heading);
+}
+.eyebrow {
+  font-size: var(--text-micro);
+  letter-spacing: 0.12em;
+}
+.page-description {
+  font-size: var(--text-body);
+}
+.badge {
+  font-size: var(--text-micro);
+}
+.button {
+  min-height: 36px;
+  font-size: var(--text-meta);
+}
+.nav-label,
+.statusbar,
+.metric-hint,
+.metric-english,
+.panel-heading p {
+  font-size: var(--text-micro);
+}
+.breadcrumb,
+.data-section-title > span,
+.data-chip,
+.data-status,
+.data-period,
+.data-secondary,
+.data-hash,
+.data-row-main small,
+.metric-label,
+.market-download-tools label,
+.market-download-row > div:first-child span,
+.market-period-link strong,
+.market-table th,
+.market-table td,
+.market-chart-header p:last-child,
+.collector-zone-heading p,
+.collector-form-section-title small,
+.collector-pool-picker > p,
+.collector-segment-estimate > span,
+.collector-form small,
+.collector-footer p,
+.universe-card p,
+.campaign-panel .page-description {
+  font-size: var(--text-meta);
+}
+.market-table tbody th small,
+.market-number small,
+.market-period-link small,
+.market-chart-legend,
+.market-chart-footnote {
+  font-size: 10.5px;
+}
+.market-session,
+.market-stream-status,
+.market-table-top > span,
+.market-empty p,
+.market-footnote,
+.collector-connection,
+.collector-history-count,
+.collector-segment-estimate .data-notice .button,
+.campaign-defaults > span,
+.campaign-defaults strong {
+  font-size: var(--text-micro);
+}
+.collector-pool-options label > span,
+.collector-scope-note,
+.collector-segment-estimate > strong,
+.universe-pagination {
+  font-size: var(--text-body);
+}
+.empty-state p,
+.permission-state p,
+.error-state p {
+  font-size: var(--text-meta);
+}
+.market-download-row > div:first-child strong {
+  font-size: 13px;
+}
+.campaign-panel .page-description {
+  line-height: 1.65;
+}
+
+@media (max-width: 700px) {
+  .button {
+    min-height: 42px;
+  }
+  .iso-date-picker {
+    min-width: 42px;
+    min-height: 44px;
+  }
+}
+
+.collector-pool-options label {
+  transition:
+    border-color 120ms,
+    background 120ms,
+    box-shadow 120ms;
+}
+.collector-pool-options label:hover {
+  border-color: #3b5266;
+  background: #101a24;
+}
+.collector-pool-options label.is-selected {
+  border-color: #4a8f79;
+  background: #10251f;
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+.collector-pool-options label.is-selected > span {
+  color: var(--text);
+}
+.collector-pool-options label.is-selected small {
+  color: #9fc8ba;
+}
+.collector-pool-selected {
+  margin-left: 8px;
+  color: var(--accent);
+  font-size: var(--text-micro);
+  font-weight: 600;
+}
+
+/* Secondary workbench text: keep decorative English eyebrows quiet, but raise
+   functional labels and helper copy above the decorative floor. */
+.statusbar > span:last-child,
+.data-jump span,
+.data-legacy-heading p:last-child,
+.issue-row details,
+.issue-row pre,
+.panel-footnote,
+.panel-link,
+.text-link,
+.watch-table-heading,
+.workflow-step p,
+.risk-summary p,
+.risk-checklist > div,
+.checklist-status,
+.portfolio-source,
+.portfolio-metrics article > span,
+.portfolio-metrics article > small,
+.portfolio-risk-metrics span,
+.portfolio-risk-metrics strong,
+.portfolio-subheading span,
+.portfolio-no-positions,
+.portfolio-table-scroll table,
+.health-list li span:not(.health-status),
+.health-row-state small,
+.health-status,
+.strategy-message,
+.strategy-library-item strong,
+.strategy-library-empty,
+.strategy-library-error,
+.strategy-editor-caption,
+.strategy-static-diagnostics span,
+.strategy-static-diagnostics small,
+.strategy-editor-footer > span,
+.strategy-validate-row > span,
+.strategy-dependencies-help,
+.strategy-version-list strong,
+.strategy-parameters-empty,
+.strategy-run-gate > span {
+  font-size: var(--text-micro);
+}
+.heading-subtitle,
+.metric-english {
+  font-size: 10px;
+}
+.workflow-step h3 {
+  font-size: var(--text-meta);
+}
+.step-number,
+.risk-summary .badge {
+  font-size: 10px;
+}
+.page-heading > .badge,
+.welcome-action > span {
+  font-size: 10.5px;
+}
+.empty-state .button {
+  font-size: var(--text-meta);
+}

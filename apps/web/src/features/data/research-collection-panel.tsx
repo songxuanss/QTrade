@@ -1,4 +1,5 @@
 "use client";
+import { IsoDateInput } from "../../components/ui/iso-date";
 import { budgetWaitMessage } from "./budget-wait";
 import { ResearchPlanControls } from "./research-plan-controls";
 import { ResearchJobHistory } from "./research-job-history";
@@ -240,32 +241,26 @@ export function ResearchCollectionPanel({
             }}
           />
         </label>
-        <label>
-          报告期开始（含）
-          <input
-            type="date"
-            value={start}
-            required
-            disabled={busy || !canManage}
-            onChange={(e) => {
-              setStart(e.target.value);
-              setPlan(null);
-            }}
-          />
-        </label>
-        <label>
-          报告期结束（不含）
-          <input
-            type="date"
-            value={end}
-            required
-            disabled={busy || !canManage}
-            onChange={(e) => {
-              setEnd(e.target.value);
-              setPlan(null);
-            }}
-          />
-        </label>
+        <IsoDateInput
+          label="报告期开始（含）"
+          value={start}
+          required
+          disabled={busy || !canManage}
+          onChange={(value) => {
+            setStart(value);
+            setPlan(null);
+          }}
+        />
+        <IsoDateInput
+          label="报告期结束（不含）"
+          value={end}
+          required
+          disabled={busy || !canManage}
+          onChange={(value) => {
+            setEnd(value);
+            setPlan(null);
+          }}
+        />
         <p>
           日期轴：报告截止日；市场时区：北京时间。请明确选择范围，本操作重新采集所选范围，不承诺只补缺。
         </p>

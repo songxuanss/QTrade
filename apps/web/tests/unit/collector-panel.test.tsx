@@ -293,6 +293,9 @@ describe("CollectorPanel job observability", () => {
     const note = container.querySelector(".collector-scope-note");
     expect(note?.textContent).toContain("2 个股票池、1 个手工标的");
     expect(note?.textContent).toContain("去重后 4 个标的");
+    expect(group.textContent).toContain("已选 2");
+    expect(group.querySelectorAll("label.is-selected")).toHaveLength(2);
+    expect(group.textContent).toContain("v1 · 2 个成员");
   });
 
   it("estimates 7-day segments and offers the yearly Pro source", async () => {

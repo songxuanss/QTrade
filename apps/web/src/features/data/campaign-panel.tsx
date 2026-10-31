@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { IsoDateInput } from "../../components/ui/iso-date";
 import {
   controlCampaign,
   previewCampaign,
@@ -277,30 +278,22 @@ export function CampaignPanel({
                 ))}
               </select>
             </label>
-            <label>
-              板块下载开始日期
-              <input
-                type="date"
-                aria-label="板块下载开始日期"
-                value={start}
-                onChange={(e) => {
-                  setStart(e.target.value);
-                  invalidate();
-                }}
-              />
-            </label>
-            <label>
-              板块下载结束日期
-              <input
-                type="date"
-                aria-label="板块下载结束日期"
-                value={end}
-                onChange={(e) => {
-                  setEnd(e.target.value);
-                  invalidate();
-                }}
-              />
-            </label>
+            <IsoDateInput
+              label="板块下载开始日期"
+              value={start}
+              onChange={(value) => {
+                setStart(value);
+                invalidate();
+              }}
+            />
+            <IsoDateInput
+              label="板块下载结束日期"
+              value={end}
+              onChange={(value) => {
+                setEnd(value);
+                invalidate();
+              }}
+            />
             <label>
               下载方式
               <select

@@ -171,7 +171,7 @@ QTrade
 | --- | --- |
 | 主题 | 暗色默认，支持亮色 |
 | 色彩 | 涨跌可按市场习惯配置；危险状态必须高对比 |
-| 字体 | UI 使用 Inter / system-ui；数字使用 tabular-nums |
+| 字体 | UI 使用 IBM Plex Sans / Noto Sans CJK；数字使用 tabular-nums；功能文本不小于 11px，正文 13–14px |
 | 网格 | 8px spacing，信息表格支持紧凑模式 |
 | 表格 | 固定列、列保存、虚拟滚动、CSV 导出 |
 | 图表 | Lightweight Charts 处理价格轴；ECharts 处理统计图 |

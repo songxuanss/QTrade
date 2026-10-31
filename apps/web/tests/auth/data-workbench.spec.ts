@@ -14,6 +14,14 @@ test("data workbench exposes readable scope and real job states", async ({
     page.getByRole("heading", { name: "配置采集范围" }),
   ).toBeVisible();
   await expect(page.getByText("尚未选择范围", { exact: false })).toBeVisible();
+  const startDate = page.getByLabel("独立采集开始日期", { exact: true });
+  const endDate = page.getByLabel("独立采集结束日期", { exact: true });
+  await expect(startDate).toHaveAttribute("type", "text");
+  await expect(startDate).toHaveAttribute("placeholder", "YYYY-MM-DD");
+  await startDate.fill("20250901");
+  await endDate.focus();
+  await expect(startDate).toHaveValue("2025-09-01");
+  await endDate.fill("2025-09-05");
   await expect(page).toHaveScreenshot("data-collect-desktop.png", {
     fullPage: true,
     animations: "disabled",
@@ -25,6 +33,22 @@ test("data workbench exposes readable scope and real job states", async ({
       () => document.documentElement.scrollWidth <= innerWidth,
     ),
   ).toBe(true);
+  const dateLayout = await page.evaluate(() => {
+    const form = document.querySelector(".collector-form")!;
+    const fields = [...document.querySelectorAll(".collector-date-field")];
+    const formWidth = form.getBoundingClientRect().width;
+    return {
+      formWidth,
+      fields: fields.map((field) => {
+        const rect = field.getBoundingClientRect();
+        return { width: rect.width, y: rect.y };
+      }),
+    };
+  });
+  expect(dateLayout.fields).toHaveLength(2);
+  expect(dateLayout.fields[0].width).toBeGreaterThan(dateLayout.formWidth - 50);
+  expect(dateLayout.fields[1].width).toBeGreaterThan(dateLayout.formWidth - 50);
+  expect(dateLayout.fields[1].y - dateLayout.fields[0].y).toBeGreaterThan(60);
   await expect(page).toHaveScreenshot("data-collect-mobile.png", {
     fullPage: true,
     animations: "disabled",
