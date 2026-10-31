@@ -132,6 +132,8 @@ export function BacktestWorkbench({
   const [lotSize, setLotSize] = useState("100");
   const [feeBps, setFeeBps] = useState("3");
   const [slippageBps, setSlippageBps] = useState("5");
+  const [impactBps, setImpactBps] = useState("0");
+  const [limitQueueFraction, setLimitQueueFraction] = useState("1");
   const [tickSize, setTickSize] = useState("0.01");
   const [settlementDays, setSettlementDays] = useState("1");
   const [minimumFee, setMinimumFee] = useState("5");
@@ -239,6 +241,8 @@ export function BacktestWorkbench({
         minimum_fee: minimumFee,
         sell_tax_bps: sellTaxBps,
         slippage_bps: slippageBps,
+        impact_bps: impactBps,
+        limit_queue_fraction: limitQueueFraction,
         tick_size: tickSize,
         settlement_days: Number(settlementDays),
         max_volume_fraction: participation,
@@ -610,6 +614,31 @@ export function BacktestWorkbench({
                     value={participation}
                     onChange={(event) => setParticipation(event.target.value)}
                     required
+                  />
+                </label>
+              </div>
+              <div className="backtest-date-grid">
+                <label>
+                  <span>市场冲击系数（基点）</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.1"
+                    value={impactBps}
+                    onChange={(event) => setImpactBps(event.target.value)}
+                  />
+                </label>
+                <label>
+                  <span>涨跌停队列比例</span>
+                  <input
+                    type="number"
+                    min="0"
+                    max="1"
+                    step="0.05"
+                    value={limitQueueFraction}
+                    onChange={(event) =>
+                      setLimitQueueFraction(event.target.value)
+                    }
                   />
                 </label>
               </div>

@@ -23,6 +23,8 @@
 | 配股/复权因子 | 引擎真实价格 + fixture 事件 | `rights-factor-report.json` | 认购 30 股、现金对账；因子冻结核对；`vendor_adjusted` 422 |
 | 订单类型/TIF | 真实 Worker | run `6232fa7e-e93a-4efc-ad0f-6e4599577c4b` | 止损入场、限价离场、day/FOK 撤销；现金对账 |
 | 停牌/涨跌停锁价 | 真实数据 | run `659bf772-…`、`5b417815-…` | 停牌拒绝卖出并保留持仓；跌停锁价允许买入 |
+| 市场冲击/队列 | 真实数据 | run `aa7ac7e7-…`、`ec552671-…` | 平方根冲击改变成交价并现金对账；锁价队列比例限制成交 |
+| 全量 pytest | 全绿 | `full-pytest.txt` | 修复 bounded HTTP 子进程启动根因后 0 失败（详见 `docs/testing/BOUNDED-HTTP-FIX.md`） |
 | 导出 HTML/PDF/CSV | 未实现 | — | 报告只能页面查看 |
 | 持久化 Worker 回测队列 | 已实现 | `backtest_run.lease_*`, Worker consumer | REST 重启后 queued 运行恢复 |
 

@@ -24,12 +24,14 @@ VENDORS = {
     "tushare",
     "xtquant",
 }
+# qtrade_data_contracts is a pure pydantic wire-contract package (no adapters),
+# so business layers may depend on its published record types directly.
 LAYERS = {
     "qtrade_contracts": {"pydantic"},
     "qtrade_data_contracts": {"pydantic"},
     "qtrade_data_core": {"qtrade_data_contracts"},
-    "qtrade_domain": {"qtrade_contracts"},
-    "qtrade_application": {"qtrade_domain", "qtrade_contracts"},
+    "qtrade_domain": {"qtrade_contracts", "qtrade_data_contracts"},
+    "qtrade_application": {"qtrade_domain", "qtrade_contracts", "qtrade_data_contracts"},
 }
 APPS = {"qtrade_api", "qtrade_worker", "qtrade_realtime", "qtrade_collector"}
 COMPOSITION_ROOTS = {"qtrade_composition"}

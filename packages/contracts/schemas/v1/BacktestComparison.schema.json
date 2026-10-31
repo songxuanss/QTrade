@@ -413,6 +413,27 @@
           "title": "Quantity",
           "type": "string"
         },
+        "reason": {
+          "anyOf": [
+            {
+              "enum": [
+                "signal",
+                "membership_end",
+                "rights_subscription",
+                "halted",
+                "limit_up",
+                "limit_down",
+                "locked"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reason"
+        },
         "side": {
           "enum": [
             "buy",
@@ -425,6 +446,7 @@
           "enum": [
             "filled",
             "rejected",
+            "cancelled",
             "partially_filled_end_of_data",
             "unfilled_end_of_data"
           ],

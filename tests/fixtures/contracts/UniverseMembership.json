@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "workspace_id": "00000000-0000-4000-8000-000000000001",
+  "membership_id": "00000000-0000-4000-8000-000000000020",
+  "instrument_id": "MOCK:ABC",
+  "effective_from": "2026-01-01T00:00:00Z",
+  "effective_to": "2027-01-01T00:00:00Z",
+  "source": "workspace.definition",
+  "evidence": "fixture interval",
+  "content_version": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "created_by": "00000000-0000-4000-8000-000000000001",
+  "created_at": "2026-10-01T00:00:00Z"
+}

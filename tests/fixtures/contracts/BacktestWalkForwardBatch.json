@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "workspace_id": "00000000-0000-4000-8000-000000000001",
+  "walk_forward_id": "00000000-0000-4000-8000-000000000010",
+  "created_at": "2026-10-05T00:00:00Z",
+  "created_by": "00000000-0000-4000-8000-000000000001",
+  "strategy_id": "00000000-0000-4000-8000-000000000004",
+  "strategy_version": 1,
+  "strategy_version_id": "00000000-0000-4000-8000-000000000005",
+  "dataset_id": "00000000-0000-4000-8000-000000000001",
+  "instrument_id": "MOCK:ABC",
+  "start": "2026-10-01T00:00:00Z",
+  "end": "2026-10-03T00:00:00Z",
+  "initial_cash": "10000",
+  "currency": "USD",
+  "benchmark_id": null,
+  "cost_model_version": "cost.v1",
+  "parameters_json": "{}",
+  "execution_config_json": "{}",
+  "random_seed": 0,
+  "train_window_seconds": 86400,
+  "validation_window_seconds": 86400,
+  "step_seconds": 86400,
+  "parameter_grid_json": "{\"fast\":[5]}",
+  "windows": [
+    {
+      "schema_version": 1,
+      "workspace_id": "00000000-0000-4000-8000-000000000001",
+      "index": 1,
+      "train_start": "2026-10-01T00:00:00Z",
+      "train_end": "2026-10-02T00:00:00Z",
+      "validation_start": "2026-10-02T00:00:00Z",
+      "validation_end": "2026-10-03T00:00:00Z",
+      "train_samples": 5,
+      "validation_samples": 5,
+      "run_id": "00000000-0000-4000-8000-000000000002",
+      "candidates": [
+        {
+          "schema_version": 1,
+          "workspace_id": "00000000-0000-4000-8000-000000000001",
+          "parameters_json": "{\"fast\":5}",
+          "train_run_id": "00000000-0000-4000-8000-000000000003",
+          "validation_run_id": "00000000-0000-4000-8000-000000000002"
+        }
+      ]
+    }
+  ]
+}

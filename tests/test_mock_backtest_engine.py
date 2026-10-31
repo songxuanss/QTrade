@@ -857,3 +857,45 @@ def test_locked_bar_without_limit_configuration_is_rejected_as_locked():
     )
     assert locked["fills"] == []
     assert locked["orders"][0]["reason"] == "locked"
+
+
+def test_market_impact_worsens_fill_price_with_participation():
+    buy = MockOrderSignal("MOCK:ABC", "buy", Decimal("100"))
+    result = replay_orders(
+        buy,
+        (_bar(0), _bar(1, open_price="10", high="10.2", low="9.9", volume="1000")),
+        BacktestExecutionModel(lot_size=100, tick_size=Decimal("0.01"), impact_bps=Decimal("100")),
+    )
+    assert result["fills"][0]["price"] == "10.04"
+    notional = Decimal("100") * Decimal("10.04")
+    assert Decimal(result["equity_curve"][-1]["cash"]) == Decimal("10000") - notional
+
+
+def test_limit_queue_fraction_caps_fills_at_the_daily_limit():
+    script = ((MockOrderSignal("MOCK:ABC", "buy", Decimal("100"), "limit", Decimal("9")),),)
+    bars = (
+        _bar(0, close="10"),
+        _bar(1, open_price="9.5", high="9.6", low="8.9", close="9.2", volume="1000"),
+    )
+    full = replay_script(
+        script,
+        bars,
+        BacktestExecutionModel(
+            lot_size=100,
+            daily_price_limit_fraction=Decimal("0.1"),
+            limit_queue_fraction=Decimal("1"),
+        ),
+    )
+    assert full["fills"][0]["price"] == "9"
+
+    capped = replay_script(
+        script,
+        bars,
+        BacktestExecutionModel(
+            lot_size=100,
+            daily_price_limit_fraction=Decimal("0.1"),
+            limit_queue_fraction=Decimal("0.00001"),
+        ),
+    )
+    assert capped["fills"] == []
+    assert capped["orders"][0]["status"] in {"rejected", "unfilled_end_of_data"}

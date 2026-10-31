@@ -1,0 +1,83 @@
+{
+  "$id": "urn:qtrade:contracts:v1:UniverseMembership",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Workspace-defined effective window for a research universe member.",
+  "properties": {
+    "content_version": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Content Version",
+      "type": "string"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "created_by": {
+      "format": "uuid",
+      "title": "Created By",
+      "type": "string"
+    },
+    "effective_from": {
+      "format": "date-time",
+      "title": "Effective From",
+      "type": "string"
+    },
+    "effective_to": {
+      "format": "date-time",
+      "title": "Effective To",
+      "type": "string"
+    },
+    "evidence": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Evidence",
+      "type": "string"
+    },
+    "instrument_id": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Instrument Id",
+      "type": "string"
+    },
+    "membership_id": {
+      "format": "uuid",
+      "title": "Membership Id",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "source": {
+      "enum": [
+        "workspace.definition",
+        "supplier.membership"
+      ],
+      "title": "Source",
+      "type": "string"
+    },
+    "workspace_id": {
+      "format": "uuid",
+      "title": "Workspace Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "workspace_id",
+    "membership_id",
+    "instrument_id",
+    "effective_from",
+    "effective_to",
+    "source",
+    "evidence",
+    "content_version",
+    "created_by",
+    "created_at"
+  ],
+  "title": "UniverseMembership",
+  "type": "object"
+}

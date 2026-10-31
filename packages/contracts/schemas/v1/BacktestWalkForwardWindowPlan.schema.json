@@ -1,0 +1,122 @@
+{
+  "$defs": {
+    "BacktestWalkForwardCandidate": {
+      "additionalProperties": false,
+      "description": "One frozen parameter set evaluated in-sample and out-of-sample.",
+      "properties": {
+        "parameters_json": {
+          "maxLength": 1000000,
+          "minLength": 1,
+          "title": "Parameters Json",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "train_run_id": {
+          "format": "uuid",
+          "title": "Train Run Id",
+          "type": "string"
+        },
+        "validation_run_id": {
+          "format": "uuid",
+          "title": "Validation Run Id",
+          "type": "string"
+        },
+        "workspace_id": {
+          "format": "uuid",
+          "title": "Workspace Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema_version",
+        "workspace_id",
+        "parameters_json",
+        "train_run_id",
+        "validation_run_id"
+      ],
+      "title": "BacktestWalkForwardCandidate",
+      "type": "object"
+    }
+  },
+  "$id": "urn:qtrade:contracts:v1:BacktestWalkForwardWindowPlan",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "candidates": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/BacktestWalkForwardCandidate"
+      },
+      "title": "Candidates",
+      "type": "array"
+    },
+    "index": {
+      "minimum": 1,
+      "title": "Index",
+      "type": "integer"
+    },
+    "run_id": {
+      "format": "uuid",
+      "title": "Run Id",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "train_end": {
+      "format": "date-time",
+      "title": "Train End",
+      "type": "string"
+    },
+    "train_samples": {
+      "minimum": 1,
+      "title": "Train Samples",
+      "type": "integer"
+    },
+    "train_start": {
+      "format": "date-time",
+      "title": "Train Start",
+      "type": "string"
+    },
+    "validation_end": {
+      "format": "date-time",
+      "title": "Validation End",
+      "type": "string"
+    },
+    "validation_samples": {
+      "minimum": 1,
+      "title": "Validation Samples",
+      "type": "integer"
+    },
+    "validation_start": {
+      "format": "date-time",
+      "title": "Validation Start",
+      "type": "string"
+    },
+    "workspace_id": {
+      "format": "uuid",
+      "title": "Workspace Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "workspace_id",
+    "index",
+    "train_start",
+    "train_end",
+    "validation_start",
+    "validation_end",
+    "train_samples",
+    "validation_samples",
+    "run_id"
+  ],
+  "title": "BacktestWalkForwardWindowPlan",
+  "type": "object"
+}

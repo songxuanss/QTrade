@@ -166,3 +166,14 @@ Walk-forward MUST 支持冻结参数网格；每个窗口 MUST 在训练区间�
 #### Scenario: 导出可解释
 - **WHEN** 用户查看报告或导出
 - **THEN** 订单状态与原因（停牌无法成交/涨停锁死/跌停锁死/价格锁死）可见
+
+### Requirement: 市场冲击与涨跌停队列
+回测 MUST 支持冻结的市场冲击与队列参数：冲击 MUST 按成交占 bar 成交量的平方根计算并计入成交价，锁价 bar 的可成交量 MUST 受 `limit_queue_fraction × volume` 限制；参数 MUST 冻结进 manifest 并在报告中可见。无 L2 数据时 MUST 明确说明这是 bar 级近似。
+
+#### Scenario: 冲击改变成交价
+- **WHEN** 同一策略在同一真实行情上启用更高冲击系数
+- **THEN** 买入成交价上升，期末现金与成交价、费用和公司行为精确对账
+
+#### Scenario: 锁价队列容量
+- **WHEN** 涨跌停锁价 bar 的队列比例使可成交量低于一手
+- **THEN** 订单不成交并以明确状态记录

@@ -134,7 +134,9 @@ def test_worker_death_terminates_socket_owner(source, tmp_path, monkeypatch):
     # Abrupt parent death cannot run TemporaryDirectory cleanup; confine any
     # private response residue to this isolated test directory.
     monkeypatch.setenv("TMPDIR", str(tmp_path))
-    worker = multiprocessing.get_context("spawn").Process(target=_blocking_request, args=(url,))
+    # fork keeps the Worker an isolated process without re-running pytest's
+    # __main__ in the child (spawn/forkserver start a nested test runner here).
+    worker = multiprocessing.get_context("fork").Process(target=_blocking_request, args=(url,))
     try:
         worker.start()
         assert accepted.wait(5), "HTTP owner never reached the test source"

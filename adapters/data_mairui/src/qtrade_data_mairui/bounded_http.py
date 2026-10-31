@@ -3,6 +3,11 @@
 HTTPX read timeouts reset on incoming chunks. A trickling response can therefore
 outlive a lease. The parent enforces an overall deadline, kills and reaps the
 socket owner before returning, and never runs detached transport threads.
+
+The socket owner is forked from the caller on Linux: this keeps the socket-owner
+parent equal to the charged caller (so parent-death signaling is exact) and
+avoids ``spawn``/``forkserver`` re-importing the caller's ``__main__``, which
+would otherwise start a nested test runner under ``python -m pytest``.
 """
 
 import ctypes
@@ -139,7 +144,7 @@ class BoundedHttpClient:
         if not 0 < timeout <= 300:
             raise DataFailure("timeout")
         with TemporaryDirectory(prefix="qtrade-http-") as root:
-            process = multiprocessing.get_context("spawn").Process(
+            process = multiprocessing.get_context("fork").Process(
                 target=_download, args=(os.getpid(), root, url, params, self.maximum), daemon=True
             )
             try:

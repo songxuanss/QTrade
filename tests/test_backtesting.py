@@ -135,7 +135,9 @@ def test_submission_freezes_manifest_before_engine_and_syncs_immutable_result():
     assert json.loads(manifest.execution_config_json)["execution_model"] == {
         "daily_price_limit_fraction": None,
         "fee_bps": "3",
+        "impact_bps": "0",
         "latency_bars": 1,
+        "limit_queue_fraction": "1",
         "lot_size": 100,
         "max_volume_fraction": "1",
         "minimum_fee": "0",

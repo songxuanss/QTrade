@@ -1,0 +1,182 @@
+{
+  "$id": "urn:qtrade:contracts:v1:BacktestWalkForwardWindowOutcome",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "candidate_count": {
+      "default": 1,
+      "minimum": 1,
+      "title": "Candidate Count",
+      "type": "integer"
+    },
+    "error_code": {
+      "anyOf": [
+        {
+          "maxLength": 256,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Error Code"
+    },
+    "in_sample_return": {
+      "anyOf": [
+        {
+          "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "In Sample Return"
+    },
+    "index": {
+      "minimum": 1,
+      "title": "Index",
+      "type": "integer"
+    },
+    "max_drawdown": {
+      "anyOf": [
+        {
+          "pattern": "^(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Max Drawdown"
+    },
+    "run_id": {
+      "format": "uuid",
+      "title": "Run Id",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "selected_parameters_json": {
+      "anyOf": [
+        {
+          "maxLength": 1000000,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Selected Parameters Json"
+    },
+    "sharpe_ratio": {
+      "anyOf": [
+        {
+          "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Sharpe Ratio"
+    },
+    "status": {
+      "enum": [
+        "queued",
+        "running",
+        "completed",
+        "cancelled",
+        "failed"
+      ],
+      "title": "Status",
+      "type": "string"
+    },
+    "total_return": {
+      "anyOf": [
+        {
+          "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Total Return"
+    },
+    "trade_count": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Trade Count"
+    },
+    "train_end": {
+      "format": "date-time",
+      "title": "Train End",
+      "type": "string"
+    },
+    "train_samples": {
+      "minimum": 1,
+      "title": "Train Samples",
+      "type": "integer"
+    },
+    "train_start": {
+      "format": "date-time",
+      "title": "Train Start",
+      "type": "string"
+    },
+    "validation_end": {
+      "format": "date-time",
+      "title": "Validation End",
+      "type": "string"
+    },
+    "validation_samples": {
+      "minimum": 1,
+      "title": "Validation Samples",
+      "type": "integer"
+    },
+    "validation_start": {
+      "format": "date-time",
+      "title": "Validation Start",
+      "type": "string"
+    },
+    "workspace_id": {
+      "format": "uuid",
+      "title": "Workspace Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "workspace_id",
+    "index",
+    "train_start",
+    "train_end",
+    "validation_start",
+    "validation_end",
+    "train_samples",
+    "validation_samples",
+    "run_id",
+    "status"
+  ],
+  "title": "BacktestWalkForwardWindowOutcome",
+  "type": "object"
+}

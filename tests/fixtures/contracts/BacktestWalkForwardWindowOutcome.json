@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "workspace_id": "00000000-0000-4000-8000-000000000001",
+  "index": 1,
+  "train_start": "2026-10-01T00:00:00Z",
+  "train_end": "2026-10-02T00:00:00Z",
+  "validation_start": "2026-10-02T00:00:00Z",
+  "validation_end": "2026-10-03T00:00:00Z",
+  "train_samples": 5,
+  "validation_samples": 5,
+  "run_id": "00000000-0000-4000-8000-000000000002",
+  "status": "completed",
+  "total_return": "0.01",
+  "max_drawdown": "0.02",
+  "sharpe_ratio": "1.5",
+  "trade_count": 1,
+  "error_code": null,
+  "selected_parameters_json": "{\"fast\":5}",
+  "in_sample_return": "0.03",
+  "candidate_count": 1
+}

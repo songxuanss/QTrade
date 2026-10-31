@@ -664,6 +664,8 @@ class MockEngineAdapter(TradingEnginePort):
                         still_pending.append(pending_order)
                     continue
                 volume_cap = execution.volume_capacity(bar.volume)
+                if execution.at_daily_limit(price, previous_day_closes.get(bar.instrument_id)):
+                    volume_cap = min(volume_cap, execution.limit_queue_capacity(bar.volume))
                 affordable = cash / price if signal.side == "buy" else quantity
                 filled = (
                     min(quantity, affordable, volume_cap)
@@ -674,6 +676,14 @@ class MockEngineAdapter(TradingEnginePort):
                 # still respect the instrument lot before cash is debited.
                 filled = execution.round_quantity(filled)
                 lot = Decimal(execution.lot_size)
+                if filled > 0 and bar.volume > 0 and execution.impact_bps > 0:
+                    price = execution.impact_price(signal.side, price, filled / bar.volume)
+                    if signal.limit_price is not None:
+                        price = (
+                            min(price, signal.limit_price)
+                            if signal.side == "buy"
+                            else max(price, signal.limit_price)
+                        )
                 while (
                     signal.side == "buy"
                     and filled > 0

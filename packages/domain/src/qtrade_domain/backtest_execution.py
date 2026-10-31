@@ -23,9 +23,11 @@ class BacktestExecutionModel:
     minimum_fee: Decimal = Decimal(0)
     sell_tax_bps: Decimal = Decimal(0)
     slippage_bps: Decimal = Decimal(0)
+    impact_bps: Decimal = Decimal(0)
     tick_size: Decimal = Decimal(0)
     settlement_days: int = 0
     max_volume_fraction: Decimal = Decimal(1)
+    limit_queue_fraction: Decimal = Decimal(1)
     latency_bars: int = 1
     session_open: time | None = None
     session_close: time | None = None
@@ -46,9 +48,11 @@ class BacktestExecutionModel:
             "minimum_fee",
             "sell_tax_bps",
             "slippage_bps",
+            "impact_bps",
             "tick_size",
             "settlement_days",
             "max_volume_fraction",
+            "limit_queue_fraction",
             "latency_bars",
             "session_open",
             "session_close",
@@ -107,6 +111,8 @@ class BacktestExecutionModel:
                 minimum_fee=decimal_value("minimum_fee", "0"),
                 sell_tax_bps=decimal_value("sell_tax_bps", "0"),
                 slippage_bps=decimal_value("slippage_bps", "0"),
+                impact_bps=decimal_value("impact_bps", "0"),
+                limit_queue_fraction=decimal_value("limit_queue_fraction", "1"),
                 tick_size=decimal_value("tick_size", "0"),
                 settlement_days=config.get("settlement_days", 0),  # type: ignore[arg-type]
                 max_volume_fraction=decimal_value("max_volume_fraction", "1"),
@@ -148,6 +154,8 @@ class BacktestExecutionModel:
             ],
             "session_open": self.session_open.isoformat() if self.session_open else None,
             "slippage_bps": format(self.slippage_bps, "f"),
+            "impact_bps": format(self.impact_bps, "f"),
+            "limit_queue_fraction": format(self.limit_queue_fraction, "f"),
             "timezone_name": self.timezone_name,
         }
 
@@ -171,8 +179,10 @@ class BacktestExecutionModel:
             self.minimum_fee,
             self.sell_tax_bps,
             self.slippage_bps,
+            self.impact_bps,
             self.tick_size,
             self.max_volume_fraction,
+            self.limit_queue_fraction,
         )
         if (
             type(self.lot_size) is not int
@@ -189,7 +199,9 @@ class BacktestExecutionModel:
             or self.fee_bps >= Decimal(10000)
             or self.sell_tax_bps >= Decimal(10000)
             or self.slippage_bps >= Decimal(10000)
+            or self.impact_bps >= Decimal(10000)
             or self.tick_size >= Decimal(1000)
+            or self.limit_queue_fraction > 1
             or type(self.settlement_days) is not int
             or not 0 <= self.settlement_days <= 1
             or (
@@ -240,6 +252,37 @@ class BacktestExecutionModel:
 
     def round_quantity(self, quantity: Decimal) -> Decimal:
         return (quantity / self.lot_size).to_integral_value(rounding=ROUND_DOWN) * self.lot_size
+
+    def limit_queue_capacity(self, volume: Decimal) -> Decimal:
+        """Volume available at an exchange price limit, approximating queue priority."""
+        if volume < 0:
+            raise PortError(ErrorCode.INVALID_INPUT, "invalid bar volume")
+        return volume * self.limit_queue_fraction
+
+    def impact_price(self, side: str, price: Decimal, participation: Decimal) -> Decimal:
+        """Square-root market impact from bar participation, adverse to the side."""
+        if side not in {"buy", "sell"}:
+            raise PortError(ErrorCode.INVALID_INPUT, "invalid execution side")
+        if not Decimal(0) <= participation <= 1 or self.impact_bps == 0:
+            return price
+        impact = self.impact_bps * participation.sqrt() / Decimal(10000)
+        adjusted = price * (Decimal(1) + impact) if side == "buy" else price * (Decimal(1) - impact)
+        return self.round_to_tick(side, adjusted)
+
+    def round_to_tick(self, side: str, price: Decimal) -> Decimal:
+        if self.tick_size <= 0:
+            return price
+        rounding = ROUND_CEILING if side == "buy" else ROUND_FLOOR
+        return (price / self.tick_size).to_integral_value(rounding=rounding) * self.tick_size
+
+    def at_daily_limit(self, price: Decimal, previous_close: Decimal | None) -> bool:
+        limit = self.daily_price_limit_fraction
+        if limit is None or previous_close is None or previous_close <= 0:
+            return False
+        upper = previous_close * (Decimal(1) + limit)
+        lower = previous_close * (Decimal(1) - limit)
+        tolerance = max(self.tick_size / Decimal(2), Decimal("0.000001"))
+        return price >= upper - tolerance or price <= lower + tolerance
 
     def volume_capacity(self, volume: Decimal) -> Decimal:
         return (volume * self.max_volume_fraction).to_integral_value(rounding=ROUND_DOWN)

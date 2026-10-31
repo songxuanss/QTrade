@@ -737,6 +737,13 @@ export function BacktestReport({
               </dd>
             </div>
             <div>
+              <dt>市场冲击 / 队列比例</dt>
+              <dd>
+                {String(execution.impact_bps ?? "0")} bps /{" "}
+                {String(execution.limit_queue_fraction ?? "1")}
+              </dd>
+            </div>
+            <div>
               <dt>最低佣金 / 卖出税</dt>
               <dd>
                 {String(execution.minimum_fee ?? "0")} 元 /{" "}

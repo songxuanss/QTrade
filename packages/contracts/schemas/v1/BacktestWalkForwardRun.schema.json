@@ -1,0 +1,488 @@
+{
+  "$defs": {
+    "BacktestWalkForwardAggregate": {
+      "additionalProperties": false,
+      "properties": {
+        "completed_windows": {
+          "minimum": 0,
+          "title": "Completed Windows",
+          "type": "integer"
+        },
+        "compounded_validation_return": {
+          "anyOf": [
+            {
+              "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Compounded Validation Return"
+        },
+        "failed_windows": {
+          "minimum": 0,
+          "title": "Failed Windows",
+          "type": "integer"
+        },
+        "mean_max_drawdown": {
+          "anyOf": [
+            {
+              "pattern": "^(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Mean Max Drawdown"
+        },
+        "mean_validation_return": {
+          "anyOf": [
+            {
+              "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Mean Validation Return"
+        },
+        "median_validation_return": {
+          "anyOf": [
+            {
+              "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Median Validation Return"
+        },
+        "positive_window_ratio": {
+          "anyOf": [
+            {
+              "pattern": "^(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Positive Window Ratio"
+        },
+        "schema_version": {
+          "const": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "total_trade_count": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Total Trade Count",
+          "type": "integer"
+        },
+        "workspace_id": {
+          "format": "uuid",
+          "title": "Workspace Id",
+          "type": "string"
+        },
+        "worst_max_drawdown": {
+          "anyOf": [
+            {
+              "pattern": "^(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Worst Max Drawdown"
+        }
+      },
+      "required": [
+        "schema_version",
+        "workspace_id",
+        "completed_windows",
+        "failed_windows"
+      ],
+      "title": "BacktestWalkForwardAggregate",
+      "type": "object"
+    },
+    "BacktestWalkForwardWindowOutcome": {
+      "additionalProperties": false,
+      "properties": {
+        "candidate_count": {
+          "default": 1,
+          "minimum": 1,
+          "title": "Candidate Count",
+          "type": "integer"
+        },
+        "error_code": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Error Code"
+        },
+        "in_sample_return": {
+          "anyOf": [
+            {
+              "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "In Sample Return"
+        },
+        "index": {
+          "minimum": 1,
+          "title": "Index",
+          "type": "integer"
+        },
+        "max_drawdown": {
+          "anyOf": [
+            {
+              "pattern": "^(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Drawdown"
+        },
+        "run_id": {
+          "format": "uuid",
+          "title": "Run Id",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "selected_parameters_json": {
+          "anyOf": [
+            {
+              "maxLength": 1000000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Selected Parameters Json"
+        },
+        "sharpe_ratio": {
+          "anyOf": [
+            {
+              "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sharpe Ratio"
+        },
+        "status": {
+          "enum": [
+            "queued",
+            "running",
+            "completed",
+            "cancelled",
+            "failed"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "total_return": {
+          "anyOf": [
+            {
+              "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Total Return"
+        },
+        "trade_count": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Trade Count"
+        },
+        "train_end": {
+          "format": "date-time",
+          "title": "Train End",
+          "type": "string"
+        },
+        "train_samples": {
+          "minimum": 1,
+          "title": "Train Samples",
+          "type": "integer"
+        },
+        "train_start": {
+          "format": "date-time",
+          "title": "Train Start",
+          "type": "string"
+        },
+        "validation_end": {
+          "format": "date-time",
+          "title": "Validation End",
+          "type": "string"
+        },
+        "validation_samples": {
+          "minimum": 1,
+          "title": "Validation Samples",
+          "type": "integer"
+        },
+        "validation_start": {
+          "format": "date-time",
+          "title": "Validation Start",
+          "type": "string"
+        },
+        "workspace_id": {
+          "format": "uuid",
+          "title": "Workspace Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema_version",
+        "workspace_id",
+        "index",
+        "train_start",
+        "train_end",
+        "validation_start",
+        "validation_end",
+        "train_samples",
+        "validation_samples",
+        "run_id",
+        "status"
+      ],
+      "title": "BacktestWalkForwardWindowOutcome",
+      "type": "object"
+    }
+  },
+  "$id": "urn:qtrade:contracts:v1:BacktestWalkForwardRun",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "aggregate": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/BacktestWalkForwardAggregate"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "benchmark_id": {
+      "anyOf": [
+        {
+          "maxLength": 256,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Benchmark Id"
+    },
+    "cost_model_version": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Cost Model Version",
+      "type": "string"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "currency": {
+      "pattern": "^[A-Z]{3}$",
+      "title": "Currency",
+      "type": "string"
+    },
+    "dataset_id": {
+      "format": "uuid",
+      "title": "Dataset Id",
+      "type": "string"
+    },
+    "end": {
+      "format": "date-time",
+      "title": "End",
+      "type": "string"
+    },
+    "execution_config_json": {
+      "maxLength": 1000000,
+      "minLength": 1,
+      "title": "Execution Config Json",
+      "type": "string"
+    },
+    "initial_cash": {
+      "pattern": "^(?:0\\.0*[1-9][0-9]*|[1-9][0-9]*(?:\\.[0-9]+)?)$",
+      "title": "Initial Cash",
+      "type": "string"
+    },
+    "instrument_id": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Instrument Id",
+      "type": "string"
+    },
+    "parameter_grid_json": {
+      "anyOf": [
+        {
+          "maxLength": 1000000,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Parameter Grid Json"
+    },
+    "parameters_json": {
+      "maxLength": 1000000,
+      "minLength": 1,
+      "title": "Parameters Json",
+      "type": "string"
+    },
+    "random_seed": {
+      "minimum": 0,
+      "title": "Random Seed",
+      "type": "integer"
+    },
+    "schema_version": {
+      "const": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "start": {
+      "format": "date-time",
+      "title": "Start",
+      "type": "string"
+    },
+    "status": {
+      "enum": [
+        "queued",
+        "running",
+        "completed",
+        "partial",
+        "failed"
+      ],
+      "title": "Status",
+      "type": "string"
+    },
+    "step_seconds": {
+      "exclusiveMinimum": 0,
+      "title": "Step Seconds",
+      "type": "integer"
+    },
+    "strategy_id": {
+      "format": "uuid",
+      "title": "Strategy Id",
+      "type": "string"
+    },
+    "strategy_version": {
+      "minimum": 1,
+      "title": "Strategy Version",
+      "type": "integer"
+    },
+    "train_window_seconds": {
+      "exclusiveMinimum": 0,
+      "title": "Train Window Seconds",
+      "type": "integer"
+    },
+    "validation_window_seconds": {
+      "exclusiveMinimum": 0,
+      "title": "Validation Window Seconds",
+      "type": "integer"
+    },
+    "walk_forward_id": {
+      "format": "uuid",
+      "title": "Walk Forward Id",
+      "type": "string"
+    },
+    "windows": {
+      "items": {
+        "$ref": "#/$defs/BacktestWalkForwardWindowOutcome"
+      },
+      "minItems": 1,
+      "title": "Windows",
+      "type": "array"
+    },
+    "workspace_id": {
+      "format": "uuid",
+      "title": "Workspace Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "workspace_id",
+    "walk_forward_id",
+    "created_at",
+    "strategy_id",
+    "strategy_version",
+    "dataset_id",
+    "instrument_id",
+    "start",
+    "end",
+    "initial_cash",
+    "currency",
+    "cost_model_version",
+    "parameters_json",
+    "execution_config_json",
+    "random_seed",
+    "train_window_seconds",
+    "validation_window_seconds",
+    "step_seconds",
+    "status",
+    "windows"
+  ],
+  "title": "BacktestWalkForwardRun",
+  "type": "object"
+}
