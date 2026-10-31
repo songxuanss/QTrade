@@ -141,6 +141,9 @@ export function BacktestWorkbench({
   const [universeMode, setUniverseMode] = useState<"dataset" | "membership">(
     "dataset",
   );
+  const [rightsPolicy, setRightsPolicy] = useState<"subscribe" | "skip">(
+    "subscribe",
+  );
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
@@ -267,6 +270,7 @@ export function BacktestWorkbench({
       },
       ...(benchmarkId.trim() ? { benchmarkId: benchmarkId.trim() } : {}),
       universeMode,
+      rightsPolicy,
     });
     setBusy(false);
     if (!result.ok) {
@@ -672,6 +676,22 @@ export function BacktestWorkbench({
                   <option value="membership">按成员区间交易</option>
                 </select>
               </label>
+              <label>
+                <span>配股处理</span>
+                <select
+                  value={rightsPolicy}
+                  onChange={(event) =>
+                    setRightsPolicy(
+                      event.target.value === "skip" ? "skip" : "subscribe",
+                    )
+                  }
+                >
+                  <option value="subscribe">
+                    按现金全额认购（不足则部分认购）
+                  </option>
+                  <option value="skip">不认购（保留现金）</option>
+                </select>
+              </label>
               <div className="backtest-frozen-note">
                 <strong>不可变运行输入</strong>
                 <span>
@@ -683,8 +703,8 @@ export function BacktestWorkbench({
               <p className="backtest-model-note" role="note">
                 模型边界：现金分红、送转/拆并已按除权日入账，T+1、整手和最小价位已建模；
                 成员校验可启用工作区/供应方区间并在区间结束强制平仓，但区间若非官方历史仍可能有幸存者偏差；
-                配股、供应商复权因子和逐笔盘口仍未处理，结果用于研究比较，
-                不构成实盘可用性证明。
+                配股按所选策略认购或跳过；供应商复权因子只冻结并核对，未用于成交价（暂不支持复权价回放）；
+                逐笔盘口仍未处理，结果用于研究比较， 不构成实盘可用性证明。
               </p>
               <button
                 className="button button-primary"

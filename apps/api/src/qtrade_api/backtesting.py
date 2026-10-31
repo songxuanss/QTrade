@@ -40,6 +40,8 @@ class WalkForwardInput(BaseModel):
     benchmark_id: str | None = Field(default=None, max_length=128)
     execution_model: dict[str, object] = Field(default_factory=dict, max_length=32)
     universe_mode: Literal["dataset", "membership"] = "dataset"
+    rights_policy: Literal["subscribe", "skip"] = "subscribe"
+    adjustment_factor_mode: Literal["freeze", "vendor_adjusted"] = "freeze"
 
 
 class BacktestInput(BaseModel):
@@ -56,6 +58,8 @@ class BacktestInput(BaseModel):
     benchmark_id: str | None = Field(default=None, max_length=128)
     execution_model: dict[str, object] = Field(default_factory=dict, max_length=32)
     universe_mode: Literal["dataset", "membership"] = "dataset"
+    rights_policy: Literal["subscribe", "skip"] = "subscribe"
+    adjustment_factor_mode: Literal["freeze", "vendor_adjusted"] = "freeze"
 
 
 def backtesting_router(
@@ -97,6 +101,8 @@ def backtesting_router(
                     body.benchmark_id,
                     execution_model=body.execution_model,
                     universe_mode=body.universe_mode,
+                    rights_policy=body.rights_policy,
+                    adjustment_factor_mode=body.adjustment_factor_mode,
                 ),
             )
             _audit(audit, access, request, "backtest.create", record.run.run_id)
@@ -179,6 +185,8 @@ def backtesting_router(
                     body.benchmark_id,
                     body.execution_model,
                     body.universe_mode,
+                    body.rights_policy,
+                    body.adjustment_factor_mode,
                 ),
             )
             _audit(audit, access, request, "backtest.walk_forward", result.walk_forward_id)

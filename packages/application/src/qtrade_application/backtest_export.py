@@ -80,6 +80,11 @@ def _parameters(manifest: ArtifactManifest) -> dict[str, object]:
     return value if isinstance(value, dict) else {}
 
 
+def _factor_list(manifest: ArtifactManifest) -> list[object]:
+    value = _execution_config(manifest).get("adjustment_factors", [])
+    return value if isinstance(value, list) else []
+
+
 def _universe(manifest: ArtifactManifest) -> dict[str, object]:
     value = _execution_config(manifest).get("universe")
     return value if isinstance(value, dict) else {}
@@ -183,6 +188,31 @@ def run_csv(run: BacktestRun, result: BacktestResult, manifest: ArtifactManifest
         if isinstance(execution, dict)
         else [],
     )
+    execution_config = _execution_config(manifest)
+    _section(
+        writer,
+        "corporate_action_policy",
+        ("field", "value"),
+        [
+            ("rights_policy", execution_config.get("rights_policy", "subscribe")),
+            (
+                "adjustment_factor_status",
+                execution_config.get("adjustment_factor_status", "vendor_unavailable"),
+            ),
+            (
+                "adjustment_factor_count",
+                len(_factor_list(manifest)),
+            ),
+            (
+                "rights_note",
+                "配股按现金可负担数量认购，不足部分放弃；新增股份不在除权日当日可卖。",
+            ),
+            (
+                "factor_note",
+                "供应商复权因子仅冻结并核对，不用于成交价；不支持复权价回放。",
+            ),
+        ],
+    )
     universe = _universe(manifest)
     _section(
         writer,
@@ -232,6 +262,8 @@ def run_csv(run: BacktestRun, result: BacktestResult, manifest: ArtifactManifest
             "bonus_shares",
             "transfer_shares",
             "split_ratio",
+            "rights_shares",
+            "rights_price",
             "content_version",
         ),
         [
@@ -244,6 +276,8 @@ def run_csv(run: BacktestRun, result: BacktestResult, manifest: ArtifactManifest
                 action.get("bonus_shares"),
                 action.get("transfer_shares"),
                 action.get("split_ratio"),
+                action.get("rights_shares"),
+                action.get("rights_price"),
                 action.get("content_version"),
             )
             for action in _corporate_actions(manifest)
@@ -470,6 +504,11 @@ def run_html(
             str(action.get("bonus_shares") or ""),
             str(action.get("transfer_shares") or ""),
             str(action.get("split_ratio") or ""),
+            (
+                f"{action.get('rights_shares')} / {action.get('rights_price')}"
+                if action.get("rights_shares") is not None
+                else ""
+            ),
             str(action.get("content_version") or ""),
         )
         for action in _corporate_actions(manifest)
@@ -567,6 +606,23 @@ def run_html(
                     str(item.get("content_version") or ""),
                 )
                 for item in _universe_memberships(manifest)
+            ],
+            set(),
+        )
+    }
+<h2>公司行为策略</h2>
+{
+        _table(
+            ("项目", "值"),
+            [
+                (
+                    "配股策略",
+                    "不认购"
+                    if _execution_config(manifest).get("rights_policy") == "skip"
+                    else "按现金认购",
+                ),
+                ("复权因子状态", "仅冻结核对，未用于成交价"),
+                ("复权因子条数", str(len(_factor_list(manifest)))),
             ],
             set(),
         )

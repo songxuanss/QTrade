@@ -234,6 +234,9 @@ export function BacktestReport({
     );
 
   const metrics = report.metrics;
+  let rightsPolicy = "subscribe";
+  let factorStatus = "vendor_unavailable";
+  let factorCount = 0;
   let parameters: Record<string, unknown> = {};
   let execution: Record<string, unknown> = {};
   let universe: UniverseConfig | null = null;
@@ -246,6 +249,8 @@ export function BacktestReport({
     bonus_shares?: string;
     transfer_shares?: string;
     split_ratio?: string;
+    rights_shares?: string;
+    rights_price?: string;
     content_version?: string;
   }[] = [];
   try {
@@ -253,8 +258,16 @@ export function BacktestReport({
       execution_model?: Record<string, unknown>;
       corporate_actions?: unknown[];
       universe?: UniverseConfig;
+      rights_policy?: string;
+      adjustment_factor_status?: string;
+      adjustment_factors?: unknown[];
     };
     execution = config.execution_model ?? {};
+    rightsPolicy = config.rights_policy === "skip" ? "skip" : "subscribe";
+    factorStatus = config.adjustment_factor_status ?? "vendor_unavailable";
+    factorCount = Array.isArray(config.adjustment_factors)
+      ? config.adjustment_factors.length
+      : 0;
     universe = config.universe ?? null;
     corporateActions = Array.isArray(config.corporate_actions)
       ? (config.corporate_actions as typeof corporateActions)
@@ -482,7 +495,9 @@ export function BacktestReport({
                       <td>
                         {order.reason === "membership_end"
                           ? "成员区间结束"
-                          : "策略信号"}
+                          : order.reason === "rights_subscription"
+                            ? "配股认购"
+                            : "策略信号"}
                       </td>
                     </tr>
                   ))}
@@ -580,6 +595,7 @@ export function BacktestReport({
                   <th>每股基准派息</th>
                   <th>送转股</th>
                   <th>拆并比例</th>
+                  <th>配股（股 / 价）</th>
                   <th>事件版本</th>
                 </tr>
               </thead>
@@ -604,6 +620,11 @@ export function BacktestReport({
                         : `${action.bonus_shares ?? "0"} / ${action.transfer_shares ?? "0"}`}
                     </td>
                     <td>{action.split_ratio ?? "—"}</td>
+                    <td>
+                      {action.rights_shares == null
+                        ? "—"
+                        : `${action.rights_shares} / ${action.rights_price ?? "—"}`}
+                    </td>
                     <td className="backtest-hash">
                       {action.content_version?.slice(0, 12) ?? "—"}
                     </td>
@@ -741,6 +762,26 @@ export function BacktestReport({
                 {execution.daily_price_limit_fraction == null
                   ? "无"
                   : percent(String(execution.daily_price_limit_fraction))}
+              </dd>
+            </div>
+            <div>
+              <dt>配股策略</dt>
+              <dd>
+                {rightsPolicy === "skip"
+                  ? "不认购（保留现金）"
+                  : "按现金认购（不足则部分认购）"}
+              </dd>
+            </div>
+            <div>
+              <dt>供应商复权因子</dt>
+              <dd>
+                {factorCount > 0
+                  ? `${factorCount} 条已冻结 · ${
+                      factorStatus === "frozen_reconciliation_only"
+                        ? "仅核对，未用于成交价"
+                        : "状态未知"
+                    }`
+                  : "供应商未接入（未应用于成交价）"}
               </dd>
             </div>
             <div>

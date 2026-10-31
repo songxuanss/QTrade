@@ -379,7 +379,7 @@ class BacktestOrder(BaseModel):
         "partially_filled_end_of_data",
         "unfilled_end_of_data",
     ]
-    reason: Literal["signal", "membership_end"] | None = None
+    reason: Literal["signal", "membership_end", "rights_subscription"] | None = None
 
 
 class BacktestFill(BaseModel):

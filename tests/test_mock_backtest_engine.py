@@ -354,7 +354,14 @@ def test_t_plus_one_blocks_same_session_sell_until_next_day():
     manifest = ArtifactManifest.model_validate_json(
         (FIXTURES / "ArtifactManifest.json").read_text()
     )
-    first = bar.model_copy(update={"open": Decimal("10"), "close": Decimal("10")})
+    instrument = "stock:CN:SH:600519"
+    first = bar.model_copy(
+        update={
+            "instrument_id": instrument,
+            "open": Decimal("10"),
+            "close": Decimal("10"),
+        }
+    )
     second = first.model_copy(update={"timestamp": first.timestamp + timedelta(minutes=1)})
     next_day = first.model_copy(update={"timestamp": first.timestamp + timedelta(days=1)})
     result = MockEngineAdapter._replay(
@@ -487,3 +494,116 @@ def test_membership_end_liquidates_position_at_last_available_close():
     assert exit_orders[0]["filled_quantity"] == "100"
     assert result["equity_curve"][-1]["positions"] == []
     assert Decimal(result["equity_curve"][-1]["cash"]) == Decimal("10000") + Decimal("200")
+
+
+def test_rights_subscription_emits_fill_and_reconciles_cash():
+    from datetime import UTC, date, datetime
+
+    from qtrade_data_contracts.research import CorporateAction
+
+    bar = Bar.model_validate_json((FIXTURES / "Bar.json").read_text())
+    run = BacktestRun.model_validate_json((FIXTURES / "BacktestRun.json").read_text())
+    manifest = ArtifactManifest.model_validate_json(
+        (FIXTURES / "ArtifactManifest.json").read_text()
+    )
+    instrument = "stock:CN:SH:600519"
+    first = bar.model_copy(
+        update={
+            "instrument_id": instrument,
+            "open": Decimal("10"),
+            "close": Decimal("10"),
+        }
+    )
+    second = first.model_copy(update={"timestamp": first.timestamp + timedelta(days=1)})
+    third = second.model_copy(update={"timestamp": second.timestamp + timedelta(days=1)})
+    action = CorporateAction.model_validate(
+        {
+            "schema_version": 2,
+            "scope_id": run.workspace_id,
+            "source": "fixture",
+            "instrument_id": instrument,
+            "collected_at": datetime(2026, 1, 1, tzinfo=UTC),
+            "mapping_version": "fixture.v1",
+            "source_event_id": "rights-1",
+            "action": "rights",
+            "announcement_date": date(2026, 9, 1),
+            "ex_date": date(2026, 10, 3),
+            "status": "implemented",
+            "basis_shares": Decimal("10"),
+            "rights_shares": Decimal("3"),
+            "rights_price": Decimal("5"),
+            "terms_evidence": "fixture",
+        }
+    )
+    result = MockEngineAdapter._replay(
+        run,
+        manifest,
+        (first, second, third),
+        BuyHundredOnce(),
+        BacktestExecutionModel(lot_size=100),
+        (action,),
+        rights_policy="subscribe",
+    )
+
+    subscriptions = [
+        order for order in result["orders"] if order.get("reason") == "rights_subscription"
+    ]
+    assert len(subscriptions) == 1
+    assert subscriptions[0]["filled_quantity"] == "30"
+    assert subscriptions[0]["price"] == "5"
+    assert result["equity_curve"][-1]["positions"][0]["quantity"] == "130"
+    assert Decimal(result["equity_curve"][-1]["cash"]) == Decimal("8850")
+
+
+def test_rights_skip_policy_keeps_cash_and_quantity():
+    from datetime import UTC, date, datetime
+
+    from qtrade_data_contracts.research import CorporateAction
+
+    bar = Bar.model_validate_json((FIXTURES / "Bar.json").read_text())
+    run = BacktestRun.model_validate_json((FIXTURES / "BacktestRun.json").read_text())
+    manifest = ArtifactManifest.model_validate_json(
+        (FIXTURES / "ArtifactManifest.json").read_text()
+    )
+    instrument = "stock:CN:SH:600519"
+    first = bar.model_copy(
+        update={
+            "instrument_id": instrument,
+            "open": Decimal("10"),
+            "close": Decimal("10"),
+        }
+    )
+    second = first.model_copy(update={"timestamp": first.timestamp + timedelta(days=1)})
+    third = second.model_copy(update={"timestamp": second.timestamp + timedelta(days=1)})
+    action = CorporateAction.model_validate(
+        {
+            "schema_version": 2,
+            "scope_id": run.workspace_id,
+            "source": "fixture",
+            "instrument_id": instrument,
+            "collected_at": datetime(2026, 1, 1, tzinfo=UTC),
+            "mapping_version": "fixture.v1",
+            "source_event_id": "rights-2",
+            "action": "rights",
+            "announcement_date": date(2026, 9, 1),
+            "ex_date": date(2026, 10, 3),
+            "status": "implemented",
+            "basis_shares": Decimal("10"),
+            "rights_shares": Decimal("3"),
+            "rights_price": Decimal("5"),
+            "terms_evidence": "fixture",
+        }
+    )
+    result = MockEngineAdapter._replay(
+        run,
+        manifest,
+        (first, second, third),
+        BuyHundredOnce(),
+        BacktestExecutionModel(lot_size=100),
+        (action,),
+        rights_policy="skip",
+    )
+
+    assert not [order for order in result["orders"] if order.get("reason") == "rights_subscription"]
+    assert result["equity_curve"][-1]["positions"][0]["quantity"] == "100"
+    assert Decimal(result["equity_curve"][-1]["cash"]) == Decimal("9000")

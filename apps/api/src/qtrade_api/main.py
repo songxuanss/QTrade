@@ -7,7 +7,10 @@ from fastapi import FastAPI
 from qtrade_api.alerts import alert_evaluation_router, alert_rule_router
 from qtrade_api.audit_query import audit_query_router
 from qtrade_api.auth_bridge import auth_bridge
-from qtrade_api.backtest_corporate_actions import CollectorCorporateActions
+from qtrade_api.backtest_corporate_actions import (
+    CollectorAdjustmentFactors,
+    CollectorCorporateActions,
+)
 from qtrade_api.backtesting import backtesting_router
 from qtrade_api.calendars import calendar_router
 from qtrade_api.capabilities import capability_router
@@ -216,6 +219,12 @@ if service is not None:
         if os.environ.get("MARKET_DATABASE_URL")
         else None
     )
+    collector_actions = (
+        CollectorCorporateActions(collector_client) if collector_client is not None else None
+    )
+    collector_factors = (
+        CollectorAdjustmentFactors(collector_actions) if collector_actions is not None else None
+    )
     membership_store = PostgresMembershipStore(os.environ["DATABASE_URL"])
     membership_service = UniverseMembershipService(membership_store)
     if os.environ.get("QTRADE_ENV") == "local" and backtest_market_data is not None:
@@ -236,11 +245,8 @@ if service is not None:
                 os.environ.get("QTRADE_BACKTEST_IMAGE_DIGEST", "sha256:" + "0" * 64),
             ),
             market_data=backtest_market_data,
-            corporate_actions=(
-                CollectorCorporateActions(collector_client)
-                if collector_client is not None
-                else None
-            ),
+            corporate_actions=collector_actions,
+            adjustment_factors=collector_factors,
             walk_forwards=PostgresWalkForwardStore(os.environ["DATABASE_URL"]),
             memberships=membership_store,
         )

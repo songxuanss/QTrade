@@ -23,6 +23,7 @@ def public_error(error: PortError) -> HTTPException:
         ErrorCode.REJECTED: 403,
         ErrorCode.CONFLICT: 409,
         ErrorCode.INVALID_INPUT: 400,
+        ErrorCode.UNSUPPORTED: 422,
     }.get(error.code, 503)
     detail = {
         401: "authentication required",
@@ -30,6 +31,7 @@ def public_error(error: PortError) -> HTTPException:
         403: "workspace permission denied",
         409: "workspace change conflicts",
         400: "invalid workspace request",
+        422: "unsupported workspace request",
     }.get(status, "workspace service unavailable")
     return HTTPException(status, detail, headers={"Cache-Control": "no-store"})
 

@@ -35,7 +35,7 @@ from qtrade_contracts import (
     MarketDataset,
     UniverseMembership,
 )
-from qtrade_data_contracts.research import CorporateAction
+from qtrade_data_contracts.research import AdjustmentFactor, CorporateAction
 from qtrade_domain.artifacts import ManifestInputs
 from qtrade_domain.authorization import Permission, WorkspaceAccess
 from qtrade_domain.backtest_execution import BacktestExecutionModel
@@ -46,6 +46,7 @@ from qtrade_domain.backtest_experiments import (
     summarize_walk_forward,
 )
 from qtrade_domain.backtesting import BacktestRunEvent, BacktestRunPort, BacktestRunRecord
+from qtrade_domain.corporate_actions import validate_adjustment_factors
 from qtrade_domain.datasets import DatasetRepositoryPort
 from qtrade_domain.ports import (
     BarQuery,
@@ -105,6 +106,8 @@ class BacktestSubmission:
     resource_profile: str = "standard.v1"
     execution_model: dict[str, object] | None = None
     universe_mode: Literal["dataset", "membership"] = "dataset"
+    rights_policy: Literal["subscribe", "skip"] = "subscribe"
+    adjustment_factor_mode: Literal["freeze", "vendor_adjusted"] = "freeze"
 
     def __post_init__(self) -> None:
         if (
@@ -138,6 +141,8 @@ class BacktestSubmission:
                 )
             )
             or self.universe_mode not in {"dataset", "membership"}
+            or self.rights_policy not in {"subscribe", "skip"}
+            or self.adjustment_factor_mode not in {"freeze", "vendor_adjusted"}
         ):
             raise PortError(ErrorCode.INVALID_INPUT, "invalid backtest request")
         try:
@@ -168,6 +173,8 @@ class WalkForwardSubmission:
     benchmark_id: str | None = None
     execution_model: dict[str, object] | None = None
     universe_mode: Literal["dataset", "membership"] = "dataset"
+    rights_policy: Literal["subscribe", "skip"] = "subscribe"
+    adjustment_factor_mode: Literal["freeze", "vendor_adjusted"] = "freeze"
 
     def __post_init__(self) -> None:
         if (
@@ -181,6 +188,8 @@ class WalkForwardSubmission:
             or type(self.random_seed) is not int
             or self.random_seed < 0
             or self.universe_mode not in {"dataset", "membership"}
+            or self.rights_policy not in {"subscribe", "skip"}
+            or self.adjustment_factor_mode not in {"freeze", "vendor_adjusted"}
         ):
             raise PortError(ErrorCode.INVALID_INPUT, "invalid walk-forward request")
 
@@ -213,6 +222,18 @@ class CorporateActionPort(Protocol):
     ) -> tuple[CorporateAction, ...]: ...
 
 
+class AdjustmentFactorPort(Protocol):
+    """Load published vendor adjustment factors for the frozen scope."""
+
+    def load(
+        self,
+        access: WorkspaceAccess,
+        instrument_ids: tuple[str, ...],
+        start: datetime,
+        end: datetime,
+    ) -> tuple[AdjustmentFactor, ...]: ...
+
+
 class BacktestService:
     def __init__(
         self,
@@ -228,6 +249,7 @@ class BacktestService:
         corporate_actions: CorporateActionPort | None = None,
         walk_forwards: WalkForwardStorePort | None = None,
         memberships: MembershipQueryPort | None = None,
+        adjustment_factors: AdjustmentFactorPort | None = None,
     ) -> None:
         self._runs = runs
         self._strategies = strategies
@@ -241,6 +263,7 @@ class BacktestService:
         self._corporate_actions = corporate_actions
         self._walk_forwards = walk_forwards
         self._memberships = memberships
+        self._adjustment_factors = adjustment_factors
 
     def _universe(
         self,
@@ -328,10 +351,27 @@ class BacktestService:
         universe = self._universe(
             access, dataset.instrument_ids, request.start, request.end, request.universe_mode
         )
+        if request.adjustment_factor_mode == "vendor_adjusted":
+            raise PortError(
+                ErrorCode.UNSUPPORTED,
+                "vendor-adjusted price replay is not implemented; factors can only be "
+                "frozen and reconciled against the corporate-action ledger",
+            )
         actions = (
             self._corporate_actions.load(access, dataset.instrument_ids, request.start, request.end)
             if self._corporate_actions is not None
             else ()
+        )
+        factors = validate_adjustment_factors(
+            actions,
+            (
+                self._adjustment_factors.load(
+                    access, dataset.instrument_ids, request.start, request.end
+                )
+                if self._adjustment_factors is not None
+                else ()
+            ),
+            dataset.instrument_ids,
         )
         resolved_parameters = self._strategies.validate_parameters(
             access, request.strategy_id, request.strategy_version, request.parameters
@@ -355,6 +395,17 @@ class BacktestService:
                 ],
                 "execution_model": execution_model.to_config(),
                 "resource_profile": request.resource_profile,
+                "rights_policy": request.rights_policy,
+                "adjustment_factors": [
+                    {
+                        **item.model_dump(mode="json"),
+                        "content_version": item.content_version,
+                    }
+                    for item in factors
+                ],
+                "adjustment_factor_status": (
+                    "frozen_reconciliation_only" if factors else "vendor_unavailable"
+                ),
                 "universe": universe.model_dump(mode="json"),
                 "start": request.start.astimezone(UTC).isoformat().replace("+00:00", "Z"),
             },
@@ -671,6 +722,8 @@ class BacktestService:
                     request.benchmark_id,
                     execution_model=request.execution_model,
                     universe_mode=request.universe_mode,
+                    rights_policy=request.rights_policy,
+                    adjustment_factor_mode=request.adjustment_factor_mode,
                 ),
             )
             first_record = first_record or record

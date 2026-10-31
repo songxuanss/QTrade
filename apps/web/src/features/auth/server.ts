@@ -304,7 +304,7 @@ export type BacktestReportInfo = {
       | "rejected"
       | "partially_filled_end_of_data"
       | "unfilled_end_of_data";
-    reason?: "signal" | "membership_end" | null;
+    reason?: "signal" | "membership_end" | "rights_subscription" | null;
   }[];
   fills: {
     instrument_id: string;
@@ -503,6 +503,7 @@ export async function startBacktestWalkForward(input: {
   executionModel: Record<string, unknown>;
   benchmarkId?: string;
   universeMode?: "dataset" | "membership";
+  rightsPolicy?: "subscribe" | "skip";
 }): Promise<{
   run: BacktestWalkForwardRunInfo | null;
   error?: string;
@@ -545,6 +546,7 @@ export async function startBacktestWalkForward(input: {
           execution_model: input.executionModel,
           benchmark_id: input.benchmarkId,
           universe_mode: input.universeMode ?? "dataset",
+          rights_policy: input.rightsPolicy ?? "subscribe",
           random_seed: 0,
         }),
         signal: AbortSignal.timeout(60_000),
@@ -556,9 +558,11 @@ export async function startBacktestWalkForward(input: {
         error:
           response.status === 403
             ? "版本尚未通过静态校验，或当前角色无权运行"
-            : response.status === 400
-              ? "窗口样本不足或区间不合法，请调整切分参数"
-              : "Walk-forward 运行创建失败",
+            : response.status === 422
+              ? "该模式暂不支持：复权价回放尚未实现"
+              : response.status === 400
+                ? "窗口样本不足或区间不合法，请调整切分参数"
+                : "Walk-forward 运行创建失败",
       };
     return { run: (await response.json()) as BacktestWalkForwardRunInfo };
   } catch {
@@ -1042,6 +1046,7 @@ export async function createBacktest(input: {
   executionModel: Record<string, unknown>;
   benchmarkId?: string;
   universeMode?: "dataset" | "membership";
+  rightsPolicy?: "subscribe" | "skip";
 }): Promise<{ ok: boolean; runId?: string; error?: string }> {
   const session = await readSession();
   if (!session) return { ok: false, error: "登录已失效，请重新登录" };
@@ -1081,6 +1086,7 @@ export async function createBacktest(input: {
           execution_model: input.executionModel,
           benchmark_id: input.benchmarkId,
           universe_mode: input.universeMode ?? "dataset",
+          rights_policy: input.rightsPolicy ?? "subscribe",
           random_seed: 0,
         }),
         signal: AbortSignal.timeout(20_000),
@@ -1092,9 +1098,11 @@ export async function createBacktest(input: {
         error:
           response.status === 403
             ? "版本尚未通过静态校验，或当前角色无权回测"
-            : response.status === 400
-              ? "请检查回测区间、资金和输入参数"
-              : "回测任务创建失败",
+            : response.status === 422
+              ? "该模式暂不支持：复权价回放尚未实现"
+              : response.status === 400
+                ? "请检查回测区间、资金和输入参数"
+                : "回测任务创建失败",
       };
     const result = await response.json();
     return typeof result.run_id === "string"

@@ -149,6 +149,9 @@ class MockEngineAdapter(TradingEnginePort):
         if any(action.scope_id != run.workspace_id for action in actions):
             raise PortError(ErrorCode.INVALID_INPUT, "corporate action scope mismatch")
         universe = self._universe(execution_config.get("universe"))
+        rights_policy = execution_config.get("rights_policy", "subscribe")
+        if rights_policy not in {"subscribe", "skip"}:
+            raise PortError(ErrorCode.INVALID_INPUT, "invalid frozen rights policy")
         key = (run.workspace_id, run.run_id)
         identity = run.model_dump_json() + manifest.model_dump_json()
         if key in self._inputs and self._inputs[key] != identity:
@@ -175,6 +178,7 @@ class MockEngineAdapter(TradingEnginePort):
                 self._execution_model(execution_config.get("execution_model")),
                 actions,
                 universe,
+                rights_policy,
             )
         except PortError:
             raise
@@ -370,6 +374,7 @@ class MockEngineAdapter(TradingEnginePort):
         execution: BacktestExecutionModel,
         corporate_actions: tuple[CorporateAction, ...] = (),
         universe: BacktestUniverse | None = None,
+        rights_policy: str = "subscribe",
     ) -> dict[str, object]:
         parameters = json.loads(manifest.parameters_json)
         batch = getattr(program, "signals_for_bars", None)
@@ -381,7 +386,7 @@ class MockEngineAdapter(TradingEnginePort):
         ):
             raise PortError(ErrorCode.REJECTED, "invalid batch strategy proposals")
         cash = run.initial_cash
-        ledger = CorporateActionLedger(corporate_actions)
+        ledger = CorporateActionLedger(corporate_actions, rights_policy)
         membership = MockEngineAdapter._membership_windows(universe)
         final_membership = MockEngineAdapter._final_membership_bars(bars, membership)
         positions: dict[str, Decimal] = {}
@@ -425,6 +430,30 @@ class MockEngineAdapter(TradingEnginePort):
                 positions[bar.instrument_id] = adjusted.quantity
                 available[bar.instrument_id] = adjusted.available
                 cash = adjusted.cash
+                for subscription in adjusted.subscriptions:
+                    fills.append(
+                        {
+                            "instrument_id": subscription.instrument_id,
+                            "side": "buy",
+                            "filled_quantity": format(subscription.quantity, "f"),
+                            "filled_at": bar.timestamp.isoformat(),
+                            "price": format(subscription.price, "f"),
+                            "fee": "0",
+                        }
+                    )
+                    orders.append(
+                        {
+                            "instrument_id": subscription.instrument_id,
+                            "side": "buy",
+                            "quantity": format(subscription.quantity, "f"),
+                            "filled_quantity": format(subscription.quantity, "f"),
+                            "submitted_at": bar.timestamp.isoformat(),
+                            "filled_at": bar.timestamp.isoformat(),
+                            "price": format(subscription.price, "f"),
+                            "status": "filled",
+                            "reason": "rights_subscription",
+                        }
+                    )
             member = MockEngineAdapter._allows(membership, bar.instrument_id, bar.timestamp)
             if not member:
                 # Bars outside the frozen membership cannot trade or fill.

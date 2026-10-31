@@ -61,7 +61,13 @@ class MemoryWalkForwardStore:
             raise PortError(ErrorCode.NOT_FOUND, "walk-forward batch unavailable") from None
 
 
-def build_service(market: MockMarketData, run_store=None, memberships=None):
+def build_service(
+    market: MockMarketData,
+    run_store=None,
+    memberships=None,
+    adjustment_factors=None,
+    instrument="MOCK:ABC",
+):
     actor, workspace_id = uuid4(), uuid4()
     now = datetime.now(UTC)
     strategy_id, version_id, dataset_id = uuid4(), uuid4(), uuid4()
@@ -106,7 +112,7 @@ def build_service(market: MockMarketData, run_store=None, memberships=None):
         update={
             "workspace_id": workspace_id,
             "dataset_id": dataset_id,
-            "instrument_ids": ("MOCK:ABC",),
+            "instrument_ids": (instrument,),
             "created_at": now,
         }
     )
@@ -127,6 +133,7 @@ def build_service(market: MockMarketData, run_store=None, memberships=None):
         market_data=market,
         walk_forwards=batches,
         memberships=memberships,
+        adjustment_factors=adjustment_factors,
     )
     workspace = Workspace(workspace_id, "Research", "team", actor, False, False, now)
     access = WorkspaceAccess(workspace, actor, Role.ADMIN)
@@ -554,3 +561,129 @@ def test_membership_mode_rejects_instruments_without_intervals():
         )
     assert missing.value.code == ErrorCode.INVALID_INPUT
     assert "membership intervals are missing" in str(missing.value)
+
+
+class MemoryFactors:
+    def __init__(self, records):
+        self.records = tuple(records)
+
+    def load(self, access, instrument_ids, start, end):
+        wanted = set(instrument_ids)
+        return tuple(item for item in self.records if item.instrument_id in wanted)
+
+
+def factor_record(workspace_id, instrument_id, observation, value, adjustment="backward"):
+    from datetime import date
+
+    from qtrade_data_contracts.research import AdjustmentFactor
+
+    return AdjustmentFactor.model_validate(
+        {
+            "schema_version": 2,
+            "scope_id": workspace_id,
+            "source": "vendor.adjustment",
+            "instrument_id": instrument_id,
+            "collected_at": datetime(2026, 1, 1, tzinfo=UTC),
+            "mapping_version": "vendor.v1",
+            "observation_date": observation,
+            "adjustment": adjustment,
+            "factor": value,
+            "base_date": date(2020, 1, 1),
+            "base_value": "1",
+            "algorithm_version": "vendor.v1",
+            "convention_evidence": "fixture",
+        }
+    )
+
+
+def test_vendor_adjusted_price_mode_is_rejected_explicitly():
+    market = MockMarketData()
+    service, access, strategy_id, dataset_id, _, _ = build_service(market)
+    start = datetime(2026, 10, 1, tzinfo=UTC)
+    with pytest.raises(PortError) as unsupported:
+        service.create(
+            access,
+            BacktestSubmission(
+                strategy_id,
+                1,
+                dataset_id,
+                start,
+                start + timedelta(hours=12),
+                Decimal("10000"),
+                "USD",
+                "cost.v1",
+                {},
+                adjustment_factor_mode="vendor_adjusted",
+            ),
+        )
+    assert unsupported.value.code == ErrorCode.UNSUPPORTED
+    assert "vendor-adjusted" in str(unsupported.value)
+
+
+def test_adjustment_factors_are_frozen_and_disclosed():
+    from datetime import date
+
+    market = MockMarketData()
+    instrument = "stock:CN:SH:600519"
+    holder = MemoryFactors(())
+    service, access, strategy_id, dataset_id, runs, _ = build_service(
+        market, adjustment_factors=holder, instrument=instrument
+    )
+    holder.records = (
+        factor_record(access.workspace.workspace_id, instrument, date(2026, 10, 1), "1"),
+    )
+    start = datetime(2026, 10, 1, tzinfo=UTC)
+
+    created = service.create(
+        access,
+        BacktestSubmission(
+            strategy_id,
+            1,
+            dataset_id,
+            start,
+            start + timedelta(hours=12),
+            Decimal("10000"),
+            "USD",
+            "cost.v1",
+            {},
+        ),
+    )
+    config = json.loads(service.manifest(access, created.run.run_id).execution_config_json or "{}")
+
+    assert config["adjustment_factor_status"] == "frozen_reconciliation_only"
+    assert len(config["adjustment_factors"]) == 1
+    assert len(config["adjustment_factors"][0]["content_version"]) == 64
+    assert config["rights_policy"] == "subscribe"
+
+
+def test_unexplained_factor_changes_are_rejected():
+    from datetime import date
+
+    market = MockMarketData()
+    instrument = "stock:CN:SH:600519"
+    holder = MemoryFactors(())
+    service, access, strategy_id, dataset_id, _, _ = build_service(
+        market, adjustment_factors=holder, instrument=instrument
+    )
+    holder.records = (
+        factor_record(access.workspace.workspace_id, instrument, date(2026, 10, 1), "1"),
+        factor_record(access.workspace.workspace_id, instrument, date(2026, 10, 2), "2"),
+    )
+    start = datetime(2026, 10, 1, tzinfo=UTC)
+    with pytest.raises(PortError) as unexplained:
+        service.create(
+            access,
+            BacktestSubmission(
+                strategy_id,
+                1,
+                dataset_id,
+                start,
+                start + timedelta(hours=12),
+                Decimal("10000"),
+                "USD",
+                "cost.v1",
+                {},
+            ),
+        )
+    assert unexplained.value.code == ErrorCode.UNSUPPORTED
+    assert "2026-10-02" in str(unexplained.value)

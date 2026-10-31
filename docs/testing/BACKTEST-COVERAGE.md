@@ -19,6 +19,7 @@
 | tick size | 已实现 | `test_backtest_execution.py` | 买卖方向向不利方向取整；盘口仍未建模 |
 | Walk-forward 执行 | 真实 Worker | batch `f6311814-a419-4e11-852e-2116f832f865` | 9 个窗口全部完成，聚合与各窗口报告对账；不做参数寻优 |
 | 报告导出 | 真实下载 | run `9c33a542-94c7-4879-9ab1-22ee9646947f` | CSV/可打印 HTML 与持久化报告一致；刷新后一致；未登录 401 |
+| 配股/复权因子 | 引擎真实价格 + fixture 事件 | `rights-factor-report.json` | 认购 30 股、现金对账；因子冻结核对；`vendor_adjusted` 422 |
 | 导出 HTML/PDF/CSV | 未实现 | — | 报告只能页面查看 |
 | 持久化 Worker 回测队列 | 已实现 | `backtest_run.lease_*`, Worker consumer | REST 重启后 queued 运行恢复 |
 
@@ -33,7 +34,7 @@
 ## 判定
 
 - 真实量化模型 → 真实数据集 → 真实 Runner → 持久化结果 → UI 报告/对比链路已打通。
-- 这证明“能实际运行模型并产出可复核回测”，不等于“专业 A 股全语义回测就绪”；供应商复权因子、官方历史成员区间和微观成交仍缺失。
+- 这证明“能实际运行模型并产出可复核回测”，不等于“专业 A 股全语义回测就绪”；官方历史成员区间、复权价回放和微观成交仍缺失。
 - Fixture 仅覆盖受控取消/进度接口；真实 queued → running → completed、重启恢复和取消均使用 PostgreSQL + Worker + Runner。
 
 ## 复核命令
