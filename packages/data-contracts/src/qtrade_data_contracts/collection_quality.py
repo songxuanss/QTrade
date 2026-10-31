@@ -7,6 +7,10 @@ from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validato
 
 from .models import DataContract, Digest
 
+# Keep this closed set in lockstep with the evaluator registry in data-core.
+# A persisted rule name is never an arbitrary plugin/import identifier.
+CollectionQualityRuleVersion = Literal["collection-quality.v1"]
+
 IssueCode = Literal[
     "raw_missing",
     "record_invalid",
@@ -42,7 +46,7 @@ class CollectionQualityResult(DataContract):
     quality_id: UUID
     scope_id: UUID
     part_id: UUID
-    rule_version: Literal["collection-quality.v1"]
+    rule_version: CollectionQualityRuleVersion
     input_digest: Digest
     records_sha256: Digest
     record_count: Annotated[int, Field(ge=0)]

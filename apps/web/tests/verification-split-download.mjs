@@ -11,7 +11,7 @@ try {
     viewport: { width: 1440, height: 1000 },
   });
   const page = await context.newPage();
-  await page.goto(`${origin}/workspace/data`);
+  await page.goto(`${origin}/workspace/data?data_view=ticks`);
   await page
     .getByRole("textbox", { name: "邮箱", exact: true })
     .fill("qtrade-integration@example.test");
@@ -21,6 +21,8 @@ try {
   if (page.url().includes("/auth/consent"))
     await page.getByRole("button", { name: "同意授权", exact: true }).click();
   await expect(page).toHaveURL(`${origin}/workspace/data`);
+  await page.getByRole("tab", { name: "逐笔与兼容", exact: true }).click();
+  await page.getByText("旧版日线与分钟下载入口", { exact: true }).click();
   const session = await (await page.request.get(`${api}/auth/session`)).json();
   const root = `${api}/api/v1/workspaces/${session.workspace_id}`;
   await page.getByLabel("历史行情股票代码", { exact: true }).fill("601288.SH");
@@ -36,7 +38,7 @@ try {
       .getByRole("button", { name: "重新下载全部", exact: true })
       .click();
   await expect(page.locator(".data-notice[role=status]")).toContainText(
-    "操作已完成",
+    "下载任务已提交",
   );
   let tasks = await (await page.request.get(`${root}/data/tasks`)).json();
   const groupId = tasks.find(

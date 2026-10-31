@@ -486,7 +486,9 @@ def collector_router(
     @router.post("/research/query")
     def research_query(
         body: ResearchQueryBody,
-        access: Annotated[WorkspaceAccess, Depends(security.workspace(Permission.READ))],
+        access: Annotated[
+            WorkspaceAccess, Depends(security.workspace(Permission.DATA_MANAGE, mutate=True))
+        ],
     ) -> Any:
         if body.actor_id != access.user_id or body.scope_id != access.workspace.workspace_id:
             raise HTTPException(403, detail={"code": "forbidden"})

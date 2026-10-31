@@ -595,9 +595,12 @@ def test_factor_capture_precedes_shape_validation_and_empty_is_not_publication(t
     else:
         assert provider.fetch(task, capture=capture).records == ()
     directory = archive.root / str(task.request.scope_id) / str(task.part_id) / "source-captures"
-    receipt = CollectionRawCapture.model_validate_json(
-        next(directory.glob("receipt-*.json")).read_bytes()
-    )
+    receipts = [
+        CollectionRawCapture.model_validate_json(path.read_bytes())
+        for path in directory.glob("receipt-*.json")
+    ]
+    receipt = next(item for item in receipts if item.kind == "factor_history")
+    assert any(item.kind == "http_response" for item in receipts)
     assert receipt.kind == "factor_history"
     assert receipt.response_rows == (0 if isinstance(payload["data"], list) else None)
     assert (

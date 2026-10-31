@@ -55,15 +55,34 @@ describe("data operation navigation", () => {
   });
   it("shows newly accepted compatibility downloads in the task list", async () => {
     ports.create.mockResolvedValueOnce("success");
-    const query = await destination(createTickTaskAction);
+    const form = new FormData();
+    form.set("source", "mairui.a-share.tick");
+    form.set("authorization_id", "mairui-default");
+    form.set("instrument_id", "601288.SH");
+    form.set("start", "2026-10-15T00:00");
+    form.set("end", "2026-10-16T00:00");
+    const query = await destination(createTickTaskAction, form);
     expect(query.get("data_view")).toBe("assets");
     expect(query.get("asset_view")).toBe("tasks");
+    expect(query.get("download_instrument")).toBe("601288.SH");
+    expect(query.has("authorization_id")).toBe(false);
   });
-  it("keeps rejected download input corrections in the download area", async () => {
+  it("keeps safe rejected download input without returning credentials", async () => {
     ports.create.mockResolvedValueOnce("invalid");
-    const query = await destination(createTickTaskAction);
+    const form = new FormData();
+    form.set("source", "mairui.a-share.tick");
+    form.set("authorization_id", "mairui-default");
+    form.set("instrument_id", "601288.SH");
+    form.set("start", "2026-10-16T00:00");
+    form.set("end", "2026-10-15T00:00");
+    const query = await destination(createTickTaskAction, form);
     expect(query.get("data_view")).toBe("ticks");
     expect(query.get("result")).toBe("invalid");
+    expect(query.get("download_instrument")).toBe("601288.SH");
+    expect(query.get("download_start")).toBe("2026-10-16T00:00");
+    expect(query.get("download_end")).toBe("2026-10-15T00:00");
+    expect(query.has("authorization_id")).toBe(false);
+    expect(query.has("download_authorization_id")).toBe(false);
   });
   it.each(["complete", "partial"])(
     "retains the original selection for %s data",

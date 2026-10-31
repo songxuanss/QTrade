@@ -113,7 +113,9 @@ def test_bridge_query_frozen_reference_identity_and_manifest():
         content_version="a" * 64,
         kind="financial_statement",
     )
-    assert client.post(base + "/query", json=body, headers={"role": "read"}).status_code == 200
+    assert client.post(base + "/query", json=body, headers={"role": "read"}).status_code == 403
+    assert not calls
+    assert client.post(base + "/query", json=body).status_code == 200
     assert calls[-1][1] == "/v2/research/query"
     n = len(calls)
     assert client.post(base + "/query", json=body | {"actor_id": str(uuid4())}).status_code == 403

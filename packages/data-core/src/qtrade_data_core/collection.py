@@ -22,11 +22,14 @@ from qtrade_data_contracts.collection import (
     digest,
     instrument_key,
 )
-from qtrade_data_contracts.collection_quality import CollectionQualityResult
+from qtrade_data_contracts.collection_quality import (
+    CollectionQualityResult,
+    CollectionQualityRuleVersion,
+)
 from qtrade_data_contracts.normalization_input import NormalizationPayload
 from qtrade_data_contracts.planning import CollectionCostEstimate, CollectionPlanGuard
 from qtrade_data_contracts.processing_failure import CollectionProcessingFailure
-from qtrade_data_core.collection_quality import evaluate
+from qtrade_data_core.collection_quality import RULE_VERSION, evaluate
 from qtrade_data_core.diagnostics import collection_context
 from qtrade_data_core.ports import DataAuthorizer, DataFailure
 from qtrade_data_core.schedule_approval import ScheduleExecutionApproval
@@ -151,7 +154,9 @@ def subtract(
 
 
 class CollectionReplayExecutor(Protocol):
-    def execute(self, part: CollectionPart) -> tuple[CollectionResult, str]: ...
+    def execute(
+        self, part: CollectionPart
+    ) -> tuple[CollectionResult, str, CollectionQualityRuleVersion]: ...
 
 
 class CollectionService:
@@ -412,6 +417,7 @@ class CollectionService:
         started = monotonic()
         stage = "authorization"
         source_captured = False
+        quality_rule_version = RULE_VERSION
         captures: list[CollectionRawCapture] = []
         try:
             logger.info("part_started", extra={"event": "part_started", "stage": stage})
@@ -422,7 +428,7 @@ class CollectionService:
                 if self.replays is None:
                     raise DataFailure("unsupported")
                 stage = "offline_conversion"
-                result, timezone = self.replays.execute(part)
+                result, timezone, quality_rule_version = self.replays.execute(part)
                 source_captured = True
             else:
                 stage = "recovery"
@@ -477,7 +483,12 @@ class CollectionService:
                     result = provider.fetch(part, capture=capture)
             stage = "quality"
             quality = evaluate(
-                part, result, timezone, datetime.now(UTC), source_captured=source_captured
+                part,
+                result,
+                timezone,
+                datetime.now(UTC),
+                source_captured=source_captured,
+                rule_version=quality_rule_version,
             )
             self.archive.record_quality(part, quality)
             if quality.status == "blocked":

@@ -52,12 +52,14 @@ test("mobile navigation and visual regression", async ({ page }) => {
   await expect(page).toHaveScreenshot("workbench-mobile.png", {
     fullPage: true,
   });
-  await page.getByRole("button", { name: "打开主导航" }).click();
+  const menuButton = page.getByRole("button", { name: /主导航/ });
+  await menuButton.click();
+  await expect(page.locator(".nav-item").first()).toBeFocused();
+  await expect(page.locator(".app-body")).toHaveAttribute("inert", "");
   await page.keyboard.press("Escape");
-  await expect(
-    page.getByRole("button", { name: "打开主导航" }),
-  ).toHaveAttribute("aria-expanded", "false");
-  await page.getByRole("button", { name: "打开主导航" }).click();
+  await expect(menuButton).toHaveAttribute("aria-expanded", "false");
+  await expect(menuButton).toBeFocused();
+  await menuButton.click();
   await page
     .getByRole("navigation")
     .getByRole("link", { name: "策略研究" })

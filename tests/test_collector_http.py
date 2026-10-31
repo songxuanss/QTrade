@@ -1,9 +1,11 @@
 """Service identity and current actor permissions are distinct, with safe failures."""
 
 import json
+from contextlib import nullcontext
 from types import SimpleNamespace
 from uuid import uuid4
 
+import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from test_independent_collection import request
@@ -67,6 +69,47 @@ def test_independent_http_identity_scope_role_and_validation(monkeypatch, tmp_pa
     response = client.post("/v1/preview", headers=headers, json=req | {"schema_version": 2})
     assert response.status_code == 422 and response.json() == {"detail": {"code": "invalid_input"}}
     assert client.get("/v1/deliveries", params={"consumer_id": "qtrade-market"}).status_code == 401
+
+
+@pytest.mark.parametrize(
+    "name",
+    ("COLLECTOR_RUN_WORKER", "COLLECTOR_RUN_SCHEDULER", "COLLECTOR_RUN_FRESHNESS"),
+)
+@pytest.mark.parametrize("value", ("tru", "TRUE", " true", "true "))
+def test_invalid_background_worker_flags_rejected_at_assembly(
+    monkeypatch, tmp_path, name, value
+):
+    monkeypatch.setenv("COLLECTOR_SERVICE_TOKEN", "fixture-service-token-" + "x" * 32)
+    monkeypatch.setenv("DATA_COLLECTION_DATABASE_URL", "postgresql://unused/unused")
+    monkeypatch.setenv("COLLECTOR_ARCHIVE_ROOT", str(tmp_path))
+    monkeypatch.delenv("COLLECTOR_CONFIG_FILE", raising=False)
+    from qtrade_collector.main import create_app
+
+    monkeypatch.setenv(name, value)
+    with pytest.raises(ValueError, match=name):
+        create_app()
+
+
+def test_ready_ignores_stale_worker_cycle_when_worker_disabled(monkeypatch, tmp_path):
+    monkeypatch.setenv("COLLECTOR_SERVICE_TOKEN", "fixture-service-token-" + "x" * 32)
+    monkeypatch.setenv("DATA_COLLECTION_DATABASE_URL", "postgresql://unused/unused")
+    monkeypatch.setenv("COLLECTOR_ARCHIVE_ROOT", str(tmp_path))
+    monkeypatch.setenv("COLLECTOR_RUN_WORKER", "false")
+    monkeypatch.delenv("COLLECTOR_CONFIG_FILE", raising=False)
+    from qtrade_collector.main import create_app
+
+    app = create_app()
+    repository = app.state.collection_service.repository
+    monkeypatch.setattr(
+        repository,
+        "_connection",
+        lambda: nullcontext(SimpleNamespace(execute=lambda query: None)),
+    )
+    app.state.worker_last_cycle = 0.0
+    monkeypatch.setattr("qtrade_collector.main.monotonic", lambda: 181.0)
+
+    response = TestClient(app).get("/ready")
+    assert response.status_code == 200 and response.json() == {"ready": True}
 
 
 def test_callback_requires_service_identity_and_current_membership():

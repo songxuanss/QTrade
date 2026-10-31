@@ -17,7 +17,7 @@ try {
   const page = await context.newPage();
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
-  await page.goto(`${origin}/workspace/data`);
+  await page.goto(`${origin}/workspace/data?data_view=ticks`);
   await page
     .getByRole("textbox", { name: "邮箱", exact: true })
     .fill("qtrade-integration@example.test");
@@ -28,6 +28,7 @@ try {
     await page.getByRole("button", { name: "同意授权", exact: true }).click();
   }
   await expect(page).toHaveURL(`${origin}/workspace/data`);
+  await page.getByRole("tab", { name: "逐笔与兼容", exact: true }).click();
   const limited = process.argv.includes("--limit-check");
   await expect(
     page.getByText(limited ? "最多 7 天" : "下载时长不限", { exact: true }),
@@ -71,7 +72,7 @@ try {
         .click();
     }
     await expect(page.locator(".data-notice[role=status]")).toContainText(
-      "操作已完成",
+      "下载任务已提交",
     );
     const row = page.locator("#collection .data-row").first();
     await expect(row).toContainText("600519.SH");
@@ -106,7 +107,7 @@ try {
       await page.waitForTimeout(1500);
       tasks = await (await page.request.get(taskUrl)).json();
       assert.ok(parts().every((task) => task.status !== "failed"));
-      await page.getByRole("link", { name: "刷新数据", exact: true }).click();
+      await page.getByRole("button", { name: "刷新数据", exact: true }).click();
       await expect(row).toBeVisible();
     }
     assert.ok(parts().every((task) => task.page_count > 0));

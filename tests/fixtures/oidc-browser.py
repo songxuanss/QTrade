@@ -19,11 +19,14 @@ ROOT = Path(__file__).resolve().parents[2]
 for directory in (
     "apps/api",
     "packages/application",
-    "packages/domain",
     "packages/contracts",
+    "packages/data-contracts",
+    "packages/data-core",
+    "packages/domain",
     "packages/runtime",
-    "adapters/mock",
     "adapters/crypto",
+    "adapters/data_http",
+    "adapters/mock",
 ):
     sys.path.insert(0, str(ROOT / directory / "src"))
 
@@ -38,6 +41,7 @@ from qtrade_api.alerts import alert_rule_router  # noqa: E402
 from qtrade_api.auth_bridge import auth_bridge  # noqa: E402
 from qtrade_api.backtesting import backtesting_router  # noqa: E402
 from qtrade_api.capabilities import capability_router  # noqa: E402
+from qtrade_api.collector import collector_router  # noqa: E402
 from qtrade_api.data_management import data_management_router  # noqa: E402
 from qtrade_api.instruments import instrument_router  # noqa: E402
 from qtrade_api.logout_bridge import logout_bridge  # noqa: E402
@@ -86,6 +90,7 @@ from qtrade_contracts import (  # noqa: E402
     MarketDataset,
 )
 from qtrade_crypto.tokens import TokenCipher  # noqa: E402
+from qtrade_data_core.ports import DataFailure  # noqa: E402
 from qtrade_domain.alerts import AlertSeverity  # noqa: E402
 from qtrade_domain.authorization import Permission  # noqa: E402
 from qtrade_domain.capabilities import (  # noqa: E402
@@ -476,6 +481,183 @@ app.include_router(
         ),
         security,
         store.audit,
+    )
+)
+
+
+class FixtureCollectorClient:
+    """Deterministic UI projection only; never presented as provider evidence."""
+
+    def request(self, method, path, *, actor_id, scope_id, body=None, params=None, **kwargs):
+        if path == "/v1/catalog":
+            return [
+                {
+                    "source": "mairui.pro.bars",
+                    "name": "MaiRui Pro · A 股行情",
+                    "provider": "MaiRui",
+                    "dataset_kind": "bars",
+                    "periods": ["1m", "5m", "1d"],
+                    "instrument_kinds": ["stock", "index"],
+                    "markets": ["CN"],
+                    "timezone": "Asia/Shanghai",
+                    "configured": True,
+                    "evidence": "浏览器 UI fixture；不是供应商可用性证据",
+                    "limitations": ["真实来源权限、覆盖和更新时间仍需部署验收。"],
+                },
+                {
+                    "source": "mairui.factor.history",
+                    "name": "MaiRui · 历史因子",
+                    "provider": "MaiRui",
+                    "dataset_kind": "factors",
+                    "periods": ["1d"],
+                    "instrument_kinds": ["stock"],
+                    "markets": ["CN"],
+                    "timezone": "Asia/Shanghai",
+                    "configured": True,
+                    "evidence": "浏览器 UI fixture；不是供应商可用性证据",
+                    "limitations": ["因子定义版本与研究可知时间未知。"],
+                },
+            ]
+        if path == "/v1/factors":
+            return [
+                {
+                    "factor_id": "pe_ttm",
+                    "name": "市盈率 TTM",
+                    "category": "估值",
+                    "unit": "倍",
+                    "calc_version": "unknown",
+                    "description": "浏览器 fixture 定义。",
+                    "update_frequency": "daily",
+                    "available": True,
+                    "unavailable_reason": None,
+                }
+            ]
+        if path == "/v1/factor-catalog":
+            return {
+                "schema_version": 1,
+                "source": "mairui.factor.history",
+                "status": "fresh",
+                "definitions": [
+                    {
+                        "factor_id": "pe_ttm",
+                        "name": "市盈率 TTM",
+                        "category": "估值",
+                        "unit": "倍",
+                        "calc_version": "unknown",
+                        "description": "浏览器 fixture 定义。",
+                        "update_frequency": "daily",
+                        "available": True,
+                        "unavailable_reason": None,
+                    }
+                ],
+                "content_sha256": "a" * 64,
+                "fetched_at": "2026-01-02T00:00:00Z",
+                "last_attempt_at": "2026-01-02T00:00:00Z",
+                "refreshing": False,
+                "error_code": None,
+                "permission_evidence": "not_established_by_catalog",
+            }
+        if path == "/v1/jobs":
+            return [fixture_collector_job(scope_id)]
+        if path.endswith("/quality") or path.endswith("/processing-failures"):
+            return []
+        if path.startswith("/v1/jobs/"):
+            return fixture_collector_job(scope_id)
+        if path == "/v1/names":
+            return {"601288.SH": "农业银行"}
+        raise DataFailure("unavailable")
+
+
+def fixture_collector_job(scope_id):
+    return {
+        "job_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        "state": "running",
+        "request": {
+            "schema_version": 1,
+            "scope_id": str(scope_id),
+            "actor_id": "00000000-0000-4000-8000-000000000001",
+            "correlation_id": "fixture-correlation",
+            "request_id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+            "source": "mairui.pro.bars",
+            "dataset_kind": "bars",
+            "instrument_ids": ["601288.SH"],
+            "granularity": "1d",
+            "start": "2025-01-01T00:00:00+08:00",
+            "end": "2026-01-01T00:00:00+08:00",
+            "fields": [],
+            "mode": "missing",
+        },
+        "created_at": "2026-01-02T00:00:00Z",
+        "counts": {"running": 1, "waiting": 1, "failed": 1},
+        "total_parts": 3,
+        "offset": 0,
+        "next_offset": None,
+        "instrument_names": {
+            "601288.SH": "农业银行",
+            "600519.SH": "贵州茅台",
+            "600036.SH": "招商银行",
+        },
+        "field_definitions": [],
+        "parts": [
+            {
+                "part_id": "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+                "instrument_id": "601288.SH",
+                "instrument_name": "农业银行",
+                "field": None,
+                "start": "2025-01-01",
+                "end": "2026-01-01",
+                "state": "running",
+                "attempt": 1,
+                "error_code": None,
+                "next_attempt_at": "2026-01-02T00:00:00Z",
+                "publication": None,
+            },
+            {
+                "part_id": "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+                "instrument_id": "600519.SH",
+                "instrument_name": "贵州茅台",
+                "field": None,
+                "start": "2025-01-01",
+                "end": "2026-01-01",
+                "state": "waiting",
+                "attempt": 0,
+                "error_code": "scope_daily",
+                "wait_reason": "scope_daily",
+                "next_attempt_at": "2026-01-03T00:00:00Z",
+                "publication": None,
+            },
+            {
+                "part_id": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+                "instrument_id": "600036.SH",
+                "instrument_name": "招商银行",
+                "field": None,
+                "start": "2025-01-01",
+                "end": "2026-01-01",
+                "state": "failed",
+                "attempt": 2,
+                "error_code": "unavailable",
+                "next_attempt_at": "2026-01-02T00:00:00Z",
+                "publication": None,
+            },
+        ],
+    }
+
+
+class FixturePreferences:
+    def get(self, actor, scope):
+        return None
+
+    def put(self, actor, scope, draft):
+        return None
+
+
+app.include_router(
+    collector_router(
+        FixtureCollectorClient(),
+        security,
+        None,
+        None,
+        FixturePreferences(),
     )
 )
 

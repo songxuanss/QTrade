@@ -169,6 +169,8 @@ GET `/v2/research/jobs/{request_id}/processing-failures`（业务桥接research/
 
 0015新增不可变collection_schedule_dispatch恢复日志。ScheduleDispatchDecision用明确market/research类型保存原请求、半开时间范围、run/correlation身份、草案revision及policy依据/首次freeze时间，无凭证字段。当前授权及有效lease下冻结；恢复先读取原日志，不能按重启时日期重算请求。重复同意图保留首次时间和摘要，任何范围/依据/来源变化冲突。market最终入队在原事务内核对日志与请求完全一致，缺失/摘要损坏/槽关联不一致拒绝。只保存日志不等于创建任务或下载成功；timer/来源资格和研究执行准入仍待装配。禁止SQL重写、删除或truncate日志代替重新计划。
 
+`COLLECTOR_RUN_WORKER`、`COLLECTOR_RUN_SCHEDULER` 与 `COLLECTOR_RUN_FRESHNESS` 均只接受精确的 `true` / `false`；拼写、大小写或空白错误会在装配时拒绝，避免服务表面就绪但任务永久排队。显式关闭 Worker 时 `/ready` 不伪造 Worker 周期故障，也不代表下载能力已验收。
+
 内部timer现已装配ScheduleRunner，`COLLECTOR_RUN_SCHEDULER=true`默认开启，`COLLECTOR_SCHEDULER_INTERVAL_SECONDS=2`（1–60秒）；与Worker/元数据任务分开，只领取enabled计划，创建仍默认disabled。每轮最多一计划/一槽，lease600秒，当前授权、读取/冻结请求、普通预览/批准/事务入队、推进游标；进程失联后租约重领并幂等恢复。明确撤权/来源失效/超批准暂停，预算拒绝/竞争延后；submitted日志不代表下载完成。启用内部控制还核对冻结主体权限，另一管理员不能替代。
 
 当前日线策略复用Provider真实日历及文档预计完成时刻；相邻操作槽之间没有新预计发布就正常跳过，周频日线可在周日取得周五数据。市场本地日期计算lookback半开范围，不用本地已采日期决定截止。因子/财务/事件频率未知不套价格规则，仍不支持自动策略；启用HTTP/UI未提供，不因timer已部署宣称这些能力可用。暂停及等待的完整UI、实际重启/撤权矩阵继续按Goal完成。

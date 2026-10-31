@@ -161,9 +161,15 @@ def create_app() -> FastAPI:
     scheduler_interval = float(config.get("COLLECTOR_SCHEDULER_INTERVAL_SECONDS", "2"))
     if not 1 <= scheduler_interval <= 60:
         raise ValueError("invalid scheduler interval")
+    worker_enabled = config.get("COLLECTOR_RUN_WORKER", "true")
+    if worker_enabled not in {"true", "false"}:
+        raise ValueError("invalid COLLECTOR_RUN_WORKER")
+    scheduler_enabled = config.get("COLLECTOR_RUN_SCHEDULER", "true")
+    if scheduler_enabled not in {"true", "false"}:
+        raise ValueError("invalid COLLECTOR_RUN_SCHEDULER")
     freshness_enabled = config.get("COLLECTOR_RUN_FRESHNESS", "true")
     if freshness_enabled not in {"true", "false"}:
-        raise ValueError("invalid freshness worker flag")
+        raise ValueError("invalid COLLECTOR_RUN_FRESHNESS")
 
     async def dispatch_schedules() -> None:
         # Separate task: scheduled metadata must not stall normal Worker/UI.
@@ -287,15 +293,9 @@ def create_app() -> FastAPI:
         app.state.worker_last_cycle = monotonic()
         app.state.scheduler_last_cycle = monotonic()
         schedule_task = (
-            asyncio.create_task(dispatch_schedules())
-            if config.get("COLLECTOR_RUN_SCHEDULER", "true") == "true"
-            else None
+            asyncio.create_task(dispatch_schedules()) if scheduler_enabled == "true" else None
         )
-        worker = (
-            asyncio.create_task(consume())
-            if config.get("COLLECTOR_RUN_WORKER", "true") == "true"
-            else None
-        )
+        worker = asyncio.create_task(consume()) if worker_enabled == "true" else None
         metadata = asyncio.create_task(refresh_metadata())
         freshness_task = (
             asyncio.create_task(check_freshness_watches()) if freshness_enabled == "true" else None
@@ -474,10 +474,7 @@ def create_app() -> FastAPI:
         # Uses only the collector database; callback outages block work, not startup.
         with repository._connection() as conn:
             conn.execute("SELECT 1")
-        if (
-            config.get("COLLECTOR_RUN_WORKER", "true") == "true"
-            and monotonic() - app.state.worker_last_cycle > 180
-        ):
+        if worker_enabled == "true" and monotonic() - app.state.worker_last_cycle > 180:
             raise HTTPException(503, "worker cycle delayed")
         return {"ready": True}
 

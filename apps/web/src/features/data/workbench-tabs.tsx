@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { useRouter } from "next/navigation";
 import styles from "./workbench-tabs.module.css";
 
 type WorkspacePanel = {
@@ -11,11 +12,14 @@ type WorkspacePanel = {
 };
 
 export function DataWorkbenchRefresh() {
+  const router = useRouter();
+  // Refresh the Server Component tree without unmounting client forms, so
+  // server results update while an unfinished provider draft is retained.
   return (
     <button
       type="button"
       className="button button-secondary"
-      onClick={() => location.reload()}
+      onClick={() => router.refresh()}
     >
       刷新数据
     </button>

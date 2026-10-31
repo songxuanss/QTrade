@@ -14,12 +14,15 @@ async function finish(
   result: string,
   view: "ticks" | "assets" = "ticks",
   asset?: "tasks" | "quality" | "research",
+  safeInput?: Record<string, string>,
 ) {
   revalidatePath("/workspace/data");
   // Redirect to the operation's owning area, never a client-supplied return URL.
   // The old stacked page hid this distinction; tabbed navigation must retain it.
   const query = new URLSearchParams({ result, data_view: view });
   if (asset) query.set("asset_view", asset);
+  for (const [key, value] of Object.entries(safeInput ?? {}))
+    query.set(key, value);
   redirect(`/workspace/data?${query}`);
 }
 
@@ -41,14 +44,17 @@ export async function createTickTaskAction(form: FormData) {
     granularity: String(form.get("granularity") ?? "tick"),
   };
   const result = await createTickDataTask(input);
+  const safeInput = {
+    download_instrument: input.instrument_id,
+    download_start: input.start.slice(0, -1),
+    download_end: input.end.slice(0, -1),
+  };
   if (result === "complete" || result === "partial") {
     const query = new URLSearchParams({
       result,
       download_source: input.source,
       download_granularity: input.granularity,
-      download_instrument: input.instrument_id,
-      download_start: input.start.slice(0, -1),
-      download_end: input.end.slice(0, -1),
+      ...safeInput,
     });
     redirect(`/workspace/data?${query}`);
   }
@@ -56,6 +62,7 @@ export async function createTickTaskAction(form: FormData) {
     result,
     result === "success" ? "assets" : "ticks",
     result === "success" ? "tasks" : undefined,
+    input.source.startsWith("mairui.a-share.") ? safeInput : undefined,
   );
 }
 export async function claimIssueAction(form: FormData) {

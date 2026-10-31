@@ -15,6 +15,7 @@ from qtrade_data_contracts.collection import (
     digest,
     instrument_key,
 )
+from qtrade_data_contracts.collection_quality import CollectionQualityRuleVersion
 from qtrade_data_contracts.collection_replay import (
     CollectionInputReference,
     CollectionReplay,
@@ -29,7 +30,7 @@ from qtrade_data_contracts.normalization_input import (
     FactorNormalizationInput,
 )
 from qtrade_data_core.collection import CollectionPart, CollectionProvider, CollectionResult
-from qtrade_data_core.collection_quality import RULE_VERSION
+from qtrade_data_core.collection_quality import RULE_VERSION, evaluator_for
 from qtrade_data_core.normalization_input import PreparedCollectionProvider
 from qtrade_data_core.ports import DataAuthorizer, DataFailure
 
@@ -223,8 +224,14 @@ class CollectionReplayService:
             raise DataFailure("unverified") from None
         return provider, dataset
 
-    def preview(self, command: CollectionReplayRequest) -> CollectionReplay:
+    def preview(
+        self,
+        command: CollectionReplayRequest,
+        *,
+        rule_version: CollectionQualityRuleVersion = RULE_VERSION,
+    ) -> CollectionReplay:
         self.auth.require(command.actor_id, command.scope_id, "manage")
+        evaluator_for(rule_version)
         parent = self._parent(command.scope_id, command.parent_job_id, command.parent_part_id)
         root = self._root(parent, command.input_id)
         value, receipts, size = self.archive.normalization_evidence(
@@ -281,7 +288,7 @@ class CollectionReplayService:
             target_request=request.model_dump(mode="json"),
             target_part_id=str(uuid5(command.request_id, "normalization-replay")),
             target_mapping_version=dataset.mapping_version,
-            rule_version=RULE_VERSION,
+            rule_version=rule_version,
             timezone=dataset.timezone,
             verified_bytes=size,
             limits=self.limits.model_dump(mode="json"),
@@ -352,7 +359,9 @@ class CollectionReplayService:
             if c.capture_id in ids
         )
 
-    def execute(self, part: CollectionPart) -> tuple[CollectionResult, str]:
+    def execute(
+        self, part: CollectionPart
+    ) -> tuple[CollectionResult, str, CollectionQualityRuleVersion]:
         self.auth.require(part.request.actor_id, part.request.scope_id, "manage")
         value = self._stored(part.request.scope_id, part.job_id)
         if value is None or target_part(value) != replace(
@@ -361,7 +370,7 @@ class CollectionReplayService:
             raise DataFailure("unverified")
         # Rebuild with today's authorization, stricter limits and registered
         # mapper/rule. Any drift rejects; it never fetches replacement data.
-        current = self.preview(value.command)
+        current = self.preview(value.command, rule_version=value.rule_version)
         if current.model_dump(exclude={"control_sha256", "limits"}) != value.model_dump(
             exclude={"control_sha256", "limits"}
         ):
@@ -386,4 +395,4 @@ class CollectionReplayService:
             limitations=result.limitations
             + ("离线重处理原归档；本次未获取供应商新数据，原可知时间与研究限制保持。",),
         )
-        return result, value.timezone
+        return result, value.timezone, value.rule_version

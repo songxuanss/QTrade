@@ -22,13 +22,17 @@
     "test:auth": "playwright test --config playwright.auth.config.ts"
   },
   "dependencies": {
+    "@fontsource-variable/ibm-plex-sans": "^5.3.0",
     "@monaco-editor/react": "^4.7.0",
     "jose": "^6.2.12",
     "monaco-editor": "^0.57.0",
-    "next": "^16.0.0",
+    "next": "^16.4.3",
     "openid-client": "^6.8.8",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
+  },
+  "overrides": {
+    "dompurify": "3.4.17"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.13.0",
@@ -40,6 +44,7 @@
     "eslint": "^9.39.5",
     "eslint-config-next": "^16.0.0",
     "eslint-config-prettier": "^10.0.0",
+    "happy-dom": "^21.0.4",
     "prettier": "^3.0.0",
     "typescript": "^5.9.0",
     "vitest": "5.0.3"

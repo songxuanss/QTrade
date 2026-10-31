@@ -107,6 +107,32 @@ def test_verified_period_capture_time_and_digest_survive_restart(tmp_path):
     assert verify(task, published, service) == result
 
 
+def test_freshness_replays_the_historical_quality_version_and_rejects_unknown(
+    tmp_path, monkeypatch
+):
+    task, published, archive, service, _ = evidence(tmp_path)
+    import qtrade_data_core.freshness_evidence as evidence_module
+
+    dispatched = []
+    original_evaluate = evidence_module.evaluate
+
+    def versioned_evaluate(*args, source_captured, rule_version):
+        dispatched.append(rule_version)
+        return original_evaluate(
+            *args, source_captured=source_captured, rule_version=rule_version
+        )
+
+    monkeypatch.setattr(evidence_module, "evaluate", versioned_evaluate)
+    assert verify(task, published, service).published.complete_through.isoformat() == "2025-09-01"
+    assert dispatched == ["collection-quality.v1"]
+
+    stored = archive.qualities(task)[0]
+    unknown = stored.model_copy(update={"rule_version": "collection-quality.v2"})
+    archive.qualities = lambda part: (unknown,)
+    with pytest.raises(DataFailure, match="unsupported"):
+        verify(task, published, service)
+
+
 @pytest.mark.parametrize("changes", [{"hours": 12}, {"suspect": True}, {"label_hour": 12}])
 def test_partial_or_suspect_or_non_daily_label_cannot_prove_complete_day(tmp_path, changes):
     task, published, _, service, _ = evidence(tmp_path, **changes)

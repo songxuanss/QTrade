@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Icon } from "../../components/ui/icon";
 import { ROLE_NAMES, type PublicWorkspace } from "../auth/public";
 import { navigation } from "./navigation";
@@ -27,6 +27,12 @@ export function AppShell({
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
   const [logoutError, setLogoutError] = useState(false);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
+  const sidebarRef = useRef<HTMLElement>(null);
+  function closeMenu() {
+    // Let Next Link start navigation before the mobile drawer is hidden.
+    queueMicrotask(() => setMenuOpen(false));
+  }
   const [loggingOut, setLoggingOut] = useState(false);
   async function logout() {
     setLoggingOut(true);
@@ -51,26 +57,67 @@ export function AppShell({
   const current =
     navigation.find((item) => item.href === pathname)?.label ?? "工作台";
   useEffect(() => {
-    function escape(event: KeyboardEvent) {
-      if (event.key === "Escape") setMenuOpen(false);
+    function navigateDrawer(event: KeyboardEvent) {
+      if (!menuOpen) return;
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setMenuOpen(false);
+        requestAnimationFrame(() => menuButtonRef.current?.focus());
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const focusable = Array.from(
+        sidebarRef.current?.querySelectorAll<HTMLElement>(
+          'a[href], button:not([disabled]), select:not([disabled]), [tabindex="0"]',
+        ) ?? [],
+      ).filter((element) => element.getClientRects().length > 0);
+      const first = focusable[0];
+      const last = focusable.at(-1);
+      if (!first || !last) return;
+      if (!sidebarRef.current?.contains(document.activeElement)) {
+        event.preventDefault();
+        first.focus();
+      } else if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
     }
-    window.addEventListener("keydown", escape);
-    return () => window.removeEventListener("keydown", escape);
-  }, []);
+    window.addEventListener("keydown", navigateDrawer);
+    return () => window.removeEventListener("keydown", navigateDrawer);
+  }, [menuOpen]);
+  useEffect(() => {
+    if (!menuOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const frame = requestAnimationFrame(() =>
+      sidebarRef.current?.querySelector<HTMLElement>(".nav-item")?.focus(),
+    );
+    return () => {
+      cancelAnimationFrame(frame);
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [menuOpen]);
   return (
     <div className="app-shell">
       <a className="skip-link" href="#main-content">
         跳转到主内容
       </a>
       <aside
+        ref={sidebarRef}
         className={`sidebar ${menuOpen ? "sidebar-open" : ""}`}
         id="workspace-navigation"
+        role={menuOpen ? "dialog" : undefined}
+        aria-modal={menuOpen ? true : undefined}
+        aria-label={menuOpen ? "工作区导航" : undefined}
       >
         <Link
           href="/"
           className="brand"
           aria-label="QTrade 工作台"
-          onClick={() => setMenuOpen(false)}
+          onClick={closeMenu}
         >
           <span className="brand-symbol">
             Q<span />
@@ -123,7 +170,7 @@ export function AppShell({
                     href={item.href}
                     className={`nav-item ${pathname === item.href ? "active" : ""}`}
                     aria-current={pathname === item.href ? "page" : undefined}
-                    onClick={() => setMenuOpen(false)}
+                    onClick={closeMenu}
                   >
                     <Icon name={item.icon} />
                     <span>{item.label}</span>
@@ -170,13 +217,18 @@ export function AppShell({
         <button
           className="menu-backdrop"
           aria-label="关闭导航"
-          onClick={() => setMenuOpen(false)}
+          tabIndex={-1}
+          onClick={() => {
+            setMenuOpen(false);
+            requestAnimationFrame(() => menuButtonRef.current?.focus());
+          }}
         />
       )}
-      <div className="app-body">
+      <div className="app-body" inert={menuOpen ? true : undefined}>
         <header className="topbar">
           <div className="breadcrumb">
             <button
+              ref={menuButtonRef}
               className="icon-button mobile-menu"
               aria-label={menuOpen ? "关闭主导航" : "打开主导航"}
               aria-expanded={menuOpen}

@@ -154,7 +154,7 @@ def test_finalization_failure_blocks_response_and_logs_safe_failure(tmp_path, ca
             adapter._get("factor/history/pe_ttm/600519")
     assert error.value.__cause__ is None
     assert len(ledger.requests) == 1  # No refund or second outbound attempt.
-    record = next(r for r in caplog.records if r.message == "provider_request")
+    record = next(r for r in caplog.records if r.getMessage() == "provider_request")
     assert record.error_code == "unavailable" and record.http_status == 200
     assert "private database detail" not in caplog.text
 

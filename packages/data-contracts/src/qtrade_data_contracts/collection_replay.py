@@ -12,6 +12,7 @@ from .collection import (
     RawPayloadKind,
     digest,
 )
+from .collection_quality import CollectionQualityRuleVersion
 from .models import Digest, Text
 from .normalization_input import InputValue
 
@@ -124,7 +125,7 @@ class CollectionReplay(ReplayV2):
     target_request: CollectionJobRequest
     target_part_id: UUID
     target_mapping_version: Text
-    rule_version: Text
+    rule_version: CollectionQualityRuleVersion
     timezone: Text
     verified_bytes: Annotated[int, Field(ge=1)]
     limits: CollectionReplayLimits

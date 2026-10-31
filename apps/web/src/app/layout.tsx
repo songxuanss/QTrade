@@ -1,3 +1,4 @@
+import "@fontsource-variable/ibm-plex-sans";
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { currentIdentity } from "../features/auth/server";

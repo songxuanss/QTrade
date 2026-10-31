@@ -132,7 +132,14 @@ class DailyPublicationEvidence:
             (
                 q
                 for q in checks
-                if evaluate(part, result, "Asia/Shanghai", q.checked_at, source_captured=True) == q
+                if evaluate(
+                    part,
+                    result,
+                    "Asia/Shanghai",
+                    q.checked_at,
+                    source_captured=True,
+                    rule_version=q.rule_version,
+                ) == q
             ),
             None,
         )

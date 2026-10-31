@@ -29,7 +29,7 @@ try {
   }
   await expect(page).toHaveURL(`${origin}/workspace/data`);
   async function submit(symbol, end) {
-    await page.goto(`${origin}/workspace/data`);
+    await page.goto(`${origin}/workspace/data?data_view=ticks`);
     await page.locator(".tick-request-form [name=instrument_id]").fill(symbol);
     await page
       .locator(".tick-request-form [name=start]")
@@ -41,7 +41,7 @@ try {
   }
   async function finishFirst() {
     await expect(page.locator(".data-notice[role=status]")).toContainText(
-      "操作已完成",
+      "下载任务已提交",
     );
     const newest = page.locator("#collection .data-row").first();
     const id = await newest.getAttribute("data-task-id");
@@ -57,7 +57,7 @@ try {
       );
       assert.notEqual(await row.locator(".data-status").innerText(), "失败");
       await page.waitForTimeout(1500);
-      await page.getByRole("link", { name: "刷新数据", exact: true }).click();
+      await page.getByRole("button", { name: "刷新数据", exact: true }).click();
       await expect(row).toBeVisible();
     }
     return id;
@@ -73,7 +73,7 @@ try {
     "601988.SH",
     "601939.SH",
   ]) {
-    await page.goto(`${origin}/workspace/data`);
+    await page.goto(`${origin}/workspace/data?data_view=ticks`);
     await submit(candidate, "2026-09-28T01:45");
     if (new URL(page.url()).searchParams.get("result") === "success") {
       symbol = candidate;

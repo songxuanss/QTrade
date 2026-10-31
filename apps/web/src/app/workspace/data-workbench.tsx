@@ -38,6 +38,10 @@ const statusLabel: Record<string, string> = {
   waiting: "等待重试",
   failed: "失败",
   completed: "已完成",
+  partial: "部分完成",
+  completed_with_gaps: "完成 · 存在缺口",
+  no_data: "无观测数据",
+  cancelled: "已取消",
   claimed: "处理中",
   open: "待处理",
   closed: "已关闭",
@@ -115,6 +119,8 @@ export function DataWorkbench({
 }) {
   const failed = tasks.filter((task) => task.status === "failed").length;
   const openIssues = issues.filter((issue) => issue.status !== "closed").length;
+  const rejectedDownload =
+    result && failureMessages[result] ? downloadRequest : undefined;
   return (
     <div className="workspace-page data-workbench">
       <div className="page-heading data-heading">
@@ -128,8 +134,13 @@ export function DataWorkbench({
         <DataWorkbenchRefresh />
       </div>
       {result === "success" && (
-        <p className="data-notice success" role="status">
-          操作已完成，数据状态已更新。
+        <p
+          className={`data-notice ${downloadRequest ? "info" : "success"}`}
+          role="status"
+        >
+          {downloadRequest
+            ? "下载任务已提交，正在等待 Worker 执行；完成情况以任务进度和实际发布结果为准。"
+            : "操作已完成，数据状态已更新。"}
         </p>
       )}
       {result && failureMessages[result] && (
@@ -708,6 +719,11 @@ export function DataWorkbench({
                         2026-08-13 起。港股历史逐笔源暂未接通。
                       </p>
                       <form
+                        key={
+                          rejectedDownload
+                            ? `${rejectedDownload.instrument}|${rejectedDownload.start}|${rejectedDownload.end}`
+                            : "new"
+                        }
                         action={createTickTaskAction}
                         className="tick-request-form"
                       >
@@ -729,15 +745,26 @@ export function DataWorkbench({
                             maxLength={256}
                             pattern="(?:CN\.)?\d{6}(?:\.(?:SH|SZ|BJ))?"
                             placeholder="例如 600519.SH"
+                            defaultValue={rejectedDownload?.instrument}
                           />
                         </label>
                         <label>
                           开始时间（UTC）
-                          <input name="start" type="datetime-local" required />
+                          <input
+                            name="start"
+                            type="datetime-local"
+                            required
+                            defaultValue={rejectedDownload?.start}
+                          />
                         </label>
                         <label>
                           结束时间（UTC）
-                          <input name="end" type="datetime-local" required />
+                          <input
+                            name="end"
+                            type="datetime-local"
+                            required
+                            defaultValue={rejectedDownload?.end}
+                          />
                         </label>
                         <button
                           className="button button-primary"
@@ -752,10 +779,16 @@ export function DataWorkbench({
                     </section>
                   )}
                   {canManage && (
-                    <HistoryDownloadForm
-                      options={sourceOptions}
-                      available={!error}
-                    />
+                    <details className="legacy-history-entry">
+                      <summary>旧版日线与分钟下载入口</summary>
+                      <p className="data-footnote">
+                        仅用于维护旧版任务与兼容流程。新采集请使用“行情与因子”分区；两处任务的进度和发布结果分别展示。
+                      </p>
+                      <HistoryDownloadForm
+                        options={sourceOptions}
+                        available={!error}
+                      />
+                    </details>
                   )}
                 </section>
               </>

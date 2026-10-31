@@ -12,7 +12,10 @@ from qtrade_data_mairui.bounded_http import BoundedHttpClient, TransportFailure
 
 
 @pytest.fixture
-def source():
+def source(monkeypatch):
+    # Loopback evidence must not depend on a host proxy synthesizing responses.
+    monkeypatch.setenv("NO_PROXY", "127.0.0.1,localhost")
+    monkeypatch.setenv("no_proxy", "127.0.0.1,localhost")
     accepted, closed = Event(), Event()
 
     class Handler(socketserver.BaseRequestHandler):

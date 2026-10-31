@@ -111,6 +111,26 @@
     margin-bottom: 14px;
   }
 
+  .primary {
+    position: relative;
+  }
+
+  /* A hidden scrollbar must not be the only sign that more sections exist. */
+  .primary::after {
+    content: "›";
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 1px;
+    display: grid;
+    place-items: center;
+    width: 34px;
+    background: linear-gradient(90deg, transparent, var(--bg) 55%);
+    color: var(--secondary);
+    font-size: 20px;
+    pointer-events: none;
+  }
+
   .tab {
     padding: 10px 13px;
   }

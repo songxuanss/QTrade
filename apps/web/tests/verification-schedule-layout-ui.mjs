@@ -32,6 +32,7 @@ try {
   await page.getByRole("button", { name: "切换", exact: true }).click();
   await expect(page).toHaveURL("http://127.0.0.1:13000/", { timeout: 60000 });
   await page.goto("http://127.0.0.1:13000/workspace/data", { timeout: 90000 });
+  await page.getByRole("tab", { name: "自动更新", exact: true }).click();
   const panel = page.getByRole("region", { name: "自动更新计划", exact: true });
   await panel.locator("summary").click();
   await expect(

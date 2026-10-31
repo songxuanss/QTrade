@@ -3,7 +3,13 @@
 import { CollectionReplayControl } from "./collection-replay";
 import Link from "next/link";
 import workspaceStyles from "./collector-workspace.module.css";
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import {
   controlCollector,
   previewCollector,
@@ -142,6 +148,11 @@ export function CollectorPanel({
   const [planConfirmed, setPlanConfirmed] = useState(false);
   const [job, setJob] = useState<CollectorJob | null>(null);
   const [jobs, setJobs] = useState(initialJobs);
+  const [jobReadError, setJobReadError] = useState("");
+  const [lastJobUpdate, setLastJobUpdate] = useState<number | null>(null);
+  // Manual selection advances this generation so an older read cannot replace
+  // the task the user chose later.
+  const jobRequestRevision = useRef(0);
   const view = useSyncExternalStore(
     subscribeView,
     () => {
@@ -174,18 +185,43 @@ export function CollectorPanel({
   const [records, setRecords] = useState<CollectorRecord[]>([]);
   const [nextRecordOffset, setNextRecordOffset] = useState<number | null>(null);
 
+  const applyJob = useCallback((next: CollectorJob) => {
+    setJob(next);
+    setJobs((current) => {
+      const exists = current.some((item) => item.job_id === next.job_id);
+      return (
+        exists
+          ? current.map((item) => (item.job_id === next.job_id ? next : item))
+          : [next, ...current]
+      ).slice(0, 20);
+    });
+    setLastJobUpdate(Date.now());
+    setJobReadError("");
+  }, []);
   useEffect(() => {
     const url = new URL(location.href);
     const id = url.searchParams.get("collector_job");
-    if (id)
-      void readCollectorJob(id).then((result) => {
-        if (result.job) setJob(result.job);
-        else setError(result.error ?? "unavailable");
+    if (!id) return;
+    const request = ++jobRequestRevision.current;
+    let cancelled = false;
+    void readCollectorJob(id)
+      .then((result) => {
+        if (cancelled || jobRequestRevision.current !== request) return;
+        if (result.job) applyJob(result.job);
+        else setJobReadError(result.error ?? "unavailable");
+      })
+      .catch(() => {
+        if (!cancelled && jobRequestRevision.current === request)
+          setJobReadError("unavailable");
       });
-  }, []);
+    return () => {
+      cancelled = true;
+      jobRequestRevision.current += 1;
+    };
+  }, [applyJob]);
   const pending = Boolean(
     job &&
-    (["running", "waiting"].includes(job.state) ||
+    (["queued", "running", "waiting"].includes(job.state) ||
       job.parts.some(
         (part) =>
           part.publication?.dataset_kind === "bars" &&
@@ -199,20 +235,40 @@ export function CollectorPanel({
     const id = activeJobId;
     const offset = activeJobOffset;
     let cancelled = false;
-    const timer = setInterval(() => {
-      void readCollectorJob(id, offset).then((result) => {
-        if (cancelled) return;
+    let failures = 0;
+    let timer: ReturnType<typeof setTimeout>;
+    const poll = async () => {
+      const request = jobRequestRevision.current;
+      try {
+        const result = await readCollectorJob(id, offset);
+        if (cancelled || jobRequestRevision.current !== request) return;
         if (result.job) {
-          setJob(result.job);
-          setError("");
-        } else setError(result.error ?? "unavailable");
-      });
-    }, 3000);
+          applyJob(result.job);
+          failures = 0;
+        } else {
+          failures += 1;
+          setJobReadError(result.error ?? "unavailable");
+        }
+      } catch {
+        if (!cancelled && jobRequestRevision.current === request) {
+          failures += 1;
+          setJobReadError("unavailable");
+        }
+      } finally {
+        if (!cancelled) {
+          // Keep an outage from creating a tight request loop while still
+          // surfacing queued-to-running transitions promptly after recovery.
+          const delay = Math.min(30_000, 3_000 * 2 ** Math.min(failures, 4));
+          timer = setTimeout(() => void poll(), delay);
+        }
+      }
+    };
+    timer = setTimeout(() => void poll(), 3000);
     return () => {
       cancelled = true;
-      clearInterval(timer);
+      clearTimeout(timer);
     };
-  }, [activeJobId, activeJobOffset, pending]);
+  }, [activeJobId, activeJobOffset, applyJob, pending]);
 
   function invalidateSelection() {
     selectionRevision.current += 1;
@@ -222,7 +278,8 @@ export function CollectorPanel({
   }
 
   function choose(job: CollectorJob) {
-    setJob(job);
+    jobRequestRevision.current += 1;
+    applyJob(job);
     setRecords([]);
     setPublication(null);
     const url = new URL(location.href);
@@ -352,12 +409,6 @@ export function CollectorPanel({
       const response = await submitCollector(preview, planConfirmed);
       if (response.job) {
         choose(response.job);
-        setJobs((current) =>
-          [
-            response.job!,
-            ...current.filter((item) => item.job_id !== response.job!.job_id),
-          ].slice(0, 20),
-        );
         setPreview(null);
       } else setError(response.error ?? "unavailable");
     } finally {
@@ -365,9 +416,16 @@ export function CollectorPanel({
     }
   }
   async function refresh(id: string, offset = 0) {
-    const result = await readCollectorJob(id, offset);
-    if (result.job) choose(result.job);
-    else setError(result.error ?? "unavailable");
+    const request = ++jobRequestRevision.current;
+    try {
+      const result = await readCollectorJob(id, offset);
+      if (jobRequestRevision.current !== request) return;
+      if (result.job) choose(result.job);
+      else setJobReadError(result.error ?? "unavailable");
+    } catch {
+      if (jobRequestRevision.current === request)
+        setJobReadError("unavailable");
+    }
   }
   async function control(action: "retry" | "cancel") {
     if (!job) return;
@@ -460,6 +518,15 @@ export function CollectorPanel({
                 onChange={invalidateSelection}
                 className={`collector-form ${workspaceStyles.form}`}
               >
+                <div className="collector-wide collector-zone-heading">
+                  <div>
+                    <span className="collector-step-number">01</span>
+                    <div>
+                      <h3>配置采集范围</h3>
+                      <p>先确定类别、标的与日期，再预览计划。</p>
+                    </div>
+                  </div>
+                </div>
                 <div className="collector-form-section-title">
                   <span>数据类型与来源</span>
                 </div>
@@ -560,6 +627,15 @@ export function CollectorPanel({
                     maxLength={20000}
                   />
                 </label>
+                <p
+                  className={`collector-wide collector-scope-note ${instruments.trim() || snapshotId ? "" : "is-empty"}`}
+                >
+                  {instruments.trim()
+                    ? "当前生效：手工标的。已选股票池不会参与本次采集。"
+                    : snapshotId
+                      ? "当前生效：已保存股票池，提交时冻结成员快照。"
+                      : "尚未选择范围：填写手工标的或选择已保存股票池后才能预览。"}
+                </p>
                 <div className="collector-form-section-title">
                   <span>时间范围与下载策略</span>
                 </div>
@@ -920,6 +996,23 @@ export function CollectorPanel({
                   刷新采集进度
                 </button>
               </div>
+              <p
+                className="data-footnote"
+                role={jobReadError ? "alert" : "status"}
+              >
+                {jobReadError
+                  ? `${errors[jobReadError] ?? "进度读取失败。"} 当前显示上次成功快照；${pending ? "自动刷新将退避重试，也可" : "可"}点击“刷新采集进度”重试。`
+                  : pending
+                    ? "自动刷新已开启，失败后将退避重试。"
+                    : ""}
+                {lastJobUpdate !== null &&
+                  ` 上次更新：${new Intl.DateTimeFormat("zh-CN", {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    second: "2-digit",
+                    hour12: false,
+                  }).format(lastJobUpdate)}。`}
+              </p>
               <p>
                 {Object.entries(job.instrument_names)
                   .slice(0, 6)
@@ -1087,7 +1180,9 @@ export function CollectorPanel({
                                 终端可见 · 查看图表
                               </Link>
                             ) : (
-                              <span className="data-notice">
+                              <span
+                                className={`data-notice ${part.consumer?.state === "failed" ? "" : "warning"}`}
+                              >
                                 {part.consumer?.state === "failed"
                                   ? `市场导入失败 · ${part.consumer.error_code}，后台继续重试`
                                   : "采集完成 · 等待市场导入"}

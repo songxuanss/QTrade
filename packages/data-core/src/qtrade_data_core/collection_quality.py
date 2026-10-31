@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections import Counter
 from datetime import date, datetime, time
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Literal, Protocol
 from uuid import uuid5
 from zoneinfo import ZoneInfo
 
@@ -12,16 +12,30 @@ from qtrade_data_contracts.collection import CollectedBar, FactorPoint, digest, 
 from qtrade_data_contracts.collection_quality import (
     CollectionQualityIssue,
     CollectionQualityResult,
+    CollectionQualityRuleVersion,
     IssueCode,
 )
+from qtrade_data_core.ports import DataFailure
 
 if TYPE_CHECKING:
     from qtrade_data_core.collection import CollectionPart, CollectionResult
 
-RULE_VERSION: Literal["collection-quality.v1"] = "collection-quality.v1"
+RULE_VERSION: CollectionQualityRuleVersion = "collection-quality.v1"
 
 
-def evaluate(
+class QualityEvaluator(Protocol):
+    def __call__(
+        self,
+        part: CollectionPart,
+        result: CollectionResult,
+        timezone: str,
+        checked_at: datetime,
+        *,
+        source_captured: bool,
+    ) -> CollectionQualityResult: ...
+
+
+def evaluate_v1(
     part: CollectionPart,
     result: CollectionResult,
     timezone: str,
@@ -176,4 +190,33 @@ def evaluate(
         checked_at=checked_at,
         status=status,
         issues=issues,
+    )
+
+
+# Static code registration, not a persistence-driven plugin mechanism. Adding a
+# rule requires a reviewed evaluator and a matching closed contract literal.
+_EVALUATORS: dict[CollectionQualityRuleVersion, QualityEvaluator] = {
+    "collection-quality.v1": evaluate_v1,
+}
+
+
+def evaluator_for(rule_version: CollectionQualityRuleVersion) -> QualityEvaluator:
+    try:
+        return _EVALUATORS[rule_version]
+    except KeyError:
+        raise DataFailure("unsupported") from None
+
+
+def evaluate(
+    part: CollectionPart,
+    result: CollectionResult,
+    timezone: str,
+    checked_at: datetime,
+    *,
+    source_captured: bool,
+    rule_version: CollectionQualityRuleVersion = RULE_VERSION,
+) -> CollectionQualityResult:
+    """Dispatch explicitly; historical callers must supply their stored version."""
+    return evaluator_for(rule_version)(
+        part, result, timezone, checked_at, source_captured=source_captured
     )

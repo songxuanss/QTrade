@@ -14,7 +14,7 @@ from test_independent_collection import START, bar, part, request
 from qtrade_data_contracts.collection import FactorPoint
 from qtrade_data_contracts.collection_quality import CollectionQualityResult
 from qtrade_data_core.collection import CollectionResult, CollectionService
-from qtrade_data_core.collection_quality import evaluate
+from qtrade_data_core.collection_quality import RULE_VERSION, evaluate, evaluate_v1
 from qtrade_data_core.ports import DataFailure
 from qtrade_data_files.archive import FileCollectionArchive
 from qtrade_data_http.client import StaticScopeAuthorizer
@@ -189,6 +189,123 @@ def test_quality_wire_version_requires_explicit_integer_one(version):
         body["schema_version"] = version
     with pytest.raises(ValidationError):
         CollectionQualityResult.model_validate_json(json.dumps(body))
+
+
+def test_explicit_v1_dispatch_preserves_wire_result_and_archive_reads(tmp_path):
+    task = part()
+    data = result()
+    frozen = evaluate_v1(task, data, "Asia/Shanghai", START, source_captured=True)
+    dispatched = evaluate(
+        task,
+        data,
+        "Asia/Shanghai",
+        START,
+        source_captured=True,
+        rule_version=RULE_VERSION,
+    )
+    assert dispatched == frozen
+    assert dispatched.model_dump_json() == frozen.model_dump_json()
+    archive = FileCollectionArchive(tmp_path)
+    archive.record_quality(task, frozen)
+    assert FileCollectionArchive(tmp_path).qualities(task) == (frozen,)
+    assert CollectionQualityResult.model_validate_json(frozen.model_dump_json()) == frozen
+
+
+@pytest.mark.parametrize(
+    "version", ["collection-quality.v2", "collection-quality.v1 ", "", 1, None]
+)
+def test_quality_contract_and_dispatcher_reject_unregistered_rule_versions(version):
+    quality = evaluate(part(), result(), "Asia/Shanghai", START, source_captured=True)
+    body = quality.model_dump(mode="json") | {"rule_version": version}
+    with pytest.raises(ValidationError):
+        CollectionQualityResult.model_validate_json(json.dumps(body))
+    with pytest.raises(DataFailure, match="unsupported"):
+        evaluate(
+            part(),
+            result(),
+            "Asia/Shanghai",
+            START,
+            source_captured=True,
+            rule_version=version,
+        )
+
+
+def test_replay_preview_execution_and_worker_keep_the_frozen_rule_version(
+    tmp_path, monkeypatch
+):
+    from test_normalization_inputs import setup as prepared_fixture
+
+    from qtrade_data_contracts.collection_replay import CollectionReplay, CollectionReplayRequest
+    from qtrade_data_core.collection_replay import CollectionReplayService, target_part
+
+    provider, parent, archive, _, _, capture, prepare, _ = prepared_fixture(tmp_path)
+    provider.fetch_prepared(parent, capture=capture, prepared=prepare)
+    checkpoint = archive.normalization_inputs(parent)[0]
+    command = CollectionReplayRequest(
+        actor_id=parent.request.actor_id,
+        scope_id=parent.request.scope_id,
+        request_id=uuid4(),
+        parent_job_id=parent.job_id,
+        parent_part_id=parent.part_id,
+        input_id=checkpoint.input_id,
+    )
+    state = {"intent": None, "target": None}
+    completed = []
+
+    def no_job(*args):
+        raise DataFailure("not_found")
+
+    def failed(part, code, retry_at):
+        raise AssertionError(f"replay worker failed: {code}")
+
+    repo = SimpleNamespace(
+        part_for_job=lambda *args: parent,
+        replay=lambda *args: state["intent"],
+        job=no_job,
+        claim=lambda now: state["target"],
+        complete=lambda part, publication: completed.append((part, publication)),
+        fail=failed,
+    )
+    auth = StaticScopeAuthorizer(
+        {f"{parent.request.actor_id}:{parent.request.scope_id}": "manage"}
+    )
+    replay = CollectionReplayService(auth, archive, repo, (provider,))
+    with pytest.raises(DataFailure, match="unsupported"):
+        replay.preview(command, rule_version="collection-quality.v2")
+    intent = replay.preview(command, rule_version=RULE_VERSION)
+    state["intent"] = intent
+    state["target"] = replace(target_part(intent), attempt=1, lease_token=uuid4())
+    assert intent.rule_version == RULE_VERSION
+    invalid = intent.model_dump(mode="json") | {"rule_version": "collection-quality.v2"}
+    with pytest.raises(ValidationError):
+        CollectionReplay.model_validate_json(json.dumps(invalid))
+
+    preview_versions = []
+    original_preview = replay.preview
+
+    def execution_preview(command, *, rule_version):
+        preview_versions.append(rule_version)
+        return original_preview(command, rule_version=rule_version)
+
+    quality_versions = []
+    import qtrade_data_core.collection as collection_module
+
+    original_evaluate = collection_module.evaluate
+
+    def quality_dispatch(*args, source_captured, rule_version):
+        quality_versions.append(rule_version)
+        return original_evaluate(
+            *args, source_captured=source_captured, rule_version=rule_version
+        )
+
+    monkeypatch.setattr(replay, "preview", execution_preview)
+    monkeypatch.setattr(collection_module, "evaluate", quality_dispatch)
+    worker = CollectionService(auth, repo, archive, (provider,), replays=replay)
+    assert worker.run_once() == state["target"]
+    assert preview_versions == [intent.rule_version]
+    assert quality_versions == [intent.rule_version]
+    assert completed and completed[0][1] is not None
+    assert archive.qualities(state["target"])[0].rule_version == RULE_VERSION
 
 
 def test_corrupt_repository_scope_never_opens_foreign_archive():

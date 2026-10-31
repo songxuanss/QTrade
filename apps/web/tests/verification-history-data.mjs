@@ -28,13 +28,16 @@ try {
     await page.getByRole("button", { name: "同意授权", exact: true }).click();
   }
   await expect(page).toHaveURL(`${origin}/workspace/data`);
+  await page.getByRole("tab", { name: "逐笔与兼容", exact: true }).click();
   await expect(page.getByText("下载时长不限", { exact: true })).toBeVisible();
+  await page.getByText("旧版日线与分钟下载入口", { exact: true }).click();
 
   for (const [period, expectedCount] of [
     ["1d", 5],
     ["5m", 240],
   ]) {
-    await page.goto(`${origin}/workspace/data`);
+    await page.goto(`${origin}/workspace/data?data_view=ticks`);
+    await page.getByText("旧版日线与分钟下载入口", { exact: true }).click();
     await page
       .getByLabel("历史行情股票代码", { exact: true })
       .fill("600519.SH");
@@ -59,7 +62,7 @@ try {
         .getByRole("button", { name: "仅下载缺失数据", exact: true })
         .click();
     await expect(page.locator(".data-notice[role=status]")).toContainText(
-      "操作已完成",
+      "下载任务已提交",
     );
     const row = page.locator("#collection .data-row").first();
     await expect(row).toContainText(`mairui.a-share.bar · ${period}`);
@@ -74,8 +77,9 @@ try {
         await row.innerText(),
       );
       await page.waitForTimeout(1500);
-      await page.getByRole("link", { name: "刷新数据", exact: true }).click();
+      await page.getByRole("button", { name: "刷新数据", exact: true }).click();
     }
+    await page.getByRole("tab", { name: "研究数据集", exact: true }).click();
     const dataset = page
       .locator("#research-data .research-dataset-row")
       .filter({ hasText: `${period} ·` })

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { searchCommandInstruments } from "../../app/command-actions";
 import type { MarketInstrument } from "../auth/server";
 import type { PublicWorkspace } from "../auth/public";
@@ -24,6 +24,10 @@ export function CommandPalette({
   role: PublicWorkspace["role"] | null;
 }) {
   const router = useRouter();
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const dialogRef = useRef<HTMLElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const listboxId = useId();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [searchResult, setSearchResult] = useState<{
@@ -32,17 +36,30 @@ export function CommandPalette({
     error: boolean;
   } | null>(null);
   const [active, setActive] = useState(0);
+  const close = useCallback(() => {
+    setOpen(false);
+    triggerRef.current?.focus();
+  }, []);
   useEffect(() => {
     function shortcut(event: KeyboardEvent) {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
         event.preventDefault();
-        if (authenticated) setOpen((value) => !value);
+        if (!authenticated) return;
+        if (open) close();
+        else setOpen(true);
       }
-      if (event.key === "Escape") setOpen(false);
+      if (event.key === "Escape" && open) {
+        event.preventDefault();
+        close();
+      }
     }
     window.addEventListener("keydown", shortcut);
     return () => window.removeEventListener("keydown", shortcut);
-  }, [authenticated]);
+  }, [authenticated, close, open]);
+
+  useEffect(() => {
+    if (open) inputRef.current?.focus();
+  }, [open]);
 
   useEffect(() => {
     const term = query.trim();
@@ -90,6 +107,16 @@ export function CommandPalette({
         href: item.href,
       })),
   ];
+  const activeOptionId = results[active]
+    ? `${listboxId}-option-${active}`
+    : undefined;
+
+  useEffect(() => {
+    if (!open || !activeOptionId) return;
+    document
+      .getElementById(activeOptionId)
+      ?.scrollIntoView({ block: "nearest" });
+  }, [activeOptionId, open]);
 
   function select(result: Result | undefined) {
     if (!result) return;
@@ -102,8 +129,10 @@ export function CommandPalette({
   return (
     <>
       <button
+        ref={triggerRef}
         className="command-trigger"
         type="button"
+        aria-haspopup="dialog"
         onClick={() => setOpen(true)}
         aria-label="打开命令面板"
       >
@@ -114,14 +143,32 @@ export function CommandPalette({
         <div
           className="command-backdrop"
           onMouseDown={(event) => {
-            if (event.target === event.currentTarget) setOpen(false);
+            if (event.target === event.currentTarget) close();
           }}
         >
           <section
+            ref={dialogRef}
             className="command-dialog"
             role="dialog"
             aria-modal="true"
             aria-labelledby="command-title"
+            onKeyDown={(event) => {
+              if (event.key !== "Tab") return;
+              const focusable =
+                dialogRef.current?.querySelectorAll<HTMLElement>(
+                  "input:not([disabled]), a[href]",
+                );
+              if (!focusable?.length) return;
+              const first = focusable[0];
+              const last = focusable[focusable.length - 1];
+              if (event.shiftKey && document.activeElement === first) {
+                event.preventDefault();
+                last.focus();
+              } else if (!event.shiftKey && document.activeElement === last) {
+                event.preventDefault();
+                first.focus();
+              }
+            }}
           >
             <h2 id="command-title" className="sr-only">
               命令面板
@@ -129,11 +176,19 @@ export function CommandPalette({
             <div className="command-input-wrap">
               <span aria-hidden="true">⌕</span>
               <input
-                autoFocus
+                ref={inputRef}
+                role="combobox"
+                aria-autocomplete="list"
+                aria-expanded={open}
+                aria-controls={listboxId}
+                aria-activedescendant={activeOptionId}
                 aria-label="搜索 Instrument、Strategy、Backtest Run、Order 和 Alert"
                 placeholder="搜索 Instrument、Strategy、Backtest Run、Order 和 Alert…"
                 value={query}
-                onChange={(event) => setQuery(event.target.value.slice(0, 128))}
+                onChange={(event) => {
+                  setActive(0);
+                  setQuery(event.target.value.slice(0, 128));
+                }}
                 onKeyDown={(event) => {
                   if (event.key === "ArrowDown") {
                     event.preventDefault();
@@ -154,6 +209,7 @@ export function CommandPalette({
               <kbd>ESC</kbd>
             </div>
             <div
+              id={listboxId}
               className="command-results"
               role="listbox"
               aria-label="搜索结果"
@@ -168,6 +224,7 @@ export function CommandPalette({
               {results.map((result, index) => (
                 <Link
                   key={result.key}
+                  id={`${listboxId}-option-${index}`}
                   role="option"
                   aria-selected={active === index}
                   className={`command-result ${active === index ? "active" : ""}`}

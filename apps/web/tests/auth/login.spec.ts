@@ -859,6 +859,79 @@ test("backtest freezes manifest inputs and persists cancel, progress, and comple
   });
 });
 
+test("command palette keeps keyboard focus and active options accessible", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 320 });
+  await page.goto("/workspace/market");
+  await expect(page.getByRole("heading", { name: "市场终端" })).toBeVisible();
+  const trigger = page.getByRole("button", { name: "打开命令面板" });
+  await trigger.click();
+  const dialog = page.getByRole("dialog", { name: "命令面板" });
+  const commandSearch = dialog.getByRole("combobox", {
+    name: "搜索 Instrument、Strategy、Backtest Run、Order 和 Alert",
+  });
+  const listbox = dialog.getByRole("listbox", { name: "搜索结果" });
+  await expect(commandSearch).toBeFocused();
+  await expect(commandSearch).toHaveAttribute("aria-expanded", "true");
+  const listboxId = await listbox.getAttribute("id");
+  expect(listboxId).toBeTruthy();
+  await expect(commandSearch).toHaveAttribute("aria-controls", listboxId!);
+
+  await page.keyboard.press("Tab");
+  await expect(commandSearch).toBeFocused();
+  await commandSearch.fill("workspace");
+  const options = dialog.getByRole("option");
+  await expect(options).toHaveCount(5);
+  await expect(dialog.getByRole("status")).toHaveCount(0);
+  const firstOptionId = await options.first().getAttribute("id");
+  expect(firstOptionId).toBeTruthy();
+  await expect(commandSearch).toHaveAttribute(
+    "aria-activedescendant",
+    firstOptionId!,
+  );
+  await expect(options.first()).toHaveAttribute("aria-selected", "true");
+
+  for (let index = 0; index < 4; index += 1) {
+    await page.keyboard.press("ArrowDown");
+  }
+  const activeOptionId = await options.nth(4).getAttribute("id");
+  expect(activeOptionId).toBeTruthy();
+  await expect(commandSearch).toHaveAttribute(
+    "aria-activedescendant",
+    activeOptionId!,
+  );
+  await expect(options.nth(4)).toHaveAttribute("aria-selected", "true");
+  await expect(commandSearch).toBeFocused();
+  await expect
+    .poll(() =>
+      options.nth(4).evaluate((option) => {
+        const optionRect = option.getBoundingClientRect();
+        const listboxRect = option.parentElement!.getBoundingClientRect();
+        return (
+          optionRect.top >= listboxRect.top - 1 &&
+          optionRect.bottom <= listboxRect.bottom + 1
+        );
+      }),
+    )
+    .toBe(true);
+
+  await page.keyboard.press("Shift+Tab");
+  await expect(options.nth(4)).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(commandSearch).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(dialog).toHaveCount(0);
+  await expect(trigger).toBeFocused();
+
+  await page.keyboard.press("Control+k");
+  await expect(commandSearch).toBeFocused();
+  await commandSearch.fill("Order");
+  await expect(dialog.getByRole("option", { name: /交易执行/ })).toBeVisible();
+  await page.keyboard.press("Enter");
+  await expect(page).toHaveURL(/\/workspace\/trading$/);
+});
+
 test("protected workspace logs in through PKCE callback and logs out without exposing tokens", async ({
   page,
 }) => {
@@ -899,6 +972,14 @@ test("protected workspace logs in through PKCE callback and logs out without exp
     expect(visible).not.toContain(secret);
   await page.goto("/workspace/data");
   await expect(page.getByRole("heading", { name: "数据管理" })).toBeVisible();
+  const primary = page.getByRole("tablist", { name: "数据管理分区" });
+  await expect(
+    primary.getByRole("tab", { name: "行情与因子" }),
+  ).toHaveAttribute("aria-selected", "true");
+  await primary.getByRole("tab", { name: "逐笔与兼容" }).click();
+  await expect(
+    page.getByRole("heading", { name: "逐笔与兼容历史下载" }),
+  ).toBeVisible();
   await expect(
     page.getByRole("heading", { name: "下载指定时段" }),
   ).toBeVisible();
@@ -914,12 +995,21 @@ test("protected workspace logs in through PKCE callback and logs out without exp
   await expect(
     page.getByText("港股历史逐笔源暂未接通。", { exact: false }),
   ).toBeVisible();
-  await expect(page.getByRole("heading", { name: "采集任务" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "原始批次" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "质量问题" })).toBeVisible();
   await expect(
     page.getByText("A 股历史逐笔来源待配置", { exact: true }),
   ).toBeVisible();
+  await page
+    .locator(".legacy-history-entry")
+    .getByText("旧版日线与分钟下载入口")
+    .click();
+  await expect(
+    page.getByRole("heading", { name: "日线与分钟历史下载" }),
+  ).toBeVisible();
+  await primary.getByRole("tab", { name: "数据资产" }).click();
+  await page.getByRole("tab", { name: "原始批次" }).click();
+  await expect(page.getByRole("heading", { name: "原始批次" })).toBeVisible();
+  await page.getByRole("tab", { name: "质量问题" }).click();
+  await expect(page.getByRole("heading", { name: "质量问题" })).toBeVisible();
   await expect(
     page.getByText("暂时无法读取数据管理服务", { exact: false }),
   ).toHaveCount(0);
@@ -965,7 +1055,7 @@ test("protected workspace logs in through PKCE callback and logs out without exp
   await expect(page.locator(".market-stream-status")).toContainText("2500 ms");
   expect(socketConnections).toBeGreaterThanOrEqual(2);
   await page.keyboard.press("Control+k");
-  const commandSearch = page.getByRole("textbox", {
+  const commandSearch = page.getByRole("combobox", {
     name: "搜索 Instrument、Strategy、Backtest Run、Order 和 Alert",
   });
   await expect(commandSearch).toBeFocused();
@@ -980,7 +1070,7 @@ test("protected workspace logs in through PKCE callback and logs out without exp
   ).toBeVisible();
   await page.keyboard.press("Control+k");
   await page
-    .getByRole("textbox", {
+    .getByRole("combobox", {
       name: "搜索 Instrument、Strategy、Backtest Run、Order 和 Alert",
     })
     .fill("Order");

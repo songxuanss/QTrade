@@ -256,9 +256,29 @@ try {
       await form
         .getByLabel("结束时间（UTC）", { exact: true })
         .fill("2026-10-15T00:00");
+      phase = role + " refresh preserves keyboard-edited drafts";
+      const refreshed = page.waitForResponse(
+        (response) =>
+          response.request().method() === "GET" &&
+          response.request().headers().rsc === "1" &&
+          new URL(response.url()).pathname === "/workspace/data",
+      );
+      await page.getByRole("button", { name: "刷新数据", exact: true }).focus();
+      await page.keyboard.press("Enter");
+      await refreshed;
+      await expect(
+        form.getByLabel("A 股代码（6 位）", { exact: true }),
+      ).toHaveValue("601288.SH");
+      await expect(
+        form.getByLabel("开始时间（UTC）", { exact: true }),
+      ).toHaveValue("2026-10-16T00:00");
+      await expect(
+        form.getByLabel("结束时间（UTC）", { exact: true }),
+      ).toHaveValue("2026-10-15T00:00");
       await form
         .getByRole("button", { name: "创建 Tick 下载任务", exact: true })
-        .click();
+        .focus();
+      await page.keyboard.press("Enter");
       await expect(page).toHaveURL(
         (u) =>
           u.searchParams.get("data_view") === "ticks" &&
@@ -269,6 +289,21 @@ try {
       await expect(
         page.locator(".data-workbench").getByRole("alert"),
       ).toContainText("下载参数不符合要求");
+      phase = role + " legacy rejection restores only safe inputs";
+      await expect(
+        form.getByLabel("A 股代码（6 位）", { exact: true }),
+      ).toHaveValue("601288.SH");
+      await expect(
+        form.getByLabel("开始时间（UTC）", { exact: true }),
+      ).toHaveValue("2026-10-16T00:00");
+      await expect(
+        form.getByLabel("结束时间（UTC）", { exact: true }),
+      ).toHaveValue("2026-10-15T00:00");
+      assert.equal(
+        new URL(page.url()).searchParams.has("authorization_id"),
+        false,
+      );
+      assert.equal(page.url().includes("mairui-default"), false);
       phase = role + " legacy rejection unchanged persistence";
       const afterResponse = await page.request.get(taskEndpoint);
       assert.equal(afterResponse.status(), 200);
