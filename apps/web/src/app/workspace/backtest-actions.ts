@@ -4,6 +4,7 @@ import {
   cancelBacktest as cancelBacktestRequest,
   createBacktestWalkForwardPlan,
   createBacktest as createBacktestRequest,
+  downloadBacktestExport as downloadBacktestExportRequest,
   readBacktestWalkForward as readBacktestWalkForwardRequest,
   startBacktestWalkForward as startBacktestWalkForwardRequest,
 } from "../../features/auth/server";
@@ -32,4 +33,15 @@ export async function startWalkForward(
 
 export async function refreshWalkForward(walkForwardId: string) {
   return readBacktestWalkForwardRequest(walkForwardId);
+}
+
+export async function exportBacktestRun(runId: string, format: "csv" | "html") {
+  return downloadBacktestExportRequest("run", runId, format);
+}
+
+export async function exportWalkForward(
+  walkForwardId: string,
+  format: "csv" | "html",
+) {
+  return downloadBacktestExportRequest("walk-forward", walkForwardId, format);
 }

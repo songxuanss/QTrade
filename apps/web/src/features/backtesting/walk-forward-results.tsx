@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import type { BacktestWalkForwardRunInfo } from "../auth/server";
+import { ExportButtons } from "./export-buttons";
 
 const windowStatusLabels: Record<
   BacktestWalkForwardRunInfo["windows"][number]["status"],
@@ -42,12 +43,15 @@ export function WalkForwardBatchResults({
             {batch.instrument_id} · {batch.windows.length} 个验证窗口
           </h3>
         </div>
-        <span
-          className={`backtest-status status-${batch.status}`}
-          role="status"
-        >
-          {batchStatusLabels[batch.status]}
-        </span>
+        <div className="backtest-export-row">
+          <ExportButtons walkForwardId={batch.walk_forward_id} />
+          <span
+            className={`backtest-status status-${batch.status}`}
+            role="status"
+          >
+            {batchStatusLabels[batch.status]}
+          </span>
+        </div>
       </div>
       {batch.aggregate && (
         <dl className="walk-forward-summary">

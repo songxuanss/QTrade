@@ -5,11 +5,12 @@ from decimal import Decimal
 from typing import Annotated
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from pydantic import AwareDatetime, BaseModel, Field
 
 from qtrade_api.audit_context import request_context
 from qtrade_api.security import ApiSecurity, public_error
+from qtrade_application.backtest_export import ExportArtifact
 from qtrade_application.backtesting import (
     BacktestService,
     BacktestSubmission,
@@ -181,6 +182,18 @@ def backtesting_router(
         except PortError as error:
             raise public_error(error) from None
 
+    @router.get("/walk-forward/{walk_forward_id}/export")
+    def export_walk_forward(
+        walk_forward_id: UUID,
+        access: Annotated[WorkspaceAccess, Depends(security.workspace(Permission.READ))],
+        export_format: Annotated[str, Query(alias="format", pattern="^(csv|html)$")] = "csv",
+    ) -> Response:
+        try:
+            artifact = configured().export_walk_forward(access, walk_forward_id, export_format)
+        except PortError as error:
+            raise public_error(error) from None
+        return _download(artifact)
+
     @router.get("/walk-forward/{walk_forward_id}")
     def get_walk_forward(
         walk_forward_id: UUID,
@@ -241,6 +254,18 @@ def backtesting_router(
         except PortError as error:
             raise public_error(error) from None
 
+    @router.get("/{run_id}/export")
+    def export_report(
+        run_id: UUID,
+        access: Annotated[WorkspaceAccess, Depends(security.workspace(Permission.READ))],
+        export_format: Annotated[str, Query(alias="format", pattern="^(csv|html)$")] = "csv",
+    ) -> Response:
+        try:
+            artifact = configured().export_run(access, run_id, export_format)
+        except PortError as error:
+            raise public_error(error) from None
+        return _download(artifact)
+
     @router.get("/{run_id}/manifest")
     def manifest(
         run_id: UUID,
@@ -267,6 +292,18 @@ def backtesting_router(
             raise public_error(error) from None
 
     return router
+
+
+def _download(artifact: ExportArtifact) -> Response:
+    return Response(
+        content=artifact.content,
+        media_type=artifact.media_type,
+        headers={
+            "Content-Disposition": f'attachment; filename="{artifact.filename}"',
+            "Cache-Control": "no-store",
+            "X-Content-Type-Options": "nosniff",
+        },
+    )
 
 
 def _record(record: BacktestRunRecord) -> dict[str, object]:

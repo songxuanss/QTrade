@@ -3,6 +3,12 @@ import { defineConfig } from "vitest/config";
 
 export default defineConfig({
   plugins: [react()],
+  resolve: {
+    alias: {
+      "server-only": new URL("./tests/server-only.stub.ts", import.meta.url)
+        .pathname,
+    },
+  },
   test: {
     environment: "node",
     include: ["src/**/*.test.{ts,tsx}", "tests/unit/**/*.test.{ts,tsx}"],

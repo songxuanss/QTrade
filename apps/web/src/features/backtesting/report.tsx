@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ExportButtons } from "./export-buttons";
 import type {
   BacktestManifestInfo,
   BacktestReportInfo,
@@ -299,7 +300,10 @@ export function BacktestReport({
             · {datasetLabel ?? `数据集 ${run.dataset_id.slice(0, 8)}`}
           </p>
         </div>
-        <span className="backtest-status status-completed">已完成</span>
+        <div className="backtest-export-row">
+          <ExportButtons runId={run.run_id} />
+          <span className="backtest-status status-completed">已完成</span>
+        </div>
       </header>
       <section className="backtest-metric-grid" aria-label="绩效摘要">
         {cards.map((card) => (

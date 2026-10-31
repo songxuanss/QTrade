@@ -76,3 +76,18 @@ Walk-forward MUST 从已发布数据集的真实 bar 时间戳生成互不重叠
 #### Scenario: 结果复核
 - **WHEN** 用户查看 Walk-forward 汇总
 - **THEN** 聚合值等于各完成窗口报告的可复核统计，且界面说明训练区间未用于参数优化
+
+### Requirement: 报告导出
+已完成的回测运行和 Walk-forward 批次 MUST 能导出 CSV 与可打印 HTML；导出 MUST 只使用已校验的不可变结果和冻结 manifest，MUST 包含指标、冻结输入、公司行为及其事件版本、订单与成交，并 MUST 要求读取权限、以附件形式下载且禁止缓存。
+
+#### Scenario: 下载已完成回测
+- **WHEN** 授权用户请求已完成运行的 CSV 或 HTML 导出
+- **THEN** 返回附件，内容与该运行的持久化报告和 manifest 数值一致
+
+#### Scenario: 未完成或未授权
+- **WHEN** 运行尚未完成，或请求没有有效会话
+- **THEN** 分别返回冲突和未授权，不生成不完整或匿名可读的导出
+
+#### Scenario: Walk-forward 导出
+- **WHEN** 用户导出 Walk-forward 批次
+- **THEN** 文件包含聚合指标、逐窗口状态与错误码，并说明训练区间未用于参数寻优

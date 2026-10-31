@@ -585,6 +585,56 @@ export async function readBacktestWalkForward(
   }
 }
 
+export type BacktestExportInfo = {
+  ok: boolean;
+  filename?: string;
+  mediaType?: string;
+  content?: string;
+  error?: string;
+};
+
+export async function downloadBacktestExport(
+  kind: "run" | "walk-forward",
+  id: string,
+  format: "csv" | "html",
+): Promise<BacktestExportInfo> {
+  const session = await readSession();
+  if (!session) return { ok: false, error: "登录已失效，请重新登录" };
+  try {
+    const endpoint =
+      kind === "run"
+        ? `${session.config.apiOrigin}/api/v1/workspaces/${session.workspaceId}/backtests/${id}/export`
+        : `${session.config.apiOrigin}/api/v1/workspaces/${session.workspaceId}/backtests/walk-forward/${id}/export`;
+    const response = await fetch(`${endpoint}?format=${format}`, {
+      cache: "no-store",
+      redirect: "error",
+      headers: { Cookie: `${session.name}=${session.cookie}` },
+      signal: AbortSignal.timeout(30_000),
+    });
+    if (!response.ok)
+      return {
+        ok: false,
+        error:
+          response.status === 409
+            ? "回测仍在运行，报告完成后才能导出"
+            : "导出暂不可用",
+      };
+    const disposition = response.headers.get("content-disposition") ?? "";
+    const filename =
+      /filename="([^"]+)"/.exec(disposition)?.[1] ??
+      `qtrade-export-${id.slice(0, 8)}.${format}`;
+    return {
+      ok: true,
+      filename,
+      mediaType:
+        response.headers.get("content-type") ?? "text/plain; charset=utf-8",
+      content: await response.text(),
+    };
+  } catch {
+    return { ok: false, error: "导出服务暂不可用" };
+  }
+}
+
 export async function workspaceBacktestComparison(runIds: string[]): Promise<{
   comparison: BacktestComparisonInfo | null;
   error: boolean;

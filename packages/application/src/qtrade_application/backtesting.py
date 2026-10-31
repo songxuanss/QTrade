@@ -8,6 +8,14 @@ from typing import Protocol, cast
 from uuid import UUID, uuid4
 
 from qtrade_application.artifacts import ManifestService
+from qtrade_application.backtest_export import (
+    ExportArtifact,
+    parse_format,
+    run_csv,
+    run_html,
+    walk_forward_csv,
+    walk_forward_html,
+)
 from qtrade_application.strategies import StrategyService
 from qtrade_contracts import (
     ArtifactManifest,
@@ -516,6 +524,29 @@ class BacktestService:
                 for window in plan.windows
             ),
         )
+
+    def export_run(
+        self, access: WorkspaceAccess, run_id: UUID, export_format: str
+    ) -> ExportArtifact:
+        """Render a completed run's verified artifacts as a downloadable file."""
+        access.require(Permission.READ)
+        parse_format(export_format)
+        record = self.get(access, run_id)
+        result = self.report(access, run_id)
+        manifest = self.manifest(access, run_id)
+        return (
+            run_csv(record.run, result, manifest)
+            if export_format == "csv"
+            else run_html(record.run, result, manifest)
+        )
+
+    def export_walk_forward(
+        self, access: WorkspaceAccess, walk_forward_id: UUID, export_format: str
+    ) -> ExportArtifact:
+        access.require(Permission.READ)
+        parse_format(export_format)
+        batch = self.walk_forward(access, walk_forward_id)
+        return walk_forward_csv(batch) if export_format == "csv" else walk_forward_html(batch)
 
     def start_walk_forward(
         self, access: WorkspaceAccess, request: WalkForwardSubmission

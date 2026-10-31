@@ -4077,6 +4077,26 @@ main {
   justify-self: start;
 }
 
+.backtest-export-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.backtest-export {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.backtest-export-error {
+  color: var(--danger);
+  font-size: 11.5px;
+}
+
 .backtest-table-scroll {
   overflow-x: auto;
   overscroll-behavior-x: contain;

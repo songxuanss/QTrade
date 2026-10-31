@@ -109,6 +109,24 @@
 - `.tools/verification-local/review/design/walk-forward-result-1440.png`
 - `.tools/verification-local/review/design/walk-forward-result-390.png`
 
+### 报告导出（真实下载）
+
+- 回测报告页提供「下载 CSV」与「下载 HTML / 打印 PDF」：仅对已完成的运行开放，未完成返回冲突。
+- Walk-forward 结果区提供同样两个按钮，导出批次聚合与逐窗口结果。
+- CSV 为分节格式（`# section: run|metrics|parameters|execution_model|corporate_actions|equity_curve|orders|fills`），字段与不可变报告、manifest 一一对应。
+- HTML 是独立可打印文件，包含指标卡、权益曲线 SVG、冻结输入、策略参数、执行假设、公司行为及事件版本、期末持仓、订单与成交，并提供打印样式。
+- 真实下载验证：Run `9c33a542-94c7-4879-9ab1-22ee9646947f` 的 CSV 25,429 字节、HTML 11,374 字节，数值与刷新后持久化报告一致；HTML 渲染为 383,469 字节 PDF。Walk-forward 批次（4 窗口）导出 CSV/HTML，聚合与页面数值一致。
+- 未登录访问导出接口返回 401；导出响应带 `Content-Disposition: attachment`、`Cache-Control: no-store`、`X-Content-Type-Options: nosniff`。
+
+证据：
+
+- `.tools/verification-local/review/exports/export-report.json`
+- `.tools/verification-local/review/exports/walk-forward-export-report.json`
+- `.tools/verification-local/review/exports/qtrade-backtest-9c33a542-20241231.csv`
+- `.tools/verification-local/review/exports/qtrade-backtest-9c33a542-20241231.html`
+- `.tools/verification-local/review/design/backtest-export-print.pdf`
+- `.tools/verification-local/review/design/backtest-report-export-1440.png`
+
 ## 5. 用户体验改进
 
 - 回测表单按策略版本 schema 渲染参数字段，不再要求用户手写 JSON。
@@ -130,7 +148,7 @@
 - 未实现基准相对指标（alpha/beta/超额/跟踪误差/信息比率）与基准时间对齐。
 - Walk-forward 已逐窗口执行并聚合；训练区间不参与参数寻优，当前是冻结参数的滚动样本外评估，不是参数选择流程。
 - 回测任务已改为持久队列 + Worker 消费；重启恢复和取消已验证。多 Worker 公平调度、租约心跳和细粒度执行中断仍未实现。
-- 没有 HTML/PDF/CSV 导出和报告下载。
+- 已提供 CSV 与可打印 HTML（另存为 PDF）导出；未提供服务端直接生成 PDF 的接口。
 - 风险引擎未接入回测/Paper 订单路径，qualification 可被伪造。
 
 ## 7. 下一步优先级
@@ -139,5 +157,5 @@
 2. 逐笔/盘口执行模型与订单类型/TIF 完整撮合。
 3. 多 Worker 公平调度、租约心跳和执行中断。
 4. 历史成分/退市数据接入，回测提交显式选择 universe 快照。
-5. 基准相对指标、Walk-forward 参数寻优和报告导出。
+5. 基准相对指标与 Walk-forward 参数寻优。
 6. 风险引擎与 Paper/实盘订单路径统一。
