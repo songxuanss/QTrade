@@ -301,6 +301,7 @@ class MockEngineAdapter(TradingEnginePort):
             raise PortError(ErrorCode.REJECTED, "invalid batch strategy proposals")
         cash = run.initial_cash
         positions: dict[str, Decimal] = {}
+        available: dict[str, Decimal] = {}
         history: list[Bar] = []
         pending: list[_PendingOrder] = []
         orders: list[dict[str, str | None]] = []
@@ -325,6 +326,8 @@ class MockEngineAdapter(TradingEnginePort):
             market_date = local_timestamp.date()
             if bar.instrument_id in market_dates and market_dates[bar.instrument_id] != market_date:
                 previous_day_closes[bar.instrument_id] = closes[bar.instrument_id]
+                # Prior-session holdings become sellable at the next session.
+                available[bar.instrument_id] = positions.get(bar.instrument_id, Decimal(0))
             market_dates[bar.instrument_id] = market_date
             local_time = local_timestamp.time()
             still_pending: list[_PendingOrder] = []
@@ -341,7 +344,7 @@ class MockEngineAdapter(TradingEnginePort):
                     pending_order.quantity - pending_order.filled_quantity
                 )
                 if signal.side == "sell":
-                    quantity = min(quantity, positions.get(bar.instrument_id, Decimal(0)))
+                    quantity = min(quantity, available.get(bar.instrument_id, Decimal(0)))
                 if quantity <= 0 or (
                     bar.granularity != "1d" and not execution.in_session(local_time)
                 ):
@@ -353,9 +356,7 @@ class MockEngineAdapter(TradingEnginePort):
                 ):
                     still_pending.append(pending_order)
                     continue
-                affordable = (
-                    cash / (price + execution.fee(price)) if signal.side == "buy" else quantity
-                )
+                affordable = cash / price if signal.side == "buy" else quantity
                 volume_cap = execution.volume_capacity(bar.volume)
                 filled = (
                     min(quantity, affordable, volume_cap)
@@ -369,7 +370,7 @@ class MockEngineAdapter(TradingEnginePort):
                 while (
                     signal.side == "buy"
                     and filled > 0
-                    and filled * price + execution.fee(filled * price) > cash
+                    and filled * price + execution.fee(filled * price, "buy") > cash
                 ):
                     filled -= lot
                 if filled <= 0 and execution.volume_capacity(bar.volume) <= 0:
@@ -391,9 +392,17 @@ class MockEngineAdapter(TradingEnginePort):
                     continue
                 signed = filled if signal.side == "buy" else -filled
                 notional = filled * price
-                fee = execution.fee(notional)
+                fee = execution.fee(notional, signal.side)
                 cash -= signed * price + fee
                 positions[bar.instrument_id] = positions.get(bar.instrument_id, Decimal(0)) + signed
+                if signal.side == "buy":
+                    if execution.settlement_days == 0:
+                        available[bar.instrument_id] = positions[bar.instrument_id]
+                else:
+                    available[bar.instrument_id] = max(
+                        available.get(bar.instrument_id, Decimal(0)) - filled,
+                        Decimal(0),
+                    )
                 fills.append(
                     {
                         "instrument_id": signal.instrument_id,

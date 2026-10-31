@@ -50,3 +50,16 @@ def test_execution_model_applies_a_share_lot_fee_slippage_and_participation() ->
 def test_execution_model_rejects_invalid_assumptions(kwargs: dict[str, object]) -> None:
     with pytest.raises(PortError):
         BacktestExecutionModel(**kwargs)  # type: ignore[arg-type]
+
+
+def test_tick_size_minimum_fee_and_sell_tax_are_applied():
+    model = BacktestExecutionModel(
+        tick_size=Decimal("0.01"),
+        fee_bps=Decimal("3"),
+        minimum_fee=Decimal("5"),
+        sell_tax_bps=Decimal("5"),
+    )
+    assert model.fill_price("buy", Decimal("10.005")) == Decimal("10.01")
+    assert model.fill_price("sell", Decimal("10.005")) == Decimal("10.00")
+    assert model.fee(Decimal("1000"), "buy") == Decimal("5")
+    assert model.fee(Decimal("100000"), "sell") == Decimal("80")

@@ -541,6 +541,20 @@ export function BacktestReport({
               </dd>
             </div>
             <div>
+              <dt>最低佣金 / 卖出税</dt>
+              <dd>
+                {String(execution.minimum_fee ?? "0")} 元 /{" "}
+                {String(execution.sell_tax_bps ?? "0")} bps
+              </dd>
+            </div>
+            <div>
+              <dt>最小价位 / 交收</dt>
+              <dd>
+                {String(execution.tick_size ?? "0")} 元 /{" "}
+                {execution.settlement_days === 1 ? "T+1" : "T+0"}
+              </dd>
+            </div>
+            <div>
               <dt>成交量占比上限</dt>
               <dd>
                 {execution.max_volume_fraction == null

@@ -14,9 +14,9 @@
 | 选择对比 | 真实 UI | `backtest-compare-selected-1440.png` | 勾选 2 个完成运行，桌面/手机无溢出 |
 | 取消/进度 | Fixture | `login.spec.ts` | 未接真实 Worker 队列 |
 | 复权/分红/拆并股 | 未实现 | — | 报告与表单显示限制 |
-| T+1 可卖数量 | 未实现 | — | A 股日内回转仍可能通过 |
+| T+1 可卖数量 | 已实现 | `test_mock_backtest_engine.py` | 当日买入不可卖，下一时段可卖 |
 | 历史成分/退市 | 未实现 | — | 存在幸存者偏差 |
-| tick size/盘口 | 未实现 | — | 使用 bps 滑点与成交量上限 |
+| tick size | 已实现 | `test_backtest_execution.py` | 买卖方向向不利方向取整；盘口仍未建模 |
 | Walk-forward 执行 | 仅计划 | `walk-forward` UI | 没有逐窗口运行和汇总 |
 | 导出 HTML/PDF/CSV | 未实现 | — | 报告只能页面查看 |
 | 持久化 Worker 回测队列 | 未实现 | — | 本地 API 同步执行 |
@@ -27,12 +27,12 @@
 - Web ESLint / Prettier / TypeScript / Vitest：69 passed。
 - Auth Playwright：10 passed + protected workspace 单测 1 passed；截图基线已更新。
 - OpenSpec：`complete-quant-model-backtest` 与 `complete-professional-data-workbench` strict 校验通过。
-- 真实回测：12 fills / 243 equity points / 2.21% total return / 0.54% max drawdown。
+- 真实回测：12 fills / 243 equity points / 2.07% total return / 0.55% max drawdown。
 
 ## 判定
 
 - 真实量化模型 → 真实数据集 → 真实 Runner → 持久化结果 → UI 报告/对比链路已打通。
-- 这证明“能实际运行模型并产出可复核回测”，不等于“专业 A 股全语义回测就绪”；复权、T+1、历史成分和微观成交仍缺失。
+- 这证明“能实际运行模型并产出可复核回测”，不等于“专业 A 股全语义回测就绪”；复权、历史成分和微观成交仍缺失。
 - Fixture 只覆盖取消/进度等尚未 Worker 化的生命周期，不计真实来源验收。
 
 ## 复核命令

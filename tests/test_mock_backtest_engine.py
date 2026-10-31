@@ -329,3 +329,36 @@ def test_batch_program_proposals_are_bound_to_their_bar():
     )
     assert result["fills"] == []
     assert result["orders"][0]["submitted_at"] == bars[1].timestamp.isoformat()
+
+
+class BuyAndSellFirst:
+    def on_bar(self, bar, history, parameters):
+        if history:
+            return ()
+        return (
+            MockOrderSignal(bar.instrument_id, "buy", Decimal("100")),
+            MockOrderSignal(bar.instrument_id, "sell", Decimal("100")),
+        )
+
+
+def test_t_plus_one_blocks_same_session_sell_until_next_day():
+    bar = Bar.model_validate_json((FIXTURES / "Bar.json").read_text())
+    run = BacktestRun.model_validate_json((FIXTURES / "BacktestRun.json").read_text())
+    manifest = ArtifactManifest.model_validate_json(
+        (FIXTURES / "ArtifactManifest.json").read_text()
+    )
+    first = bar.model_copy(update={"open": Decimal("10"), "close": Decimal("10")})
+    second = first.model_copy(update={"timestamp": first.timestamp + timedelta(minutes=1)})
+    next_day = first.model_copy(update={"timestamp": first.timestamp + timedelta(days=1)})
+    result = MockEngineAdapter._replay(
+        run,
+        manifest,
+        (first, second, next_day),
+        BuyAndSellFirst(),
+        BacktestExecutionModel(lot_size=100, settlement_days=1),
+    )
+    assert len(result["fills"]) == 2
+    assert result["fills"][0]["side"] == "buy"
+    assert result["fills"][1]["side"] == "sell"
+    assert result["fills"][1]["filled_at"] == next_day.timestamp.isoformat()
+    assert len(result["orders"]) == 2

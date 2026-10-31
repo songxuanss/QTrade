@@ -128,6 +128,10 @@ export function BacktestWorkbench({
   const [lotSize, setLotSize] = useState("100");
   const [feeBps, setFeeBps] = useState("3");
   const [slippageBps, setSlippageBps] = useState("5");
+  const [tickSize, setTickSize] = useState("0.01");
+  const [settlementDays, setSettlementDays] = useState("1");
+  const [minimumFee, setMinimumFee] = useState("5");
+  const [sellTaxBps, setSellTaxBps] = useState("5");
   const [participation, setParticipation] = useState("0.1");
   const [dailyLimitPercent, setDailyLimitPercent] = useState("10");
   const [busy, setBusy] = useState(false);
@@ -222,7 +226,11 @@ export function BacktestWorkbench({
       executionModel: {
         lot_size: Number(lotSize),
         fee_bps: feeBps,
+        minimum_fee: minimumFee,
+        sell_tax_bps: sellTaxBps,
         slippage_bps: slippageBps,
+        tick_size: tickSize,
+        settlement_days: Number(settlementDays),
         max_volume_fraction: participation,
         latency_bars: 1,
         ...(intraday
@@ -424,6 +432,28 @@ export function BacktestWorkbench({
                   onChange={(event) => setDailyLimitPercent(event.target.value)}
                 />
               </label>
+              <div className="backtest-date-grid">
+                <label>
+                  <span>最小价格变动（元）</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.001"
+                    value={tickSize}
+                    onChange={(event) => setTickSize(event.target.value)}
+                  />
+                </label>
+                <label>
+                  <span>交收规则</span>
+                  <select
+                    value={settlementDays}
+                    onChange={(event) => setSettlementDays(event.target.value)}
+                  >
+                    <option value="0">T+0（当日可卖）</option>
+                    <option value="1">T+1（A 股）</option>
+                  </select>
+                </label>
+              </div>
               <div className="backtest-parameters">
                 <span>策略参数</span>
                 {parameterRules.length ? (
@@ -573,6 +603,28 @@ export function BacktestWorkbench({
               </div>
               <div className="backtest-date-grid">
                 <label>
+                  <span>最低佣金（元）</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={minimumFee}
+                    onChange={(event) => setMinimumFee(event.target.value)}
+                  />
+                </label>
+                <label>
+                  <span>卖出印花税（基点）</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.1"
+                    value={sellTaxBps}
+                    onChange={(event) => setSellTaxBps(event.target.value)}
+                  />
+                </label>
+              </div>
+              <div className="backtest-date-grid">
+                <label>
                   <span>初始资金</span>
                   <input
                     type="number"
@@ -603,8 +655,9 @@ export function BacktestWorkbench({
                 </span>
               </div>
               <p className="backtest-model-note" role="note">
-                模型边界：当前事件回放未处理复权/分红送转、T+1、历史成分和逐笔盘口；
-                结果用于研究比较，不构成实盘可用性证明。
+                模型边界：当前事件回放未处理复权/分红送转、历史成分和逐笔盘口；
+                T+1
+                与整手/最小价位已建模，结果仍用于研究比较，不构成实盘可用性证明。
               </p>
               <button
                 className="button button-primary"

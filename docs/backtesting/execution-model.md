@@ -8,6 +8,10 @@ The local sandbox event engine accepts an optional `execution_model` object:
 {
   "lot_size": 100,
   "fee_bps": "3",
+  "minimum_fee": "5",
+  "sell_tax_bps": "5",
+  "tick_size": "0.01",
+  "settlement_days": 1,
   "slippage_bps": "5",
   "max_volume_fraction": "0.1",
   "latency_bars": 1,
@@ -22,7 +26,8 @@ The local sandbox event engine accepts an optional `execution_model` object:
 Signals are eligible after the configured number of bars. Quantities are rounded
 down to the market lot before submission; the final fill after cash and volume
 caps is rounded to the same lot, so partial fills cannot create untradeable odd
-lots. Slippage is applied adversely by side, fees reduce cash, and both costs are
+lots. Fill prices are rounded adversely to `tick_size`; `settlement_days=1`
+prevents same-session resale of newly bought A-share quantity. Slippage is applied adversely by side, fees reduce cash, and both costs are
 represented in normalized fills and the equity curve. Session times are
 interpreted in `timezone_name`, excluding configured breaks such as the A-share
 lunch interval; daily bars bypass the intraday session and fill on the next
@@ -33,7 +38,7 @@ matters.
 Local deployments execute the stored Python strategy through the isolated
 Runner over a Unix socket. The Runner receives one ordered bar series and calls
 `on_bar` sequentially, so a strategy only sees current and prior bars. The model
-does not yet implement corporate actions, T+1 sellable quantity, historical
-universe membership, tick-size rounding, or order-book impact. These assumptions
+does not yet implement corporate actions, historical universe membership, or
+order-book impact. These assumptions
 are user-editable and are frozen into each run's manifest; review
 `QUANT-MODEL-READINESS.md` before treating a report as production-ready.

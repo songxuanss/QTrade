@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import time
-from decimal import ROUND_DOWN, Decimal
+from decimal import ROUND_CEILING, ROUND_DOWN, ROUND_FLOOR, Decimal
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from qtrade_domain.ports import ErrorCode, PortError
@@ -20,7 +20,11 @@ class BacktestExecutionModel:
 
     lot_size: int = 1
     fee_bps: Decimal = Decimal(0)
+    minimum_fee: Decimal = Decimal(0)
+    sell_tax_bps: Decimal = Decimal(0)
     slippage_bps: Decimal = Decimal(0)
+    tick_size: Decimal = Decimal(0)
+    settlement_days: int = 0
     max_volume_fraction: Decimal = Decimal(1)
     latency_bars: int = 1
     session_open: time | None = None
@@ -39,7 +43,11 @@ class BacktestExecutionModel:
         allowed = {
             "lot_size",
             "fee_bps",
+            "minimum_fee",
+            "sell_tax_bps",
             "slippage_bps",
+            "tick_size",
+            "settlement_days",
             "max_volume_fraction",
             "latency_bars",
             "session_open",
@@ -96,7 +104,11 @@ class BacktestExecutionModel:
             return cls(
                 lot_size=config.get("lot_size", 1),  # type: ignore[arg-type]
                 fee_bps=decimal_value("fee_bps", "0"),
+                minimum_fee=decimal_value("minimum_fee", "0"),
+                sell_tax_bps=decimal_value("sell_tax_bps", "0"),
                 slippage_bps=decimal_value("slippage_bps", "0"),
+                tick_size=decimal_value("tick_size", "0"),
+                settlement_days=config.get("settlement_days", 0),  # type: ignore[arg-type]
                 max_volume_fraction=decimal_value("max_volume_fraction", "1"),
                 latency_bars=config.get("latency_bars", 1),  # type: ignore[arg-type]
                 session_open=session_time("session_open"),
@@ -121,6 +133,10 @@ class BacktestExecutionModel:
                 else None
             ),
             "fee_bps": format(self.fee_bps, "f"),
+            "minimum_fee": format(self.minimum_fee, "f"),
+            "sell_tax_bps": format(self.sell_tax_bps, "f"),
+            "settlement_days": self.settlement_days,
+            "tick_size": format(self.tick_size, "f"),
             "latency_bars": self.latency_bars,
             "lot_size": self.lot_size,
             "max_volume_fraction": format(self.max_volume_fraction, "f"),
@@ -150,7 +166,14 @@ class BacktestExecutionModel:
             )
         ):
             raise PortError(ErrorCode.INVALID_INPUT, "invalid backtest session configuration")
-        rates = (self.fee_bps, self.slippage_bps, self.max_volume_fraction)
+        rates = (
+            self.fee_bps,
+            self.minimum_fee,
+            self.sell_tax_bps,
+            self.slippage_bps,
+            self.tick_size,
+            self.max_volume_fraction,
+        )
         if (
             type(self.lot_size) is not int
             or self.lot_size < 1
@@ -164,7 +187,11 @@ class BacktestExecutionModel:
             )
             or self.max_volume_fraction > 1
             or self.fee_bps >= Decimal(10000)
+            or self.sell_tax_bps >= Decimal(10000)
             or self.slippage_bps >= Decimal(10000)
+            or self.tick_size >= Decimal(1000)
+            or type(self.settlement_days) is not int
+            or not 0 <= self.settlement_days <= 1
             or (
                 self.daily_price_limit_fraction is not None
                 and (
@@ -231,10 +258,21 @@ class BacktestExecutionModel:
         if side not in {"buy", "sell"}:
             raise PortError(ErrorCode.INVALID_INPUT, "invalid execution side")
         direction = Decimal(1) if side == "buy" else Decimal(-1)
-        return reference * (Decimal(1) + direction * self.slippage_bps / Decimal(10000))
+        price = reference * (Decimal(1) + direction * self.slippage_bps / Decimal(10000))
+        if self.tick_size > 0:
+            rounding = ROUND_CEILING if side == "buy" else ROUND_FLOOR
+            price = (price / self.tick_size).to_integral_value(rounding=rounding) * self.tick_size
+        return price
 
-    def fee(self, notional: Decimal) -> Decimal:
-        return notional * self.fee_bps / Decimal(10000)
+    def fee(self, notional: Decimal, side: str = "buy") -> Decimal:
+        if side not in {"buy", "sell"}:
+            raise PortError(ErrorCode.INVALID_INPUT, "invalid execution side")
+        commission = notional * self.fee_bps / Decimal(10000)
+        if commission > 0 and self.minimum_fee > commission:
+            commission = self.minimum_fee
+        return commission + (
+            notional * self.sell_tax_bps / Decimal(10000) if side == "sell" else Decimal(0)
+        )
 
     def within_daily_limit(self, price: Decimal, previous_close: Decimal | None) -> bool:
         if self.daily_price_limit_fraction is None or previous_close is None:

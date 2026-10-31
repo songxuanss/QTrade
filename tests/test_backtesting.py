@@ -137,11 +137,15 @@ def test_submission_freezes_manifest_before_engine_and_syncs_immutable_result():
         "latency_bars": 1,
         "lot_size": 100,
         "max_volume_fraction": "1",
+        "minimum_fee": "0",
         "periods_per_year": None,
+        "sell_tax_bps": "0",
         "session_breaks": [["11:30:00", "13:00:00"]],
         "session_close": "15:00:00",
         "session_open": "09:30:00",
+        "settlement_days": 0,
         "slippage_bps": "0",
+        "tick_size": "0",
         "timezone_name": "Asia/Shanghai",
     }
     assert (
