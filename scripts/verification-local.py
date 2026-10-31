@@ -84,6 +84,14 @@ def start():
     objects, object_values = container_environment("object-store")
     market, market_values = container_environment("market-db")
     cache, _ = container_environment("valkey")
+    # User shells may inherit a Windows NO_PROXY with wildcard/CIDR forms that
+    # HTTP clients do not reliably honor. Add the concrete dependency addresses.
+    bypass = ",".join(
+        dict.fromkeys(
+            ["127.0.0.1", "localhost", "::1", objects, market, cache]
+        )
+    )
+    environment["NO_PROXY"] = environment["no_proxy"] = bypass
     environment.update(
         OBJECT_STORE_URL=f"http://{objects}:9000",
         OBJECT_STORE_BUCKET="qtrade-verification",
@@ -184,7 +192,11 @@ def start():
             "http://127.0.0.1:3123/ready",
             "http://127.0.0.1:3120/health",
         ):
-            deadline = time.monotonic() + 40
+            # Mounted Windows filesystems can make Python startup substantially
+            # slower than local disk; readiness is a bounded wait, not a health proof.
+            deadline = time.monotonic() + int(
+                os.environ.get("QTRADE_VERIFICATION_READINESS_SECONDS", "120")
+            )
             while True:
                 try:
                     with urllib.request.urlopen(url, timeout=2) as response:
