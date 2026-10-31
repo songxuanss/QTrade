@@ -375,8 +375,9 @@ try {
     .getByLabel("独立采集周期", { exact: true })
     .selectOption(barPeriod);
   await panel
-    .getByLabel("独立采集股票池", { exact: true })
-    .selectOption(pool.snapshot_id);
+    .getByRole("group", { name: "独立采集股票池" })
+    .getByRole("checkbox", { name: new RegExp(pool.name) })
+    .check();
   await panel
     .getByLabel("独立采集开始日期", { exact: true })
     .fill("2025-09-01");
@@ -470,7 +471,11 @@ try {
   results.checks.push(
     "read-only mobile UI / current membership / mutation rejected",
   );
-  await panel.getByLabel("独立采集股票池", { exact: true }).selectOption("");
+  for (const box of await panel
+    .getByRole("group", { name: "独立采集股票池" })
+    .getByRole("checkbox")
+    .all())
+    if (await box.isChecked()) await box.uncheck();
   await panel
     .getByLabel("独立采集标的", { exact: true })
     .fill("stock:US:XNAS:AAPL");

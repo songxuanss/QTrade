@@ -1278,10 +1278,48 @@ export type MarketChartIndicators = Record<
   (string | null)[]
 >;
 
+export async function workspaceMarketDatasets(): Promise<{
+  datasets: BacktestDatasetInfo[];
+  error: boolean;
+}> {
+  const session = await readSession();
+  if (!session) return { datasets: [], error: true };
+  try {
+    const response = await fetch(
+      `${session.config.apiOrigin}/api/v1/workspaces/${session.workspaceId}/backtests/datasets?limit=200`,
+      {
+        cache: "no-store",
+        redirect: "error",
+        headers: { Cookie: `${session.name}=${session.cookie}` },
+        signal: AbortSignal.timeout(10_000),
+      },
+    );
+    if (!response.ok) throw Error("Published datasets unavailable");
+    const datasets = (await response.json()) as BacktestDatasetInfo[];
+    if (
+      !Array.isArray(datasets) ||
+      datasets.some(
+        (dataset) =>
+          !dataset ||
+          typeof dataset.dataset_id !== "string" ||
+          typeof dataset.granularity !== "string" ||
+          !Array.isArray(dataset.instrument_ids),
+      )
+    )
+      throw Error("Invalid published dataset response");
+    return { datasets, error: false };
+  } catch {
+    return { datasets: [], error: true };
+  }
+}
+
 export async function workspaceMarketInstruments(
   selectedInstrumentId?: string,
+  { includeDownloads = true }: { includeDownloads?: boolean } = {},
 ): Promise<{
   instruments: MarketInstrument[];
+  datasets: BacktestDatasetInfo[];
+  datasetsError: boolean;
   error: boolean;
 } | null> {
   const session = await readSession();
@@ -1300,13 +1338,48 @@ export async function workspaceMarketInstruments(
     const body = await response.json();
     if (!Array.isArray(body.instruments))
       throw Error("Invalid instrument catalog");
-    const research = await workspaceResearchDatasets();
+    const [research, published] = includeDownloads
+      ? await Promise.all([
+          workspaceResearchDatasets(),
+          workspaceMarketDatasets(),
+        ])
+      : [
+          { datasets: [], available: false },
+          { datasets: [], error: false },
+        ];
     const instruments: MarketInstrument[] = body.instruments.map(
       (item: MarketInstrument) => ({ ...item, available_granularities: [] }),
     );
     const known = new Map(
       instruments.map((item) => [item.instrument_id, item]),
     );
+    // Published market datasets are the authoritative downloaded-data catalog.
+    // Add their Instruments even when the master catalog is capped or stale.
+    for (const dataset of published.datasets) {
+      for (const id of dataset.instrument_ids) {
+        let instrument = known.get(id);
+        if (!instrument) {
+          instrument = {
+            instrument_id: id,
+            name: "已下载历史数据",
+            market: "CN",
+            exchange: id.match(/\.(SH|SZ|BJ)$/)?.[1] ?? "CN",
+            currency: "CNY",
+            price_precision: 2,
+            available_granularities: [],
+          };
+          instruments.push(instrument);
+          known.set(id, instrument);
+        }
+        if (
+          ["1m", "5m", "15m", "30m", "1h", "1d"].includes(
+            dataset.granularity,
+          ) &&
+          !instrument.available_granularities?.includes(dataset.granularity)
+        )
+          instrument.available_granularities?.push(dataset.granularity);
+      }
+    }
     for (const dataset of research.datasets) {
       for (const id of dataset.instrument_ids) {
         let instrument = known.get(id);
@@ -1359,9 +1432,19 @@ export async function workspaceMarketInstruments(
       )
         instrument.name = names[instrument.instrument_id];
     }
-    return { instruments, error: false };
+    return {
+      instruments,
+      datasets: published.datasets,
+      datasetsError: published.error,
+      error: false,
+    };
   } catch {
-    return { instruments: [], error: true };
+    return {
+      instruments: [],
+      datasets: [],
+      datasetsError: true,
+      error: true,
+    };
   }
 }
 
@@ -1375,7 +1458,9 @@ export async function workspaceCommandInstruments(query: string): Promise<{
     query.length > 128
   )
     return { instruments: [], error: false };
-  const catalog = await workspaceMarketInstruments();
+  const catalog = await workspaceMarketInstruments(undefined, {
+    includeDownloads: false,
+  });
   if (!catalog || catalog.error) return { instruments: [], error: true };
   const normalized = query.trim().toLocaleLowerCase();
   return {

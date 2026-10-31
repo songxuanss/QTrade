@@ -137,8 +137,12 @@ export function CollectorPanel({
   const [instruments, setInstruments] = useState(
     initialPreferences?.instruments ?? "",
   );
-  const [snapshotId, setSnapshotId] = useState(
-    initialPreferences?.snapshot_id ?? "",
+  const [snapshotIds, setSnapshotIds] = useState<string[]>(
+    initialPreferences?.snapshot_ids?.length
+      ? initialPreferences.snapshot_ids
+      : initialPreferences?.snapshot_id
+        ? [initialPreferences.snapshot_id]
+        : [],
   );
   const [savedSelection, setSavedSelection] = useState(false);
   const [defaultRange, setDefaultRange] =
@@ -320,7 +324,8 @@ export function CollectorPanel({
         first: first || null,
         last: last || null,
         instruments,
-        snapshot_id: snapshotId || null,
+        snapshot_id: snapshotIds[0] ?? null,
+        snapshot_ids: snapshotIds,
         fields: selectedFields,
         mode,
       });
@@ -337,7 +342,6 @@ export function CollectorPanel({
     setError("");
     try {
       if (!source) throw Error("unavailable");
-      const snapshot = String(form.get("snapshot_id") ?? "");
       const ids = [
         ...new Set(
           String(form.get("instruments") ?? "")
@@ -345,7 +349,7 @@ export function CollectorPanel({
             .filter(Boolean),
         ),
       ];
-      if (!ids.length && !snapshot) throw Error("invalid_input");
+      if (!ids.length && !snapshotIds.length) throw Error("invalid_input");
       if (kind === "bars" && !source.periods.includes(period))
         throw Error("unsupported");
       let firstDate = String(form.get("first") ?? "");
@@ -377,7 +381,7 @@ export function CollectorPanel({
         source: source.source,
         dataset_kind: kind,
         instrument_ids: ids,
-        snapshot_ids: ids.length ? [] : snapshot ? [snapshot] : [],
+        snapshot_ids: snapshotIds,
         granularity: kind === "factors" ? "1d" : period,
         ...dates,
         fields: kind === "factors" ? selectedFields : [],
@@ -443,6 +447,27 @@ export function CollectorPanel({
       setNextRecordOffset(result.next_offset ?? null);
     } else setError(result.error ?? "unavailable");
   }
+
+  const selectedPools = snapshots.filter((item) =>
+    snapshotIds.includes(item.snapshot_id),
+  );
+  const unresolvedPools = snapshotIds.filter(
+    (id) => !snapshots.some((item) => item.snapshot_id === id),
+  );
+  const manualIds = [
+    ...new Set(
+      instruments
+        .split(/[\s,，;；]+/)
+        .map((value) => value.trim())
+        .filter(Boolean),
+    ),
+  ];
+  const combinedIds = new Set([
+    ...manualIds,
+    ...selectedPools.flatMap((item) =>
+      item.members.map((member) => member.instrument.instrument_id),
+    ),
+  ]);
 
   return (
     <section
@@ -592,32 +617,49 @@ export function CollectorPanel({
                 <div className="collector-form-section-title">
                   <span>标的范围</span>
                 </div>
-                <label className="collector-pool-field">
-                  已保存股票池
-                  <select
-                    name="snapshot_id"
-                    aria-label="独立采集股票池"
-                    value={snapshotId}
-                    onChange={(event) => setSnapshotId(event.target.value)}
-                  >
-                    <option value="">手工输入标的</option>
-                    {snapshotId &&
-                      !snapshots.some(
-                        (item) => item.snapshot_id === snapshotId,
-                      ) && (
-                        <option value={snapshotId}>
-                          已保存股票池不在当前列表，请确认可用性
-                        </option>
-                      )}
+                <fieldset
+                  className="collector-wide collector-pool-picker"
+                  aria-label="独立采集股票池"
+                >
+                  <legend>行业、主题与指数股票池（可多选）</legend>
+                  <p>
+                    可同时选择多个行业/主题/指数池，也可在下方追加公司代码；成员合并去重后提交，提交时冻结当前成员快照。
+                  </p>
+                  <div className="collector-pool-options">
                     {snapshots.map((item) => (
-                      <option value={item.snapshot_id} key={item.snapshot_id}>
-                        {item.name} · {item.members.length} 个成员
-                      </option>
+                      <label key={item.snapshot_id}>
+                        <input
+                          type="checkbox"
+                          value={item.snapshot_id}
+                          checked={snapshotIds.includes(item.snapshot_id)}
+                          onChange={(event) => {
+                            invalidateSelection();
+                            setSnapshotIds((current) =>
+                              event.target.checked
+                                ? [...new Set([...current, item.snapshot_id])]
+                                : current.filter(
+                                    (id) => id !== item.snapshot_id,
+                                  ),
+                            );
+                          }}
+                        />
+                        <span>
+                          {item.name}
+                          <small>{item.members.length} 个成员</small>
+                        </span>
+                      </label>
                     ))}
-                  </select>
-                </label>
-                <label className="collector-instrument-field">
-                  标的代码
+                    {snapshots.length === 0 && <span>暂无已保存股票池</span>}
+                  </div>
+                  {unresolvedPools.length > 0 && (
+                    <p role="alert">
+                      已选 {unresolvedPools.length}{" "}
+                      个股票池不在当前列表，将保留选择但请确认可用性。
+                    </p>
+                  )}
+                </fieldset>
+                <label className="collector-wide">
+                  追加公司代码（可与上方股票池组合）
                   <input
                     name="instruments"
                     value={instruments}
@@ -628,13 +670,11 @@ export function CollectorPanel({
                   />
                 </label>
                 <p
-                  className={`collector-wide collector-scope-note ${instruments.trim() || snapshotId ? "" : "is-empty"}`}
+                  className={`collector-wide collector-scope-note ${combinedIds.size ? "" : "is-empty"}`}
                 >
-                  {instruments.trim()
-                    ? "当前生效：手工标的。已选股票池不会参与本次采集。"
-                    : snapshotId
-                      ? "当前生效：已保存股票池，提交时冻结成员快照。"
-                      : "尚未选择范围：填写手工标的或选择已保存股票池后才能预览。"}
+                  {combinedIds.size
+                    ? `本次合并范围：${selectedPools.length} 个股票池、${manualIds.length} 个手工标的，去重后 ${combinedIds.size} 个标的。提交时冻结所选池成员。`
+                    : "尚未选择范围：勾选至少一个行业/指数池，或填写公司代码后才能预览。"}
                 </p>
                 <div className="collector-form-section-title">
                   <span>时间范围与下载策略</span>

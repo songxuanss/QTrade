@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import {
   useCallback,
   useEffect,
@@ -8,7 +9,11 @@ import {
   useState,
   useSyncExternalStore,
 } from "react";
-import type { MarketInstrument, MarketSnapshot } from "../auth/server";
+import type {
+  BacktestDatasetInfo,
+  MarketInstrument,
+  MarketSnapshot,
+} from "../auth/server";
 import { loadMarketSnapshots } from "../../app/workspace/market-watch-actions";
 import { MarketChart } from "./chart";
 import { MarketStreamStatus } from "./stream-status";
@@ -34,6 +39,20 @@ const labels: Record<Column, string> = {
   change: "涨跌幅",
   volume: "成交量",
 };
+const periodLabels: Record<string, string> = {
+  "1m": "1 分钟",
+  "5m": "5 分钟",
+  "15m": "15 分钟",
+  "30m": "30 分钟",
+  "1h": "60 分钟",
+  "1d": "日线",
+};
+const periodOrder = ["1m", "5m", "15m", "30m", "1h", "1d"];
+const shortDate = (value: string) =>
+  new Intl.DateTimeFormat("zh-CN", {
+    dateStyle: "short",
+    timeZone: "Asia/Shanghai",
+  }).format(new Date(value));
 
 const preferenceEvent = "qtrade-market-watch-change";
 function subscribePreferences(callback: () => void) {
@@ -101,6 +120,8 @@ function parsePreferences(
 
 export function MarketWatch({
   instruments,
+  datasets,
+  datasetsError,
   catalogError,
   stream,
   initialInstrumentId,
@@ -108,6 +129,8 @@ export function MarketWatch({
   initialDatasetId,
 }: {
   instruments: MarketInstrument[];
+  datasets: BacktestDatasetInfo[];
+  datasetsError: boolean;
   catalogError: boolean;
   stream: { workspaceId: string; websocketOrigin: string } | null;
   initialInstrumentId?: string;
@@ -121,6 +144,7 @@ export function MarketWatch({
   );
   const handledInitialInstrument = useRef<string | null>(null);
   const [selected, setSelected] = useState("");
+  const [catalogQuery, setCatalogQuery] = useState("");
   const [chartInstrumentId, setChartInstrumentId] = useState<string | null>(
     null,
   );
@@ -142,6 +166,65 @@ export function MarketWatch({
     () => parsePreferences(rawPreferences, new Set(byId.keys())),
     [rawPreferences, byId],
   );
+
+  // Every published market dataset is discoverable without typing an
+  // instrument. Keep the newest dataset per instrument/period and combine
+  // datasets across instruments so this is not limited to the watchlist.
+  const downloaded = useMemo(() => {
+    const grouped = new Map<
+      string,
+      Map<
+        string,
+        {
+          datasetId: string;
+          granularity: string;
+          start: string;
+          end: string;
+        }
+      >
+    >();
+    for (const dataset of datasets) {
+      if (!periodOrder.includes(dataset.granularity)) continue;
+      for (const instrumentId of dataset.instrument_ids) {
+        let periods = grouped.get(instrumentId);
+        if (!periods) {
+          periods = new Map();
+          grouped.set(instrumentId, periods);
+        }
+        const current = periods.get(dataset.granularity);
+        if (!current || dataset.end > current.end) {
+          periods.set(dataset.granularity, {
+            datasetId: dataset.dataset_id,
+            granularity: dataset.granularity,
+            start: dataset.start,
+            end: dataset.end,
+          });
+        }
+      }
+    }
+    return [...grouped.entries()]
+      .map(([instrumentId, periods]) => ({
+        instrumentId,
+        name: byId.get(instrumentId)?.name ?? "名称未核验",
+        periods: [...periods.values()].sort(
+          (left, right) =>
+            periodOrder.indexOf(left.granularity) -
+            periodOrder.indexOf(right.granularity),
+        ),
+      }))
+      .sort((left, right) =>
+        left.instrumentId.localeCompare(right.instrumentId),
+      );
+  }, [byId, datasets]);
+  const filteredDownloaded = useMemo(() => {
+    const query = catalogQuery.trim().toLocaleLowerCase();
+    if (!query) return downloaded;
+    return downloaded.filter((item) =>
+      [item.instrumentId, item.name].some((value) =>
+        value.toLocaleLowerCase().includes(query),
+      ),
+    );
+  }, [catalogQuery, downloaded]);
 
   const updatePreferences = useCallback(
     (update: (current: Preferences) => Preferences) => {
@@ -312,6 +395,94 @@ export function MarketWatch({
           行情快照暂时不可用，自选列表仍已保留。
         </p>
       )}
+      <section
+        className="panel market-downloads"
+        aria-labelledby="market-downloads-title"
+      >
+        <div className="market-table-top">
+          <div>
+            <p className="eyebrow">DOWNLOADED DATA</p>
+            <h2 id="market-downloads-title">已下载数据</h2>
+          </div>
+          <span>
+            {downloaded.length} 个标的 · {datasets.length} 个发布数据集
+          </span>
+        </div>
+        <p className="page-description">
+          直接选择任意已发布的股票、周期和冻结版本查看图表，不需要先加入自选或手工输入代码。财务与事件数据在数据管理中浏览。
+        </p>
+        <div className="market-download-tools">
+          <label>
+            搜索已下载股票
+            <input
+              type="search"
+              aria-label="搜索已下载股票"
+              placeholder="代码或名称"
+              value={catalogQuery}
+              onChange={(event) => setCatalogQuery(event.target.value)}
+            />
+          </label>
+          <Link
+            className="button button-secondary"
+            href="/workspace/data?data_view=fundamentals"
+          >
+            财务与事件数据
+          </Link>
+          <Link
+            className="button button-secondary"
+            href="/workspace/data?data_view=assets"
+          >
+            管理数据资产
+          </Link>
+        </div>
+        {filteredDownloaded.length ? (
+          <div
+            className="market-download-list"
+            role="region"
+            aria-label="已下载数据列表"
+            tabIndex={0}
+          >
+            {filteredDownloaded.map((item) => (
+              <article
+                className="market-download-row"
+                key={item.instrumentId}
+                data-market-instrument={item.instrumentId}
+              >
+                <div>
+                  <strong>{item.instrumentId}</strong>
+                  <span>{item.name}</span>
+                </div>
+                <div className="market-period-links">
+                  {item.periods.map((period) => (
+                    <Link
+                      className="market-period-link"
+                      key={period.granularity}
+                      href={`/workspace/market?instrument=${encodeURIComponent(item.instrumentId)}&granularity=${encodeURIComponent(period.granularity)}&dataset_id=${encodeURIComponent(period.datasetId)}`}
+                      title={`${shortDate(period.start)} 至 ${shortDate(period.end)} · 冻结数据集 ${period.datasetId}`}
+                    >
+                      <strong>
+                        {periodLabels[period.granularity] ?? period.granularity}
+                      </strong>
+                      <small>{shortDate(period.end)}</small>
+                    </Link>
+                  ))}
+                </div>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <p
+            className={`market-download-empty ${datasetsError ? "data-notice" : ""}`}
+            role={datasetsError ? "alert" : "status"}
+          >
+            {datasetsError
+              ? "已发布数据目录暂时读取失败，请刷新重试。"
+              : datasets.length
+                ? "没有匹配的已下载股票。"
+                : "当前还没有已发布行情。请先在数据管理中完成下载和发布。"}
+          </p>
+        )}
+      </section>
       <div className="market-toolbar panel">
         <div className="market-add">
           <label htmlFor="watch-instrument">添加关注标的</label>

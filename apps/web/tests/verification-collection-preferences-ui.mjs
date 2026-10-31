@@ -43,12 +43,12 @@ try {
     .getByLabel("独立采集结束日期", { exact: true })
     .fill("2025-09-05");
   await panel.getByLabel("独立采集标的", { exact: true }).fill("601288.SH");
-  await panel
-    .getByLabel("独立采集股票池", { exact: true })
-    .selectOption({ index: 1 });
-  const snapshot = await panel
-    .getByLabel("独立采集股票池", { exact: true })
-    .inputValue();
+  const poolCheckbox = panel
+    .getByRole("group", { name: "独立采集股票池" })
+    .getByRole("checkbox")
+    .first();
+  await poolCheckbox.check();
+  const snapshot = await poolCheckbox.inputValue();
   await panel
     .getByLabel("独立采集下载方式", { exact: true })
     .selectOption("missing");
@@ -57,6 +57,7 @@ try {
   const saved = await (await page.request.get(endpoint)).json();
   assert.equal(saved.source, "mairui.pro.bars");
   assert.equal(saved.snapshot_id, snapshot);
+  assert.deepEqual(saved.snapshot_ids, [snapshot]);
   assert.equal(saved.instruments, "601288.SH");
   await page.reload({ timeout: 90000 });
   for (const [label, value] of [
@@ -65,10 +66,14 @@ try {
     ["独立采集开始日期", "2025-09-01"],
     ["独立采集结束日期", "2025-09-05"],
     ["独立采集标的", "601288.SH"],
-    ["独立采集股票池", snapshot],
     ["独立采集下载方式", "missing"],
   ])
     await expect(panel.getByLabel(label, { exact: true })).toHaveValue(value);
+  await expect(
+    panel
+      .getByRole("group", { name: "独立采集股票池" })
+      .getByRole("checkbox", { checked: true }),
+  ).toHaveValue(snapshot);
   checks.push({
     name: "deployed_ui_database_save_refresh_all_selections",
     passed: true,

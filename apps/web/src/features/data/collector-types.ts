@@ -182,6 +182,7 @@ export type CollectorPreferences = {
   last: string | null;
   instruments: string;
   snapshot_id: string | null;
+  snapshot_ids?: string[];
   fields: string[];
   mode: "missing" | "all";
 };

@@ -16,7 +16,10 @@ class CollectionPreferences(BaseModel):
     first: date | None = None
     last: date | None = None
     instruments: Annotated[str, Field(max_length=20000)] = ""
+    # Retain the original single-pool field for persisted drafts; new drafts
+    # can combine several industry/index snapshots with explicit companies.
     snapshot_id: UUID | None = None
+    snapshot_ids: Annotated[tuple[UUID, ...], Field(max_length=100)] = ()
     fields: Annotated[
         tuple[Annotated[str, Field(pattern=r"^[a-zA-Z0-9_]{1,80}$")], ...],
         Field(max_length=200),

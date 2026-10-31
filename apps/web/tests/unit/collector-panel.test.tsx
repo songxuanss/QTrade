@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 
-import { act } from "react";
+import { act, type ComponentProps } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CollectorPanel } from "../../src/features/data/collector-panel";
@@ -101,7 +101,10 @@ describe("CollectorPanel job observability", () => {
     vi.useRealTimers();
   });
 
-  async function renderPanel(initialJobs: CollectorJob[]) {
+  async function renderPanel(
+    initialJobs: CollectorJob[],
+    snapshots: ComponentProps<typeof CollectorPanel>["snapshots"] = [],
+  ) {
     await act(async () => {
       root.render(
         <CollectorPanel
@@ -111,7 +114,7 @@ describe("CollectorPanel job observability", () => {
           initialJobs={initialJobs}
           available
           canManage
-          snapshots={[]}
+          snapshots={snapshots}
         />,
       );
     });
@@ -239,7 +242,54 @@ describe("CollectorPanel job observability", () => {
     });
     expect(
       container.querySelector(".collector-scope-note")?.textContent,
-    ).toContain("当前生效：手工标的");
+    ).toContain("0 个股票池、1 个手工标的，去重后 1 个标的");
+  });
+
+  it("combines multiple industry pools with explicit companies", async () => {
+    const pool = (
+      id: string,
+      name: string,
+      instruments: string[],
+    ): ComponentProps<typeof CollectorPanel>["snapshots"][number] => ({
+      snapshot_id: id,
+      universe_id: `industry-${id}`,
+      version: 1,
+      name,
+      observed_at: "2026-01-02T00:00:00Z",
+      market_scope: ["CN"],
+      content_sha256: "a".repeat(64),
+      reference_issues: [],
+      members: instruments.map((instrument_id) => ({
+        instrument: { instrument_id, name: instrument_id, exchange: "SH" },
+        affiliations: [],
+      })),
+    });
+    await renderPanel(
+      [],
+      [
+        pool("pool-a", "银行", ["601288.SH", "600036.SH"]),
+        pool("pool-b", "保险", ["600036.SH", "601318.SH"]),
+      ],
+    );
+    const group = container.querySelector('[aria-label="独立采集股票池"]')!;
+    const boxes = group.querySelectorAll<HTMLInputElement>(
+      'input[type="checkbox"]',
+    );
+    await act(async () => boxes.forEach((box) => box.click()));
+    const instruments = container.querySelector<HTMLInputElement>(
+      'input[aria-label="独立采集标的"]',
+    )!;
+    const setValue = Object.getOwnPropertyDescriptor(
+      HTMLInputElement.prototype,
+      "value",
+    )!.set!;
+    await act(async () => {
+      setValue.call(instruments, "000001.SZ");
+      instruments.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    const note = container.querySelector(".collector-scope-note");
+    expect(note?.textContent).toContain("2 个股票池、1 个手工标的");
+    expect(note?.textContent).toContain("去重后 4 个标的");
   });
 
   it("does not let a slower previous selection replace the latest selection", async () => {

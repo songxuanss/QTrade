@@ -10,7 +10,7 @@ from qtrade_api.collector import collector_router
 from qtrade_domain.authorization import Permission
 
 
-def setup(preferences=None):
+def setup(preferences=None, universes=None):
     actor, scope = uuid4(), uuid4()
     access = SimpleNamespace(user_id=actor, workspace=SimpleNamespace(workspace_id=scope))
     calls = []
@@ -30,7 +30,7 @@ def setup(preferences=None):
             return kwargs.get("body") or {"state": "completed"}
 
     app = FastAPI()
-    app.include_router(collector_router(Remote(), Security(), None, None, preferences))
+    app.include_router(collector_router(Remote(), Security(), None, universes, preferences))
     return TestClient(app), actor, scope, calls
 
 
@@ -46,6 +46,7 @@ def test_preferences_server_identity_role_and_typed_draft():
 
     client, actor, scope, calls = setup(Preferences())
     root = f"/api/v1/workspaces/{scope}/data/collector/preferences"
+    snapshots = [str(uuid4()), str(uuid4())]
     draft = dict(
         schema_version=1,
         source="mairui.pro.bars",
@@ -53,6 +54,7 @@ def test_preferences_server_identity_role_and_typed_draft():
         first="2025-09-01",
         last="2025-09-05",
         instruments="601288.SH",
+        snapshot_ids=snapshots,
         fields=[],
         mode="missing",
     )
@@ -62,6 +64,7 @@ def test_preferences_server_identity_role_and_typed_draft():
     assert client.put(root, json=draft).status_code == 200
     result = client.get(root).json()
     assert result["first"] == draft["first"] and result["granularity"] == "5m"
+    assert result["snapshot_ids"] == snapshots
     assert list(saved) == [(actor, scope)] and not calls
     assert client.put(root, json=draft | {"actor_id": str(uuid4())}).status_code == 422
     assert client.put(root, json=draft | {"schema_version": 2}).status_code == 422
@@ -146,13 +149,55 @@ def test_quality_bridge_is_read_only_and_preserves_scoped_job_part_path():
     assert calls[-1][2]["actor_id"] == actor and calls[-1][2]["scope_id"] == scope
 
 
-def test_collection_explicit_identifiers_win_without_loading_pool():
+def test_collection_combines_explicit_companies_and_industry_pools():
+    first, second = uuid4(), uuid4()
+
+    class Universes:
+        def get(self, scope, snapshot_id):
+            members = {
+                first: ("601288.SH", "600519.SH"),
+                second: ("600036.SH", "600519.SH"),
+            }[snapshot_id]
+            return SimpleNamespace(
+                members=[
+                    SimpleNamespace(
+                        instrument=SimpleNamespace(instrument_id=instrument_id),
+                        affiliations=(),
+                    )
+                    for instrument_id in members
+                ]
+            )
+
+    client, actor, scope, calls = setup(universes=Universes())
+    body = dict(
+        source="mairui.pro.bars",
+        dataset_kind="bars",
+        instrument_ids=["600519.SH", "000001.SZ"],
+        snapshot_ids=[str(first), str(second)],
+        granularity="1d",
+        start="2025-01-01T00:00:00+08:00",
+        end="2026-01-01T00:00:00+08:00",
+        mode="missing",
+    )
+    root = f"/api/v1/workspaces/{scope}/data/collector"
+    result = client.post(root + "/preview", json=body)
+    assert result.status_code == 200
+    assert result.json()["instrument_ids"] == [
+        "000001.SZ",
+        "600036.SH",
+        "600519.SH",
+        "601288.SH",
+    ]
+    assert calls[-1][1] == "/v1/preview"
+
+
+def test_collection_explicit_company_scope_without_pool_and_empty_scope_rejected():
     client, actor, scope, calls = setup()
     body = dict(
         source="mairui.pro.bars",
         dataset_kind="bars",
         instrument_ids=["600519.SH"],
-        snapshot_ids=[str(uuid4())],
+        snapshot_ids=[],
         granularity="1d",
         start="2025-01-01T00:00:00+08:00",
         end="2026-01-01T00:00:00+08:00",
@@ -162,7 +207,6 @@ def test_collection_explicit_identifiers_win_without_loading_pool():
     result = client.post(root + "/preview", json=body)
     assert result.status_code == 200
     assert result.json()["instrument_ids"] == ["600519.SH"]
-    assert calls[-1][1] == "/v1/preview"
     n = len(calls)
     assert (
         client.post(

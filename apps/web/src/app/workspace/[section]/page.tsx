@@ -306,6 +306,8 @@ export default async function WorkspaceSection({
     return (
       <MarketWatch
         instruments={catalog?.instruments ?? []}
+        datasets={catalog?.datasets ?? []}
+        datasetsError={catalog?.datasetsError ?? true}
         catalogError={catalog?.error ?? true}
         stream={stream}
         initialInstrumentId={query.instrument}

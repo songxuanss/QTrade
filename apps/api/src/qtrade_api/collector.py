@@ -275,14 +275,17 @@ def collector_router(
     ) -> Any:
         identifiers = set(body.instrument_ids)
         try:
-            # Explicit instruments take precedence; never union into a larger pool.
-            for snapshot_id in () if identifiers else body.snapshot_ids:
+            # Industries/indices and explicit companies are combined into one
+            # frozen request. Deduplicate so overlapping members are fetched once.
+            for snapshot_id in body.snapshot_ids:
                 if universes is None:
                     raise DataFailure("unavailable")
                 identifiers.update(
                     member.instrument.instrument_id
                     for member in universes.get(access.workspace.workspace_id, snapshot_id).members
                 )
+            if not identifiers:
+                raise DataFailure("invalid_input")
             request = CollectionJobRequest.model_validate_json(
                 json.dumps(
                     {

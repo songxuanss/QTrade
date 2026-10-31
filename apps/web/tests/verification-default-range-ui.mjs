@@ -174,8 +174,11 @@ try {
   await expect(first).toHaveValue("2025-09-01");
   await expect(last).toHaveValue("2025-09-05");
   checks.push({ name: "explicit_dates_not_replaced", passed: true });
-  const pool = panel.getByLabel("独立采集股票池", { exact: true });
-  await pool.selectOption({ index: 1 });
+  const pool = panel
+    .getByRole("group", { name: "独立采集股票池" })
+    .getByRole("checkbox")
+    .first();
+  await pool.check();
   const poolId = await pool.inputValue();
   await panel.getByLabel("独立采集标的", { exact: true }).fill("601288.SH");
   await last.fill("");
@@ -195,6 +198,7 @@ try {
   await expect(panel.getByLabel("独立采集标的", { exact: true })).toHaveValue(
     "601288.SH",
   );
+  await expect(pool).toBeChecked();
   await expect(pool).toHaveValue(poolId);
   await first.fill("");
   await panel
