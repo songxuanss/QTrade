@@ -380,7 +380,18 @@ class BacktestOrder(BaseModel):
         "partially_filled_end_of_data",
         "unfilled_end_of_data",
     ]
-    reason: Literal["signal", "membership_end", "rights_subscription"] | None = None
+    reason: (
+        Literal[
+            "signal",
+            "membership_end",
+            "rights_subscription",
+            "halted",
+            "limit_up",
+            "limit_down",
+            "locked",
+        ]
+        | None
+    ) = None
 
 
 class BacktestFill(BaseModel):

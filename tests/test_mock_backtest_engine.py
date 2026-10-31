@@ -613,6 +613,7 @@ def _bar(day: int, *, open_price="10", high="11", low="9", close="10", volume="5
     template = Bar.model_validate_json((FIXTURES / "Bar.json").read_text())
     return template.model_copy(
         update={
+            "granularity": "1d",
             "timestamp": template.timestamp + timedelta(days=day),
             "open": Decimal(open_price),
             "high": Decimal(high),
@@ -747,3 +748,112 @@ def test_stop_limit_requires_both_trigger_and_limit():
         stop_limit, (_bar(0), _bar(1, open_price="9", high="10", low="8"))
     )
     assert not_triggered["fills"] == []
+
+
+class ScriptedSignals:
+    def __init__(self, script):
+        self.script = script
+
+    def on_bar(self, bar, history, parameters):
+        index = len(history)
+        return tuple(self.script[index]) if index < len(self.script) else ()
+
+
+def replay_script(script, bars, execution=None):
+    template = Bar.model_validate_json((FIXTURES / "Bar.json").read_text())
+    run = BacktestRun.model_validate_json((FIXTURES / "BacktestRun.json").read_text())
+    manifest = ArtifactManifest.model_validate_json(
+        (FIXTURES / "ArtifactManifest.json").read_text()
+    )
+    prepared = tuple(
+        bar.model_copy(update={"instrument_id": template.instrument_id, "granularity": "1d"})
+        for bar in bars
+    )
+    return MockEngineAdapter._replay(
+        run,
+        manifest,
+        prepared,
+        ScriptedSignals(script),
+        execution
+        or BacktestExecutionModel(lot_size=100, daily_price_limit_fraction=Decimal("0.1")),
+    )
+
+
+def test_halted_bar_rejects_day_orders_and_pauses_gtc_orders():
+    day = MockOrderSignal("MOCK:ABC", "buy", Decimal("100"), time_in_force="day")
+    result = replay_script(
+        ((day,),),
+        (_bar(0), _bar(1, volume="0")),
+    )
+    assert result["fills"] == []
+    assert result["orders"][0]["status"] == "rejected"
+    assert result["orders"][0]["reason"] == "halted"
+
+    gtc = MockOrderSignal("MOCK:ABC", "buy", Decimal("100"), time_in_force="gtc")
+    resumed = replay_script(
+        ((gtc,),),
+        (_bar(0), _bar(1, volume="0"), _bar(2, volume="500")),
+    )
+    assert len(resumed["fills"]) == 1
+    assert resumed["fills"][0]["filled_at"] == resumed["equity_curve"][2]["timestamp"]
+
+
+def test_limit_up_blocks_buy_orders_and_allows_sells():
+    buy = MockOrderSignal("MOCK:ABC", "buy", Decimal("100"))
+    locked_up = replay_script(
+        ((buy,),),
+        (_bar(0, close="10"), _bar(1, open_price="11", high="11", low="11", close="11")),
+    )
+    assert locked_up["fills"] == []
+    assert locked_up["orders"][0]["status"] == "rejected"
+    assert locked_up["orders"][0]["reason"] == "limit_up"
+
+    script = (
+        (MockOrderSignal("MOCK:ABC", "buy", Decimal("100")),),
+        (MockOrderSignal("MOCK:ABC", "sell", Decimal("100")),),
+    )
+    sold = replay_script(
+        script,
+        (
+            _bar(0, close="10"),
+            _bar(1, close="10"),
+            _bar(2, open_price="11", high="11", low="11", close="11"),
+        ),
+    )
+    assert [fill["side"] for fill in sold["fills"]] == ["buy", "sell"]
+    assert sold["fills"][1]["price"] == "11"
+
+
+def test_limit_down_blocks_sell_orders_and_allows_buys():
+    script = (
+        (MockOrderSignal("MOCK:ABC", "buy", Decimal("100")),),
+        (MockOrderSignal("MOCK:ABC", "sell", Decimal("100")),),
+    )
+    result = replay_script(
+        script,
+        (
+            _bar(0, close="10"),
+            _bar(1, close="10"),
+            _bar(2, open_price="9", high="9", low="9", close="9"),
+        ),
+    )
+    assert [fill["side"] for fill in result["fills"]] == ["buy"]
+    rejected = [order for order in result["orders"] if order["status"] == "rejected"]
+    assert len(rejected) == 1
+    assert rejected[0]["reason"] == "limit_down"
+
+    buy_at_limit_down = replay_script(
+        ((MockOrderSignal("MOCK:ABC", "buy", Decimal("100")),),),
+        (_bar(0, close="10"), _bar(1, open_price="9", high="9", low="9", close="9")),
+    )
+    assert buy_at_limit_down["fills"][0]["price"] == "9"
+
+
+def test_locked_bar_without_limit_configuration_is_rejected_as_locked():
+    locked = replay_script(
+        ((MockOrderSignal("MOCK:ABC", "buy", Decimal("100")),),),
+        (_bar(0, close="10"), _bar(1, open_price="10", high="10", low="10", close="10")),
+        BacktestExecutionModel(lot_size=100),
+    )
+    assert locked["fills"] == []
+    assert locked["orders"][0]["reason"] == "locked"

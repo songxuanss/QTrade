@@ -349,6 +349,16 @@ def run_csv(run: BacktestRun, result: BacktestResult, manifest: ArtifactManifest
     )
 
 
+_REASON_LABELS = {
+    "signal": "策略信号",
+    "membership_end": "成员区间结束",
+    "rights_subscription": "配股认购",
+    "halted": "停牌无法成交",
+    "limit_up": "涨停锁死",
+    "limit_down": "跌停锁死",
+    "locked": "价格锁死",
+}
+
 HTML_STYLE = """
 :root { color-scheme: light; }
 * { box-sizing: border-box; }
@@ -527,7 +537,7 @@ def run_html(
             _decimal(order.filled_quantity),
             _decimal(order.price) if order.price is not None else "—",
             order.status,
-            "成员区间结束" if order.reason == "membership_end" else "策略信号",
+            _REASON_LABELS.get(order.reason or "signal", "策略信号"),
         )
         for order in result.orders
     ]

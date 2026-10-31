@@ -78,6 +78,12 @@ class _Match:
     triggered: bool
 
 
+@dataclass(frozen=True, slots=True)
+class _Tradability:
+    blocked_side: Literal["buy", "sell", "both"] | None
+    reason: Literal["halted", "limit_up", "limit_down", "locked"] | None
+
+
 class MockStrategyProgram(Protocol):
     """Per-bar signal source used by tests and simple registered models."""
 
@@ -268,13 +274,17 @@ class MockEngineAdapter(TradingEnginePort):
                         cursor=cursor,
                     )
                 )
-                collected.extend(bar for bar in page.bars if bar.quality == "valid")
+                # Suspended bars are kept so pending orders can be rejected
+                # explicitly; they are never used for strategy evaluation.
+                collected.extend(bar for bar in page.bars if bar.quality in {"valid", "suspect"})
                 if page.next_cursor is None:
                     break
                 cursor = page.next_cursor
         ordered = tuple(sorted(collected, key=lambda bar: (bar.timestamp, bar.instrument_id)))
-        if not ordered:
-            raise PortError(ErrorCode.INVALID_INPUT, "dataset has no valid bars in the run range")
+        if not any(bar.quality == "valid" for bar in ordered):
+            raise PortError(
+                ErrorCode.INVALID_INPUT, "dataset has no tradable bars in the run range"
+            )
         return ordered
 
     def _market_instruments(
@@ -321,7 +331,37 @@ class MockEngineAdapter(TradingEnginePort):
         return _Match(reference, triggered)
 
     @staticmethod
-    def _cancelled(order: _PendingOrder) -> dict[str, str | None]:
+    def _tradability(
+        bar: Bar, previous_close: Decimal | None, execution: BacktestExecutionModel
+    ) -> _Tradability:
+        if bar.volume <= 0 or bar.quality != "valid":
+            return _Tradability("both", "halted")
+        if bar.granularity == "1d" and bar.high == bar.low and bar.open == bar.close == bar.high:
+            limit = execution.daily_price_limit_fraction
+            if limit is None or previous_close is None or previous_close <= 0:
+                return _Tradability("both", "locked")
+            change = bar.close / previous_close - 1
+            tolerance = Decimal("0.001")
+            if change >= limit - tolerance:
+                return _Tradability("buy", "limit_up")
+            if change <= -limit + tolerance:
+                return _Tradability("sell", "limit_down")
+            return _Tradability("both", "locked")
+        return _Tradability(None, None)
+
+    @staticmethod
+    def _rejected(order: _PendingOrder, reason: str) -> dict[str, str | None]:
+        return {
+            "instrument_id": order.signal.instrument_id,
+            "side": order.signal.side,
+            "quantity": format(order.quantity, "f"),
+            "submitted_at": order.submitted_at.isoformat(),
+            "status": "rejected",
+            "reason": reason,
+        }
+
+    @staticmethod
+    def _cancelled(order: _PendingOrder, reason: str | None = None) -> dict[str, str | None]:
         average = (
             format(order.filled_notional / order.filled_quantity, "f")
             if order.filled_quantity > 0
@@ -335,20 +375,23 @@ class MockEngineAdapter(TradingEnginePort):
             "submitted_at": order.submitted_at.isoformat(),
             "price": average,
             "status": "cancelled",
+            "reason": reason,
         }
 
     @staticmethod
     def _signals(
         program: MockStrategyProgram | BatchStrategyProgram,
-        batch_signals: object,
+        batch_signals: dict[int, tuple[StrategySignal, ...]] | None,
         bar_index: int,
         bar: Bar,
         history: tuple[Bar, ...],
         parameters: dict[str, object],
     ) -> tuple[MockOrderSignal, ...]:
+        if bar.quality != "valid":
+            return ()
         raw_signals = (
-            batch_signals[bar_index]
-            if isinstance(batch_signals, tuple)
+            batch_signals.get(bar_index, ())
+            if batch_signals is not None
             else program.on_bar(bar, history, parameters)  # type: ignore[union-attr]
         )
         result: list[MockOrderSignal] = []
@@ -456,14 +499,21 @@ class MockEngineAdapter(TradingEnginePort):
         rights_policy: str = "subscribe",
     ) -> dict[str, object]:
         parameters = json.loads(manifest.parameters_json)
+        tradable_indices = tuple(index for index, bar in enumerate(bars) if bar.quality == "valid")
+        tradable_bars = tuple(bars[index] for index in tradable_indices)
         batch = getattr(program, "signals_for_bars", None)
-        batch_signals = batch(bars, parameters) if batch is not None else None
-        if batch_signals is not None and (
-            not isinstance(batch_signals, tuple)
-            or len(batch_signals) != len(bars)
-            or any(not isinstance(signals, tuple) for signals in batch_signals)
+        batch_result = batch(tradable_bars, parameters) if batch is not None else None
+        if batch_result is not None and (
+            not isinstance(batch_result, tuple)
+            or len(batch_result) != len(tradable_bars)
+            or any(not isinstance(signals, tuple) for signals in batch_result)
         ):
             raise PortError(ErrorCode.REJECTED, "invalid batch strategy proposals")
+        batch_signals = (
+            dict(zip(tradable_indices, batch_result, strict=True))
+            if batch_result is not None
+            else None
+        )
         cash = run.initial_cash
         ledger = CorporateActionLedger(corporate_actions, rights_policy)
         membership = MockEngineAdapter._membership_windows(universe)
@@ -561,6 +611,23 @@ class MockEngineAdapter(TradingEnginePort):
                     pending_order = replace(pending_order, active_session=market_date)
                 if bar.granularity != "1d" and not execution.in_session(local_time):
                     still_pending.append(pending_order)
+                    continue
+                tradability = MockEngineAdapter._tradability(
+                    bar, previous_day_closes.get(bar.instrument_id), execution
+                )
+                if tradability.reason is not None and tradability.blocked_side in {
+                    "both",
+                    signal.side,
+                }:
+                    if tradability.reason == "halted" and signal.time_in_force == "gtc":
+                        # A suspended instrument pauses GTC orders instead of rejecting them.
+                        still_pending.append(pending_order)
+                        continue
+                    orders.append(
+                        MockEngineAdapter._cancelled(pending_order, tradability.reason)
+                        if pending_order.filled_quantity > 0
+                        else MockEngineAdapter._rejected(pending_order, tradability.reason)
+                    )
                     continue
                 matched = MockEngineAdapter._match(signal, bar, pending_order.triggered)
                 if matched is None:
@@ -812,7 +879,7 @@ class MockEngineAdapter(TradingEnginePort):
                             requested,
                         )
                     )
-            if member:
+            if member and bar.quality == "valid":
                 history.append(bar)
 
         for pending_order in pending:

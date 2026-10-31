@@ -499,7 +499,15 @@ export function BacktestReport({
                           ? "成员区间结束"
                           : order.reason === "rights_subscription"
                             ? "配股认购"
-                            : "策略信号"}
+                            : order.reason === "halted"
+                              ? "停牌无法成交"
+                              : order.reason === "limit_up"
+                                ? "涨停锁死"
+                                : order.reason === "limit_down"
+                                  ? "跌停锁死"
+                                  : order.reason === "locked"
+                                    ? "价格锁死"
+                                    : "策略信号"}
                       </td>
                     </tr>
                   ))}

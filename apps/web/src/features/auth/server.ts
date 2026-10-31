@@ -305,7 +305,15 @@ export type BacktestReportInfo = {
       | "cancelled"
       | "partially_filled_end_of_data"
       | "unfilled_end_of_data";
-    reason?: "signal" | "membership_end" | "rights_subscription" | null;
+    reason?:
+      | "signal"
+      | "membership_end"
+      | "rights_subscription"
+      | "halted"
+      | "limit_up"
+      | "limit_down"
+      | "locked"
+      | null;
   }[];
   fills: {
     instrument_id: string;
