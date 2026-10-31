@@ -20,6 +20,7 @@
 | Walk-forward 执行 | 真实 Worker | batch `f6311814-a419-4e11-852e-2116f832f865` | 9 个窗口全部完成，聚合与各窗口报告对账；不做参数寻优 |
 | 报告导出 | 真实下载 | run `9c33a542-94c7-4879-9ab1-22ee9646947f` | CSV/可打印 HTML 与持久化报告一致；刷新后一致；未登录 401 |
 | 配股/复权因子 | 引擎真实价格 + fixture 事件 | `rights-factor-report.json` | 认购 30 股、现金对账；因子冻结核对；`vendor_adjusted` 422 |
+| 订单类型/TIF | 真实 Worker | run `6232fa7e-e93a-4efc-ad0f-6e4599577c4b` | 止损入场、限价离场、day/FOK 撤销；现金对账 |
 | 导出 HTML/PDF/CSV | 未实现 | — | 报告只能页面查看 |
 | 持久化 Worker 回测队列 | 已实现 | `backtest_run.lease_*`, Worker consumer | REST 重启后 queued 运行恢复 |
 

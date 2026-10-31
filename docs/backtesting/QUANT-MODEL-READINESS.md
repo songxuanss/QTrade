@@ -18,7 +18,7 @@
 
 - 策略是一个 Python 类，继承 `qtrade.Strategy`，实现 `on_start` 和 `on_bar`。
 - 每个 bar 仅向策略暴露当前 bar 与策略自身累积状态，不把未来 bar 传入。
-- 订单通过 `buy` / `sell` 提交；当前事件引擎支持市价单和 day/gtc，其他订单类型明确拒绝，不静默降级。
+- 订单通过 `buy` / `sell` 提交，支持 `market`、`limit`、`stop`、`stop_limit` 与 `day` / `gtc` / `ioc` / `fok`。限价按开盘可成交价或限价撮合，止损由最高/最低价触发；IOC 成交后撤销剩余，FOK 不可全成则整单撤销，day 单在下一交易时段前撤销，GTC 持续有效。非法组合明确拒绝，不静默降级。
 - 参数通过版本化 JSON schema 定义；整数、数字、字符串、布尔和枚举可渲染为表单字段，默认值写入 manifest。
 - 策略源码在静态校验后冻结；回测运行时按 manifest 的 `code_sha256` 从对象存储读取，并与冻结版本比对。
 - 随机种子进入 manifest 和结果 determinism；Runner 按 seed 初始化随机模块。
@@ -162,6 +162,23 @@
 - `.tools/verification-local/review/design/backtest-rights-factor-1440.png`
 - `.tools/verification-local/review/design/backtest-rights-factor-390.png`
 
+### 订单类型与 TIF（真实运行）
+
+- 事件引擎实现 market / limit / stop / stop_limit 与 day / gtc / ioc / fok：
+  - 限价买入在开盘价低于限价时按开盘价成交，否则在最低价触及限价时按限价成交；卖出对称。
+  - 止损由最高/最低价触发，触发后按开盘价与触发价的较不利者成交；stop_limit 触发后再受限价约束。
+  - IOC 在首个可成交 bar 成交可成交量并撤销剩余；FOK 不可全成则整单撤销；day 单在下一交易时段撤销；GTC 继续等待。
+  - 成交量上限与现金约束仍先于 TIF 判定，撤销订单保留已成交数量为 0 或部分成交。
+- 真实运行：Run `6232fa7e-e93a-4efc-ad0f-6e4599577c4b`（600519.SH 2025 日线）用止损单入场（1494.50）、限价单离场（1461.00），另有 day 限价单过期撤销和 FOK 限价单不可成交撤销；4 条订单状态为 买入成交 / 买入撤销 / 买入撤销 / 卖出成交，撤销单成交数量均为 0，期末空仓，现金 `996488.285` 与成交、费用精确对账。
+- 报告展示「已取消」状态，CSV 导出包含撤销订单。
+
+证据：
+
+- `.tools/verification-local/review/order-types-report.json`
+- `.tools/verification-local/review/order-types-result.json`
+- `.tools/verification-local/review/design/backtest-order-types-1440.png`
+- `.tools/verification-local/review/design/backtest-order-types-390.png`
+
 ## 5. 用户体验改进
 
 - 回测表单按策略版本 schema 渲染参数字段，不再要求用户手写 JSON。
@@ -179,7 +196,7 @@
 - 供应商未接通配股与复权因子数据；配股策略与因子冻结/核对逻辑已实现，复权价回放未实现并显式拒绝。
 - 供应商历史成员区间不可用；当前只能使用工作区定义或供应方区间，非官方区间仍可能低估幸存者偏差。
 - 逐笔盘口、订单簿冲击和逐笔成交概率未建模；当前仅有最小价位取整。
-- 未实现订单类型/TIF 的完整撮合、涨跌停拒单原因和停牌处理。
+- 停牌处理、涨跌停拒单原因与逐笔盘口仍未建模；订单类型/TIF 撮合已实现。
 - 未实现基准相对指标（alpha/beta/超额/跟踪误差/信息比率）与基准时间对齐。
 - Walk-forward 已逐窗口执行并聚合；训练区间不参与参数寻优，当前是冻结参数的滚动样本外评估，不是参数选择流程。
 - 回测任务已改为持久队列 + Worker 消费；重启恢复和取消已验证。多 Worker 公平调度、租约心跳和细粒度执行中断仍未实现。
@@ -189,7 +206,7 @@
 ## 7. 下一步优先级
 
 1. 供应商配股/复权因子接入与官方历史成员区间。
-2. 逐笔/盘口执行模型与订单类型/TIF 完整撮合。
+2. 逐笔/盘口执行模型与停牌、涨跌停拒单原因。
 3. 多 Worker 公平调度、租约心跳和执行中断。
 4. 供应商历史成员区间接入与官方退市事件。
 5. 基准相对指标与 Walk-forward 参数寻优。

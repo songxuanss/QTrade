@@ -121,3 +121,18 @@ Walk-forward MUST 从已发布数据集的真实 bar 时间戳生成互不重叠
 #### Scenario: 复权价模式
 - **WHEN** 用户请求 `vendor_adjusted` 复权价回放
 - **THEN** 请求被拒绝并说明仅支持冻结核对的账本模式
+
+### Requirement: 订单类型与 TIF
+事件引擎 MUST 支持 market、limit、stop、stop_limit 订单与 day、gtc、ioc、fok 有效期；限价 MUST 不劣于限价成交，止损 MUST 由最高/最低价触发；IOC MUST 成交可成交量后撤销剩余，FOK MUST 在无法全成时整单撤销，day 单 MUST 在下一交易时段撤销，GTC MUST 持续有效；撤销 MUST 以订单状态体现且不产生虚假成交。
+
+#### Scenario: 限价与止损
+- **WHEN** 限价买入低于开盘价但最低价触及限价
+- **THEN** 按限价成交；止损买入在最高价触及止损价时触发并按较不利价格成交
+
+#### Scenario: IOC/FOK/day
+- **WHEN** IOC 只能部分成交、FOK 无法全成、day 单当日未成交
+- **THEN** 分别产生部分成交后撤销、整单撤销、下一时段前撤销，并保留可对账的成交状态
+
+#### Scenario: 真实对账
+- **WHEN** 混合订单类型运行完成
+- **THEN** 期末现金与持仓可由成交、费用和撤销状态复核

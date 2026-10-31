@@ -302,6 +302,7 @@ export type BacktestReportInfo = {
     status:
       | "filled"
       | "rejected"
+      | "cancelled"
       | "partially_filled_end_of_data"
       | "unfilled_end_of_data";
     reason?: "signal" | "membership_end" | "rights_subscription" | null;

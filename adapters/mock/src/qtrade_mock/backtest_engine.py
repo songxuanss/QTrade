@@ -3,7 +3,7 @@
 import hashlib
 import json
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, date, datetime
 from decimal import Decimal
 from typing import Literal, Protocol
@@ -39,6 +39,10 @@ class MockOrderSignal:
     instrument_id: str
     side: Literal["buy", "sell"]
     quantity: Decimal
+    order_type: Literal["market", "limit", "stop", "stop_limit"] = "market"
+    limit_price: Decimal | None = None
+    stop_price: Decimal | None = None
+    time_in_force: Literal["day", "gtc", "ioc", "fok"] = "gtc"
 
     def __post_init__(self) -> None:
         if (
@@ -48,6 +52,10 @@ class MockOrderSignal:
             or not isinstance(self.quantity, Decimal)
             or not self.quantity.is_finite()
             or self.quantity <= 0
+            or self.order_type not in {"market", "limit", "stop", "stop_limit"}
+            or self.time_in_force not in {"day", "gtc", "ioc", "fok"}
+            or (self.limit_price is not None) != (self.order_type in {"limit", "stop_limit"})
+            or (self.stop_price is not None) != (self.order_type in {"stop", "stop_limit"})
         ):
             raise PortError(ErrorCode.INVALID_INPUT, "invalid mock order signal")
 
@@ -60,6 +68,14 @@ class _PendingOrder:
     quantity: Decimal
     filled_quantity: Decimal = Decimal(0)
     filled_notional: Decimal = Decimal(0)
+    active_session: date | None = None
+    triggered: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class _Match:
+    price: Decimal
+    triggered: bool
 
 
 class MockStrategyProgram(Protocol):
@@ -274,6 +290,54 @@ class MockEngineAdapter(TradingEnginePort):
         return tuple(sorted(result))
 
     @staticmethod
+    def _match(signal: MockOrderSignal, bar: Bar, triggered: bool) -> "_Match | None":
+        stop = signal.stop_price
+        limit = signal.limit_price
+        if signal.order_type in {"stop", "stop_limit"} and not triggered:
+            assert stop is not None
+            if signal.side == "buy":
+                if bar.high < stop:
+                    return None
+                reference = max(bar.open, stop)
+            else:
+                if bar.low > stop:
+                    return None
+                reference = min(bar.open, stop)
+            triggered = True
+        else:
+            reference = bar.open
+        if signal.order_type in {"limit", "stop_limit"} and limit is not None:
+            if signal.side == "buy":
+                if bar.open <= limit:
+                    return _Match(bar.open, triggered)
+                if bar.low <= limit:
+                    return _Match(limit, triggered)
+                return None
+            if bar.open >= limit:
+                return _Match(bar.open, triggered)
+            if bar.high >= limit:
+                return _Match(limit, triggered)
+            return None
+        return _Match(reference, triggered)
+
+    @staticmethod
+    def _cancelled(order: _PendingOrder) -> dict[str, str | None]:
+        average = (
+            format(order.filled_notional / order.filled_quantity, "f")
+            if order.filled_quantity > 0
+            else None
+        )
+        return {
+            "instrument_id": order.signal.instrument_id,
+            "side": order.signal.side,
+            "quantity": format(order.quantity, "f"),
+            "filled_quantity": format(order.filled_quantity, "f"),
+            "submitted_at": order.submitted_at.isoformat(),
+            "price": average,
+            "status": "cancelled",
+        }
+
+    @staticmethod
     def _signals(
         program: MockStrategyProgram | BatchStrategyProgram,
         batch_signals: object,
@@ -290,13 +354,28 @@ class MockEngineAdapter(TradingEnginePort):
         result: list[MockOrderSignal] = []
         for value in raw_signals:
             if isinstance(value, StrategySignal):
-                if value.order_type != "market" or value.time_in_force not in {"day", "gtc"}:
-                    raise PortError(
-                        ErrorCode.UNSUPPORTED,
-                        "event replay supports market orders with day or gtc validity",
+                result.append(
+                    MockOrderSignal(
+                        value.instrument_id,
+                        value.side,
+                        value.quantity,
+                        value.order_type,
+                        value.limit_price,
+                        value.stop_price,
+                        value.time_in_force,
                     )
-                result.append(MockOrderSignal(value.instrument_id, value.side, value.quantity))
+                )
             elif isinstance(value, MockOrderSignal):
+                # Validate proposals through the canonical signal contract.
+                StrategySignal(
+                    value.instrument_id,
+                    value.side,
+                    value.quantity,
+                    value.order_type,
+                    value.limit_price,
+                    value.stop_price,
+                    value.time_in_force,
+                )
                 result.append(value)
             else:
                 raise PortError(ErrorCode.REJECTED, "invalid strategy proposal")
@@ -465,30 +544,60 @@ class MockEngineAdapter(TradingEnginePort):
             for pending_order in pending:
                 signal = pending_order.signal
                 submitted_at = pending_order.submitted_at
+                if signal.instrument_id != bar.instrument_id:
+                    still_pending.append(pending_order)
+                    continue
+                if (
+                    pending_order.active_session is not None
+                    and signal.time_in_force == "day"
+                    and market_date != pending_order.active_session
+                ):
+                    orders.append(MockEngineAdapter._cancelled(pending_order))
+                    continue
                 if bar_index - pending_order.submitted_index < execution.latency_bars:
                     still_pending.append(pending_order)
                     continue
-                if signal.instrument_id != bar.instrument_id:
+                if pending_order.active_session is None:
+                    pending_order = replace(pending_order, active_session=market_date)
+                if bar.granularity != "1d" and not execution.in_session(local_time):
                     still_pending.append(pending_order)
+                    continue
+                matched = MockEngineAdapter._match(signal, bar, pending_order.triggered)
+                if matched is None:
+                    if signal.time_in_force in {"ioc", "fok"}:
+                        orders.append(MockEngineAdapter._cancelled(pending_order))
+                    else:
+                        still_pending.append(pending_order)
+                    continue
+                pending_order = replace(pending_order, triggered=matched.triggered)
+                price = execution.fill_price(signal.side, matched.price)
+                if signal.limit_price is not None:
+                    price = (
+                        min(price, signal.limit_price)
+                        if signal.side == "buy"
+                        else max(price, signal.limit_price)
+                    )
+                if not execution.within_daily_limit(
+                    price, previous_day_closes.get(bar.instrument_id)
+                ):
+                    if signal.time_in_force in {"ioc", "fok"}:
+                        orders.append(MockEngineAdapter._cancelled(pending_order))
+                    else:
+                        still_pending.append(pending_order)
                     continue
                 quantity = execution.round_quantity(
                     pending_order.quantity - pending_order.filled_quantity
                 )
                 if signal.side == "sell":
                     quantity = min(quantity, available.get(bar.instrument_id, Decimal(0)))
-                if quantity <= 0 or (
-                    bar.granularity != "1d" and not execution.in_session(local_time)
-                ):
-                    still_pending.append(pending_order)
+                if quantity <= 0:
+                    if signal.time_in_force in {"ioc", "fok"}:
+                        orders.append(MockEngineAdapter._cancelled(pending_order))
+                    else:
+                        still_pending.append(pending_order)
                     continue
-                price = execution.fill_price(signal.side, bar.open)
-                if not execution.within_daily_limit(
-                    price, previous_day_closes.get(bar.instrument_id)
-                ):
-                    still_pending.append(pending_order)
-                    continue
-                affordable = cash / price if signal.side == "buy" else quantity
                 volume_cap = execution.volume_capacity(bar.volume)
+                affordable = cash / price if signal.side == "buy" else quantity
                 filled = (
                     min(quantity, affordable, volume_cap)
                     if signal.side == "buy"
@@ -504,12 +613,21 @@ class MockEngineAdapter(TradingEnginePort):
                     and filled * price + execution.fee(filled * price, "buy") > cash
                 ):
                     filled -= lot
-                if filled <= 0 and execution.volume_capacity(bar.volume) <= 0:
-                    still_pending.append(pending_order)
+                if signal.time_in_force == "fok" and filled < quantity:
+                    orders.append(MockEngineAdapter._cancelled(pending_order))
                     continue
                 if filled <= 0:
+                    if volume_cap <= 0:
+                        if signal.time_in_force in {"ioc", "fok"}:
+                            orders.append(MockEngineAdapter._cancelled(pending_order))
+                        else:
+                            still_pending.append(pending_order)
+                        continue
                     if pending_order.filled_quantity > 0:
-                        still_pending.append(pending_order)
+                        if signal.time_in_force in {"ioc", "fok"}:
+                            orders.append(MockEngineAdapter._cancelled(pending_order))
+                        else:
+                            still_pending.append(pending_order)
                         continue
                     orders.append(
                         {
@@ -546,18 +664,17 @@ class MockEngineAdapter(TradingEnginePort):
                 )
                 filled_total = pending_order.filled_quantity + filled
                 filled_notional = pending_order.filled_notional + notional
-                if filled_total < pending_order.quantity:
-                    still_pending.append(
-                        _PendingOrder(
-                            signal,
-                            submitted_at,
-                            bar_index,
-                            pending_order.quantity,
-                            filled_total,
-                            filled_notional,
-                        )
-                    )
-                else:
+                completed = _PendingOrder(
+                    signal,
+                    submitted_at,
+                    pending_order.submitted_index,
+                    pending_order.quantity,
+                    filled_total,
+                    filled_notional,
+                    pending_order.active_session,
+                    pending_order.triggered,
+                )
+                if filled_total >= pending_order.quantity:
                     orders.append(
                         {
                             "instrument_id": signal.instrument_id,
@@ -570,6 +687,10 @@ class MockEngineAdapter(TradingEnginePort):
                             "status": "filled",
                         }
                     )
+                elif signal.time_in_force in {"ioc", "fok"}:
+                    orders.append(MockEngineAdapter._cancelled(completed))
+                else:
+                    still_pending.append(completed)
             pending = still_pending
             closes[bar.instrument_id] = bar.close
             if bar_index in final_membership and positions.get(bar.instrument_id, Decimal(0)) > 0:
@@ -677,7 +798,15 @@ class MockEngineAdapter(TradingEnginePort):
                 else:
                     pending.append(
                         _PendingOrder(
-                            MockOrderSignal(signal.instrument_id, signal.side, requested),
+                            MockOrderSignal(
+                                signal.instrument_id,
+                                signal.side,
+                                requested,
+                                signal.order_type,
+                                signal.limit_price,
+                                signal.stop_price,
+                                signal.time_in_force,
+                            ),
                             bar.timestamp,
                             bar_index,
                             requested,

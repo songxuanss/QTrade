@@ -488,9 +488,11 @@ export function BacktestReport({
                           ? "已成交"
                           : order.status === "rejected"
                             ? "已拒绝"
-                            : order.status === "partially_filled_end_of_data"
-                              ? "部分成交，剩余未成交"
-                              : "未成交"}
+                            : order.status === "cancelled"
+                              ? "已取消"
+                              : order.status === "partially_filled_end_of_data"
+                                ? "部分成交，剩余未成交"
+                                : "未成交"}
                       </td>
                       <td>
                         {order.reason === "membership_end"

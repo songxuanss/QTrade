@@ -376,6 +376,7 @@ class BacktestOrder(BaseModel):
     status: Literal[
         "filled",
         "rejected",
+        "cancelled",
         "partially_filled_end_of_data",
         "unfilled_end_of_data",
     ]

@@ -607,3 +607,143 @@ def test_rights_skip_policy_keeps_cash_and_quantity():
     assert not [order for order in result["orders"] if order.get("reason") == "rights_subscription"]
     assert result["equity_curve"][-1]["positions"][0]["quantity"] == "100"
     assert Decimal(result["equity_curve"][-1]["cash"]) == Decimal("9000")
+
+
+def _bar(day: int, *, open_price="10", high="11", low="9", close="10", volume="500"):
+    template = Bar.model_validate_json((FIXTURES / "Bar.json").read_text())
+    return template.model_copy(
+        update={
+            "timestamp": template.timestamp + timedelta(days=day),
+            "open": Decimal(open_price),
+            "high": Decimal(high),
+            "low": Decimal(low),
+            "close": Decimal(close),
+            "volume": Decimal(volume),
+        }
+    )
+
+
+class OnceSignal:
+    def __init__(self, signal):
+        self.signal = signal
+
+    def on_bar(self, bar, history, parameters):
+        return () if history else (self.signal,)
+
+
+def replay_orders(signal, bars, execution=None):
+    template = Bar.model_validate_json((FIXTURES / "Bar.json").read_text())
+    run = BacktestRun.model_validate_json((FIXTURES / "BacktestRun.json").read_text())
+    manifest = ArtifactManifest.model_validate_json(
+        (FIXTURES / "ArtifactManifest.json").read_text()
+    )
+    prepared = tuple(
+        bar.model_copy(update={"instrument_id": template.instrument_id}) for bar in bars
+    )
+    return MockEngineAdapter._replay(
+        run,
+        manifest,
+        prepared,
+        OnceSignal(signal),
+        execution or BacktestExecutionModel(lot_size=100),
+    )
+
+
+def test_limit_order_fills_at_open_or_limit_and_day_orders_expire():
+    marketable = MockOrderSignal("MOCK:ABC", "buy", Decimal("100"), "limit", Decimal("10.5"))
+    result = replay_orders(
+        marketable,
+        (_bar(0), _bar(1, open_price="10", high="11", low="9")),
+    )
+    assert result["fills"][0]["price"] == "10"
+
+    inside_low = MockOrderSignal("MOCK:ABC", "buy", Decimal("100"), "limit", Decimal("9.5"))
+    result = replay_orders(
+        inside_low,
+        (_bar(0), _bar(1, open_price="10", high="11", low="9")),
+    )
+    assert result["fills"][0]["price"] == "9.5"
+
+    unfilled = MockOrderSignal(
+        "MOCK:ABC", "buy", Decimal("100"), "limit", Decimal("5"), time_in_force="day"
+    )
+    result = replay_orders(
+        unfilled,
+        (
+            _bar(0),
+            _bar(1, open_price="10", high="11", low="9"),
+            _bar(2, open_price="10", high="11", low="9"),
+        ),
+    )
+    assert result["fills"] == []
+    assert result["orders"][0]["status"] == "cancelled"
+
+
+def test_stop_order_triggers_on_high_and_gtc_limit_waits():
+    stop = MockOrderSignal("MOCK:ABC", "buy", Decimal("100"), "stop", stop_price=Decimal("10.5"))
+    result = replay_orders(stop, (_bar(0), _bar(1, open_price="10", high="11", low="9")))
+    assert result["fills"][0]["price"] == "10.5"
+
+    waiting = MockOrderSignal(
+        "MOCK:ABC",
+        "buy",
+        Decimal("100"),
+        "limit",
+        Decimal("8"),
+        time_in_force="gtc",
+    )
+    result = replay_orders(
+        waiting,
+        (
+            _bar(0),
+            _bar(1, open_price="10", high="11", low="9"),
+            _bar(2, open_price="9", high="9.5", low="8.5"),
+            _bar(3, open_price="8.4", high="8.6", low="7.9"),
+        ),
+    )
+    assert result["fills"][0]["price"] == "8"
+    assert result["orders"][0]["status"] == "filled"
+
+
+def test_ioc_fills_available_quantity_then_cancels_remainder():
+    ioc = MockOrderSignal("MOCK:ABC", "buy", Decimal("100"), time_in_force="ioc")
+    result = replay_orders(
+        ioc,
+        (_bar(0), _bar(1, volume="50")),
+        BacktestExecutionModel(lot_size=1, max_volume_fraction=Decimal("1")),
+    )
+    assert result["fills"][0]["filled_quantity"] == "50"
+    assert result["orders"][0]["status"] == "cancelled"
+    assert result["orders"][0]["filled_quantity"] == "50"
+
+
+def test_fok_rejects_when_full_quantity_is_not_fillable():
+    fok = MockOrderSignal("MOCK:ABC", "buy", Decimal("100"), time_in_force="fok")
+    result = replay_orders(
+        fok,
+        (_bar(0), _bar(1, volume="50")),
+        BacktestExecutionModel(lot_size=1, max_volume_fraction=Decimal("1")),
+    )
+    assert result["fills"] == []
+    assert result["orders"][0]["status"] == "cancelled"
+    assert result["orders"][0]["filled_quantity"] == "0"
+
+
+def test_stop_limit_requires_both_trigger_and_limit():
+    stop_limit = MockOrderSignal(
+        "MOCK:ABC",
+        "buy",
+        Decimal("100"),
+        "stop_limit",
+        limit_price=Decimal("10.2"),
+        stop_price=Decimal("10.5"),
+    )
+    triggered = replay_orders(
+        stop_limit, (_bar(0), _bar(1, open_price="10.4", high="11", low="10.1"))
+    )
+    assert triggered["fills"][0]["price"] == "10.2"
+
+    not_triggered = replay_orders(
+        stop_limit, (_bar(0), _bar(1, open_price="9", high="10", low="8"))
+    )
+    assert not_triggered["fills"] == []
