@@ -35,7 +35,10 @@ export function WalkForwardBatchResults({
   batch: BacktestWalkForwardRunInfo;
 }) {
   return (
-    <div className="walk-forward-batch">
+    <div
+      className="walk-forward-batch"
+      data-walk-forward-id={batch.walk_forward_id}
+    >
       <div className="panel-heading">
         <div>
           <p className="eyebrow">WALK-FORWARD RESULT</p>
@@ -125,6 +128,13 @@ export function WalkForwardBatchResults({
                       {window.error_code}
                     </span>
                   )}
+                  {window.selected_parameters_json && (
+                    <span className="walk-forward-selection">
+                      参数 {window.selected_parameters_json} · 样本内{" "}
+                      {percent(window.in_sample_return)} · 候选{" "}
+                      {window.candidate_count}
+                    </span>
+                  )}
                 </td>
                 <td>{percent(window.total_return)}</td>
                 <td>{percent(window.max_drawdown)}</td>
@@ -143,6 +153,9 @@ export function WalkForwardBatchResults({
         </table>
       </div>
       <p className="backtest-model-note" role="note">
+        {batch.parameter_grid_json
+          ? `参数网格 ${batch.parameter_grid_json}：每个窗口先在训练区间评估全部候选，按样本内收益选择（同收益取回撤更小者），再用选中参数执行验证区间。`
+          : "未启用参数网格：每个窗口使用固定参数执行验证区间。"}
         汇总只统计已完成窗口；失败/取消窗口单独计数，不进入均值。
         每次读取都会重新校验各窗口的不可变结果和 manifest。
       </p>

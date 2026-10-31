@@ -516,6 +516,14 @@ class BacktestWalkForwardPlan(Contract):
         return self
 
 
+class BacktestWalkForwardCandidate(Contract):
+    """One frozen parameter set evaluated in-sample and out-of-sample."""
+
+    parameters_json: JSONText
+    train_run_id: UUID
+    validation_run_id: UUID
+
+
 class BacktestWalkForwardWindowPlan(Contract):
     index: Annotated[int, Field(ge=1)]
     train_start: AwareDatetime
@@ -525,6 +533,7 @@ class BacktestWalkForwardWindowPlan(Contract):
     train_samples: Annotated[int, Field(ge=1)]
     validation_samples: Annotated[int, Field(ge=1)]
     run_id: UUID
+    candidates: tuple[BacktestWalkForwardCandidate, ...] = ()
 
     @model_validator(mode="after")
     def chronological(self) -> Self:
@@ -558,6 +567,7 @@ class BacktestWalkForwardBatch(Contract):
     train_window_seconds: Annotated[int, Field(gt=0)]
     validation_window_seconds: Annotated[int, Field(gt=0)]
     step_seconds: Annotated[int, Field(gt=0)]
+    parameter_grid_json: JSONText | None = None
     windows: Annotated[tuple[BacktestWalkForwardWindowPlan, ...], Field(min_length=1)]
 
     @model_validator(mode="after")
@@ -585,6 +595,9 @@ class BacktestWalkForwardWindowOutcome(Contract):
     sharpe_ratio: DecimalValue | None = None
     trade_count: Annotated[int, Field(ge=0)] | None = None
     error_code: Text | None = None
+    selected_parameters_json: JSONText | None = None
+    in_sample_return: DecimalValue | None = None
+    candidate_count: Annotated[int, Field(ge=1)] = 1
 
     @model_validator(mode="after")
     def chronologized_metrics(self) -> Self:
@@ -636,6 +649,7 @@ class BacktestWalkForwardRun(Contract):
     train_window_seconds: Annotated[int, Field(gt=0)]
     validation_window_seconds: Annotated[int, Field(gt=0)]
     step_seconds: Annotated[int, Field(gt=0)]
+    parameter_grid_json: JSONText | None = None
     status: Literal["queued", "running", "completed", "partial", "failed"]
     windows: Annotated[tuple[BacktestWalkForwardWindowOutcome, ...], Field(min_length=1)]
     aggregate: BacktestWalkForwardAggregate | None = None

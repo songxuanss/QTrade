@@ -179,6 +179,27 @@
 - `.tools/verification-local/review/design/backtest-order-types-1440.png`
 - `.tools/verification-local/review/design/backtest-order-types-390.png`
 
+### Walk-forward 参数寻优（真实运行）
+
+- 参数网格随批次冻结（`parameter_grid_json`）；组合数、窗口数与运行总数有上限，超出直接拒绝。
+- 每个窗口为「网格组合 × 训练/验证」各创建一个真实运行；读取时用训练区间报告逐候选打分并选出最优，验证区间报告仅对选中参数计入聚合。
+- 选择规则：样本内累计收益最高；同收益时取最大回撤更小；再同则参数 JSON 字典序，保证确定性。
+- 批次 `0f19bc2f-ed50-4cd2-b253-dd523bbf0828`（600519.SH 2025 日线，网格 `fast∈{2,5}`、`slow∈{10,20}`，训练 90 天/验证 45 天/步长 60 天）：
+  - 5 个窗口，每窗口 4 个候选，全部完成
+  - 选中参数随窗口变化（`fast=2,slow=20` → `fast=5,slow=20` → `fast=5,slow=10` → `fast=2,slow=10`）
+  - 样本内收益 0.9476%、-0.3185%、-0.0311%、-0.2120%、-0.4020%，验证收益 0.7776%、-0.0071%、0.3293%、-0.2424%、0.0303%
+  - 聚合：均值 0.18%、中位 0.03%、复利 0.89%、正收益窗口 60%、平均/最差回撤 0.22%/0.37%、成交 2
+- 独立复核：从持久化批次读取每个窗口的全部候选训练报告，重新按规则选择，结果与批次记录逐窗口一致；选中验证运行 ID 与收益也与报告一致。
+- 报告/导出展示网格、逐窗口选定参数、样本内收益与候选数。
+
+证据：
+
+- `.tools/verification-local/review/walk-forward-optimization-report.json`
+- `.tools/verification-local/review/walk-forward-optimization-result.json`
+- `.tools/verification-local/review/walk-forward-optimization-selection.json`
+- `.tools/verification-local/review/design/walk-forward-optimization-1440.png`
+- `.tools/verification-local/review/design/walk-forward-optimization-390.png`
+
 ## 5. 用户体验改进
 
 - 回测表单按策略版本 schema 渲染参数字段，不再要求用户手写 JSON。
@@ -198,7 +219,7 @@
 - 逐笔盘口、订单簿冲击和逐笔成交概率未建模；当前仅有最小价位取整。
 - 停牌处理、涨跌停拒单原因与逐笔盘口仍未建模；订单类型/TIF 撮合已实现。
 - 未实现基准相对指标（alpha/beta/超额/跟踪误差/信息比率）与基准时间对齐。
-- Walk-forward 已逐窗口执行并聚合；训练区间不参与参数寻优，当前是冻结参数的滚动样本外评估，不是参数选择流程。
+- Walk-forward 支持冻结参数网格：每个窗口先在训练区间运行全部候选，按样本内收益选择（同收益取回撤更小、参数 JSON 更小者），再用选中参数执行验证区间；聚合只统计选中参数的样本外结果。
 - 回测任务已改为持久队列 + Worker 消费；重启恢复和取消已验证。多 Worker 公平调度、租约心跳和细粒度执行中断仍未实现。
 - 已提供 CSV 与可打印 HTML（另存为 PDF）导出；未提供服务端直接生成 PDF 的接口。
 - 风险引擎未接入回测/Paper 订单路径，qualification 可被伪造。
@@ -209,5 +230,5 @@
 2. 逐笔/盘口执行模型与停牌、涨跌停拒单原因。
 3. 多 Worker 公平调度、租约心跳和执行中断。
 4. 供应商历史成员区间接入与官方退市事件。
-5. 基准相对指标与 Walk-forward 参数寻优。
+5. 基准相对指标与 Walk-forward 更丰富的选择目标（夏普/Calmar）。
 6. 风险引擎与 Paper/实盘订单路径统一。

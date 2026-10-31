@@ -42,6 +42,7 @@ class WalkForwardInput(BaseModel):
     universe_mode: Literal["dataset", "membership"] = "dataset"
     rights_policy: Literal["subscribe", "skip"] = "subscribe"
     adjustment_factor_mode: Literal["freeze", "vendor_adjusted"] = "freeze"
+    parameter_grid: dict[str, list[object]] | None = Field(default=None, max_length=8)
 
 
 class BacktestInput(BaseModel):
@@ -187,6 +188,7 @@ def backtesting_router(
                     body.universe_mode,
                     body.rights_policy,
                     body.adjustment_factor_mode,
+                    body.parameter_grid,
                 ),
             )
             _audit(audit, access, request, "backtest.walk_forward", result.walk_forward_id)

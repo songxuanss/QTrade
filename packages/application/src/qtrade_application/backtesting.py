@@ -4,6 +4,7 @@ import json
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from itertools import product
 from typing import Literal, Protocol, cast
 from uuid import UUID, uuid4
 
@@ -27,6 +28,7 @@ from qtrade_contracts import (
     BacktestUniverseMembership,
     BacktestWalkForwardAggregate,
     BacktestWalkForwardBatch,
+    BacktestWalkForwardCandidate,
     BacktestWalkForwardPlan,
     BacktestWalkForwardRun,
     BacktestWalkForwardWindow,
@@ -40,7 +42,9 @@ from qtrade_domain.artifacts import ManifestInputs
 from qtrade_domain.authorization import Permission, WorkspaceAccess
 from qtrade_domain.backtest_execution import BacktestExecutionModel
 from qtrade_domain.backtest_experiments import (
+    ParameterCandidate,
     WalkForwardOutcome,
+    choose_parameters,
     compare_backtests,
     plan_walk_forward,
     summarize_walk_forward,
@@ -108,6 +112,7 @@ class BacktestSubmission:
     universe_mode: Literal["dataset", "membership"] = "dataset"
     rights_policy: Literal["subscribe", "skip"] = "subscribe"
     adjustment_factor_mode: Literal["freeze", "vendor_adjusted"] = "freeze"
+    parameter_grid: dict[str, list[object]] | None = None
 
     def __post_init__(self) -> None:
         if (
@@ -175,6 +180,7 @@ class WalkForwardSubmission:
     universe_mode: Literal["dataset", "membership"] = "dataset"
     rights_policy: Literal["subscribe", "skip"] = "subscribe"
     adjustment_factor_mode: Literal["freeze", "vendor_adjusted"] = "freeze"
+    parameter_grid: dict[str, list[object]] | None = None
 
     def __post_init__(self) -> None:
         if (
@@ -190,8 +196,31 @@ class WalkForwardSubmission:
             or self.universe_mode not in {"dataset", "membership"}
             or self.rights_policy not in {"subscribe", "skip"}
             or self.adjustment_factor_mode not in {"freeze", "vendor_adjusted"}
+            or (
+                self.parameter_grid is not None
+                and (
+                    not isinstance(self.parameter_grid, dict)
+                    or not self.parameter_grid
+                    or len(self.parameter_grid) > 8
+                    or any(
+                        not isinstance(name, str)
+                        or not name
+                        or not isinstance(values, list)
+                        or not values
+                        or len(values) > 20
+                        for name, values in self.parameter_grid.items()
+                    )
+                )
+            )
         ):
             raise PortError(ErrorCode.INVALID_INPUT, "invalid walk-forward request")
+        if self.parameter_grid is not None:
+            try:
+                json.dumps(self.parameter_grid, allow_nan=False)
+            except (TypeError, ValueError):
+                raise PortError(
+                    ErrorCode.INVALID_INPUT, "walk-forward grid must be JSON values"
+                ) from None
 
 
 class MembershipQueryPort(Protocol):
@@ -680,6 +709,65 @@ class BacktestService:
         batch = self.walk_forward(access, walk_forward_id)
         return walk_forward_csv(batch) if export_format == "csv" else walk_forward_html(batch)
 
+    def _parameter_combinations(
+        self, access: WorkspaceAccess, request: WalkForwardSubmission
+    ) -> tuple[dict[str, object], ...]:
+        """Expand and validate the frozen parameter grid against the version schema."""
+        grid = request.parameter_grid
+        if not grid:
+            return (
+                self._strategies.validate_parameters(
+                    access,
+                    request.strategy_id,
+                    request.strategy_version,
+                    request.parameters,
+                ),
+            )
+        names = sorted(grid)
+        combinations: list[dict[str, object]] = []
+        seen: set[str] = set()
+        for values in product(*(grid[name] for name in names)):
+            candidate = {**request.parameters, **dict(zip(names, values, strict=True))}
+            resolved = self._strategies.validate_parameters(
+                access, request.strategy_id, request.strategy_version, candidate
+            )
+            canonical = json.dumps(resolved, sort_keys=True, separators=(",", ":"), allow_nan=False)
+            if canonical not in seen:
+                seen.add(canonical)
+                combinations.append(resolved)
+        if not combinations:
+            raise PortError(ErrorCode.INVALID_INPUT, "walk-forward grid is empty")
+        return tuple(combinations)
+
+    def _walk_forward_run(
+        self,
+        access: WorkspaceAccess,
+        request: WalkForwardSubmission,
+        parameters: dict[str, object],
+        start: datetime,
+        end: datetime,
+    ) -> BacktestRunRecord:
+        return self.create(
+            access,
+            BacktestSubmission(
+                request.strategy_id,
+                request.strategy_version,
+                request.dataset_id,
+                start,
+                end,
+                request.initial_cash,
+                request.currency,
+                request.cost_model_version,
+                parameters,
+                request.random_seed,
+                request.benchmark_id,
+                execution_model=request.execution_model,
+                universe_mode=request.universe_mode,
+                rights_policy=request.rights_policy,
+                adjustment_factor_mode=request.adjustment_factor_mode,
+            ),
+        )
+
     def start_walk_forward(
         self, access: WorkspaceAccess, request: WalkForwardSubmission
     ) -> BacktestWalkForwardRun:
@@ -702,31 +790,43 @@ class BacktestService:
                 ErrorCode.INVALID_INPUT,
                 "walk-forward is limited to 60 windows; widen the step or range",
             )
+        combinations = self._parameter_combinations(access, request)
+        if len(combinations) * len(plan.windows) * 2 > 300:
+            raise PortError(
+                ErrorCode.INVALID_INPUT,
+                "walk-forward optimization is limited to 300 runs; reduce grid or windows",
+            )
         created_at = datetime.now(UTC)
         windows: list[BacktestWalkForwardWindowPlan] = []
         first_record: BacktestRunRecord | None = None
         for index, window in enumerate(plan.windows, start=1):
-            record = self.create(
-                access,
-                BacktestSubmission(
-                    request.strategy_id,
-                    request.strategy_version,
-                    request.dataset_id,
+            candidates: list[BacktestWalkForwardCandidate] = []
+            for parameters in combinations:
+                train_record = self._walk_forward_run(
+                    access, request, parameters, window.train_start, window.train_end
+                )
+                validation_record = self._walk_forward_run(
+                    access,
+                    request,
+                    parameters,
                     window.validation_start,
                     window.validation_end,
-                    request.initial_cash,
-                    request.currency,
-                    request.cost_model_version,
-                    request.parameters,
-                    request.random_seed,
-                    request.benchmark_id,
-                    execution_model=request.execution_model,
-                    universe_mode=request.universe_mode,
-                    rights_policy=request.rights_policy,
-                    adjustment_factor_mode=request.adjustment_factor_mode,
-                ),
-            )
-            first_record = first_record or record
+                )
+                first_record = first_record or validation_record
+                candidates.append(
+                    BacktestWalkForwardCandidate(
+                        schema_version=1,
+                        workspace_id=access.workspace.workspace_id,
+                        parameters_json=json.dumps(
+                            parameters,
+                            sort_keys=True,
+                            separators=(",", ":"),
+                            allow_nan=False,
+                        ),
+                        train_run_id=train_record.run.run_id,
+                        validation_run_id=validation_record.run.run_id,
+                    )
+                )
             windows.append(
                 BacktestWalkForwardWindowPlan(
                     schema_version=1,
@@ -738,7 +838,8 @@ class BacktestService:
                     validation_end=window.validation_end,
                     train_samples=window.train_samples,
                     validation_samples=window.validation_samples,
-                    run_id=record.run.run_id,
+                    run_id=candidates[0].validation_run_id,
+                    candidates=tuple(candidates),
                 )
             )
         if first_record is None:
@@ -767,6 +868,16 @@ class BacktestService:
             train_window_seconds=int(request.train_window.total_seconds()),
             validation_window_seconds=int(request.validation_window.total_seconds()),
             step_seconds=int(request.step.total_seconds()),
+            parameter_grid_json=(
+                json.dumps(
+                    request.parameter_grid,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                    allow_nan=False,
+                )
+                if request.parameter_grid is not None
+                else None
+            ),
             windows=tuple(windows),
         )
         self._walk_forwards.create(batch)
@@ -783,10 +894,115 @@ class BacktestService:
         batch = self._walk_forwards.get(workspace_id, walk_forward_id)
         outcomes: list[WalkForwardOutcome] = []
         windows: list[BacktestWalkForwardWindowOutcome] = []
+
+        def window_outcome(
+            window: BacktestWalkForwardWindowPlan,
+            *,
+            run_id: UUID,
+            status: Literal["queued", "running", "completed", "cancelled", "failed"],
+            selected_parameters: str | None,
+            in_sample: Decimal | None,
+            candidate_count: int,
+            result: BacktestResult | None = None,
+            error_code: str | None = None,
+        ) -> BacktestWalkForwardWindowOutcome:
+            metrics = result.metrics if result is not None else None
+            return BacktestWalkForwardWindowOutcome(
+                schema_version=1,
+                workspace_id=workspace_id,
+                index=window.index,
+                train_start=window.train_start,
+                train_end=window.train_end,
+                validation_start=window.validation_start,
+                validation_end=window.validation_end,
+                train_samples=window.train_samples,
+                validation_samples=window.validation_samples,
+                run_id=run_id,
+                status=status,
+                total_return=result.summary.total_return if result else None,
+                max_drawdown=metrics.max_drawdown if metrics else None,
+                sharpe_ratio=metrics.sharpe_ratio if metrics else None,
+                trade_count=metrics.trade_count if metrics else None,
+                error_code=error_code,
+                selected_parameters_json=selected_parameters,
+                in_sample_return=in_sample,
+                candidate_count=max(1, candidate_count),
+            )
+
         for window in batch.windows:
-            record = self._runs.get(workspace_id, window.run_id)
+            selected_parameters = batch.parameters_json
+            in_sample: Decimal | None = None
+            candidate_count = max(1, len(window.candidates))
+            validation_run_id = window.run_id
+            if window.candidates:
+                states = [
+                    (
+                        candidate,
+                        self._runs.get(workspace_id, candidate.train_run_id).run.status,
+                    )
+                    for candidate in window.candidates
+                ]
+                if any(state in {"queued", "running"} for _, state in states):
+                    windows.append(
+                        window_outcome(
+                            window,
+                            run_id=window.run_id,
+                            status=(
+                                "running"
+                                if any(state == "running" for _, state in states)
+                                else "queued"
+                            ),
+                            selected_parameters=None,
+                            in_sample=None,
+                            candidate_count=candidate_count,
+                        )
+                    )
+                    continue
+                scored: list[tuple[BacktestWalkForwardCandidate, ParameterCandidate]] = []
+                for candidate, state in states:
+                    if state != "completed":
+                        continue
+                    train_result = self.report(access, candidate.train_run_id)
+                    if train_result.metrics is None:
+                        raise PortError(
+                            ErrorCode.CHECKSUM_MISMATCH,
+                            "completed in-sample run has no metrics",
+                        )
+                    scored.append(
+                        (
+                            candidate,
+                            ParameterCandidate(
+                                candidate.parameters_json,
+                                train_result.summary.total_return,
+                                train_result.metrics.max_drawdown,
+                            ),
+                        )
+                    )
+                if not scored:
+                    windows.append(
+                        window_outcome(
+                            window,
+                            run_id=window.run_id,
+                            status="failed",
+                            selected_parameters=None,
+                            in_sample=None,
+                            candidate_count=candidate_count,
+                            error_code="candidates_failed",
+                        )
+                    )
+                    continue
+                best = choose_parameters([item for _, item in scored])
+                selected_candidate = next(
+                    candidate
+                    for candidate, item in scored
+                    if item.parameters_json == best.parameters_json
+                )
+                selected_parameters = best.parameters_json
+                in_sample = best.total_return
+                validation_run_id = selected_candidate.validation_run_id
+            record = self._runs.get(workspace_id, validation_run_id)
             status = record.run.status
-            result = self.report(access, window.run_id) if status == "completed" else None
+            result = self.report(access, validation_run_id) if status == "completed" else None
             if result is not None and result.metrics is None:
                 raise PortError(ErrorCode.CHECKSUM_MISMATCH, "completed window has no metrics")
             metrics = result.metrics if result is not None else None
@@ -801,22 +1017,14 @@ class BacktestService:
                     )
                 )
             windows.append(
-                BacktestWalkForwardWindowOutcome(
-                    schema_version=1,
-                    workspace_id=workspace_id,
-                    index=window.index,
-                    train_start=window.train_start,
-                    train_end=window.train_end,
-                    validation_start=window.validation_start,
-                    validation_end=window.validation_end,
-                    train_samples=window.train_samples,
-                    validation_samples=window.validation_samples,
-                    run_id=window.run_id,
+                window_outcome(
+                    window,
+                    run_id=validation_run_id,
                     status=status,
-                    total_return=result.summary.total_return if result else None,
-                    max_drawdown=metrics.max_drawdown if metrics else None,
-                    sharpe_ratio=metrics.sharpe_ratio if metrics else None,
-                    trade_count=metrics.trade_count if metrics else None,
+                    selected_parameters=selected_parameters,
+                    in_sample=in_sample,
+                    candidate_count=candidate_count,
+                    result=result,
                     error_code=record.run.error_code,
                 )
             )
@@ -857,6 +1065,7 @@ class BacktestService:
             train_window_seconds=batch.train_window_seconds,
             validation_window_seconds=batch.validation_window_seconds,
             step_seconds=batch.step_seconds,
+            parameter_grid_json=batch.parameter_grid_json,
             status=(
                 "running"
                 if any(item.status == "running" for item in windows)

@@ -4189,6 +4189,15 @@ main {
   font-variant-numeric: tabular-nums;
 }
 
+.walk-forward-selection {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 10.5px;
+  font-family: var(--font-mono);
+  word-break: break-all;
+}
+
 .walk-forward-error,
 .walk-forward-run-link {
   color: var(--danger);

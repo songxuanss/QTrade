@@ -253,5 +253,6 @@ def test_walk_forward_exports_include_aggregate_and_window_errors():
     assert "窗口明细" in document
     assert "1.25%" in document
     assert "engine_error" in document
-    assert "未用于参数寻优" in document
+    assert "候选" in document
+    assert "验证区间" in document
     assert "window.print()" in document

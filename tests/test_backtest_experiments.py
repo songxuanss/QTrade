@@ -174,3 +174,24 @@ def test_summarize_walk_forward_rejects_empty_or_unordered_windows():
     )
     with pytest.raises(PortError):
         summarize_walk_forward((later, earlier))
+
+
+def test_choose_parameters_prefers_return_then_drawdown_then_name():
+    from decimal import Decimal
+
+    from qtrade_domain.backtest_experiments import ParameterCandidate, choose_parameters
+
+    candidates = (
+        ParameterCandidate('{"fast":5}', Decimal("0.10"), Decimal("0.05")),
+        ParameterCandidate('{"fast":2}', Decimal("0.10"), Decimal("0.02")),
+        ParameterCandidate('{"fast":9}', Decimal("0.08"), Decimal("0.01")),
+    )
+    assert choose_parameters(candidates).parameters_json == '{"fast":2}'
+
+    tied = (
+        ParameterCandidate('{"fast":5}', Decimal("0.10"), Decimal("0.02")),
+        ParameterCandidate('{"fast":2}', Decimal("0.10"), Decimal("0.02")),
+    )
+    assert choose_parameters(tied).parameters_json == '{"fast":2}'
+    with pytest.raises(PortError):
+        choose_parameters(())

@@ -23,6 +23,7 @@ const batch: BacktestWalkForwardRunInfo = {
   train_window_seconds: 86400,
   validation_window_seconds: 86400,
   step_seconds: 86400,
+  parameter_grid_json: '{"fast":[5,10]}',
   status: "partial",
   windows: [
     {
@@ -40,6 +41,9 @@ const batch: BacktestWalkForwardRunInfo = {
       sharpe_ratio: "1.5",
       trade_count: 2,
       error_code: null,
+      selected_parameters_json: '{"slow":20,"fast":5}',
+      in_sample_return: "0.01",
+      candidate_count: 2,
     },
     {
       index: 2,
@@ -56,6 +60,9 @@ const batch: BacktestWalkForwardRunInfo = {
       sharpe_ratio: null,
       trade_count: null,
       error_code: "engine_error",
+      selected_parameters_json: null,
+      in_sample_return: null,
+      candidate_count: 2,
     },
   ],
   aggregate: {
@@ -84,6 +91,9 @@ describe("walk-forward result view", () => {
     expect(markup).toContain("已完成");
     expect(markup).toContain("失败");
     expect(markup).toContain("失败/取消窗口单独计数");
+    expect(markup).toContain("参数 {&quot;slow&quot;:20,&quot;fast&quot;:5}");
+    expect(markup).toContain("样本内");
+    expect(markup).toContain("候选");
     expect(markup).toContain(
       "/workspace/backtests/44444444-4444-4444-8444-444444444444",
     );

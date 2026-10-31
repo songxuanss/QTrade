@@ -451,6 +451,9 @@ export type BacktestWalkForwardWindowInfo = {
   sharpe_ratio: string | null;
   trade_count: number | null;
   error_code: string | null;
+  selected_parameters_json: string | null;
+  in_sample_return: string | null;
+  candidate_count: number;
 };
 
 export type BacktestWalkForwardRunInfo = {
@@ -472,6 +475,7 @@ export type BacktestWalkForwardRunInfo = {
   train_window_seconds: number;
   validation_window_seconds: number;
   step_seconds: number;
+  parameter_grid_json: string | null;
   status: "queued" | "running" | "completed" | "partial" | "failed";
   windows: BacktestWalkForwardWindowInfo[];
   aggregate: {
@@ -505,6 +509,7 @@ export async function startBacktestWalkForward(input: {
   benchmarkId?: string;
   universeMode?: "dataset" | "membership";
   rightsPolicy?: "subscribe" | "skip";
+  parameterGrid?: Record<string, unknown[]> | null;
 }): Promise<{
   run: BacktestWalkForwardRunInfo | null;
   error?: string;
@@ -548,6 +553,7 @@ export async function startBacktestWalkForward(input: {
           benchmark_id: input.benchmarkId,
           universe_mode: input.universeMode ?? "dataset",
           rights_policy: input.rightsPolicy ?? "subscribe",
+          parameter_grid: input.parameterGrid ?? null,
           random_seed: 0,
         }),
         signal: AbortSignal.timeout(60_000),

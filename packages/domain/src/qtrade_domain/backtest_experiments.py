@@ -258,3 +258,30 @@ def summarize_walk_forward(outcomes: Iterable[WalkForwardOutcome]) -> WalkForwar
         compounded_return=compounded - Decimal(1),
         total_trades=sum(item.trade_count for item in rows),
     )
+
+
+@dataclass(frozen=True)
+class ParameterCandidate:
+    """One parameter set scored on the in-sample window."""
+
+    parameters_json: str
+    total_return: Decimal
+    max_drawdown: Decimal
+
+    def __post_init__(self) -> None:
+        if (
+            not isinstance(self.parameters_json, str)
+            or not self.parameters_json
+            or not isinstance(self.total_return, Decimal)
+            or not isinstance(self.max_drawdown, Decimal)
+            or self.max_drawdown < 0
+        ):
+            raise PortError(ErrorCode.INVALID_INPUT, "invalid parameter candidate")
+
+
+def choose_parameters(candidates: Iterable[ParameterCandidate]) -> ParameterCandidate:
+    """Highest in-sample return wins; ties break on drawdown then parameter JSON."""
+    rows = tuple(candidates)
+    if not rows:
+        raise PortError(ErrorCode.INVALID_INPUT, "parameter selection requires candidates")
+    return min(rows, key=lambda item: (-item.total_return, item.max_drawdown, item.parameters_json))

@@ -87,6 +87,7 @@ export function WalkForwardPlanner({
   );
   const [initialCash, setInitialCash] = useState("100000");
   const [currency, setCurrency] = useState("CNY");
+  const [gridText, setGridText] = useState("");
   const [parameters, setParameters] = useState<Record<string, unknown>>(() =>
     parameterDefaults(
       runnableStrategies[0]?.strategy_versions?.find(
@@ -211,6 +212,26 @@ export function WalkForwardPlanner({
       setError("请选择策略版本并填写初始资金。");
       return;
     }
+    let parameterGrid: Record<string, unknown[]> | null = null;
+    if (gridText.trim()) {
+      try {
+        const parsed = JSON.parse(gridText) as unknown;
+        if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+          throw new Error("grid");
+        }
+        parameterGrid = parsed as Record<string, unknown[]>;
+        if (
+          Object.values(parameterGrid).some(
+            (values) => !Array.isArray(values) || values.length === 0,
+          )
+        ) {
+          throw new Error("grid");
+        }
+      } catch {
+        setError('参数网格必须是形如 {"fast":[5,10],"slow":[20,30]} 的 JSON。');
+        return;
+      }
+    }
     setBusy(true);
     const seconds = (value: string) => Math.round(Number(value) * 86_400);
     const result = await startWalkForward({
@@ -228,6 +249,7 @@ export function WalkForwardPlanner({
       costModelVersion: "cost.v1",
       parameters,
       executionModel: executionModel(),
+      parameterGrid,
     });
     setBusy(false);
     if (!result.run) {
@@ -389,6 +411,15 @@ export function WalkForwardPlanner({
               ))}
             </div>
           )}
+          <label>
+            <span>参数网格（可选 JSON）</span>
+            <textarea
+              rows={2}
+              value={gridText}
+              onChange={(event) => setGridText(event.target.value)}
+              placeholder={'{"fast":[5,10],"slow":[20,30]}'}
+            />
+          </label>
           <div className="backtest-date-grid">
             <label>
               <span>初始资金</span>
@@ -427,8 +458,10 @@ export function WalkForwardPlanner({
           </div>
           <p className="backtest-model-note" role="note">
             执行假设与回测配置默认一致：整手 100、手续费 3bps、最低佣金 5
-            元、卖出印花税 5bps、0.01 最小价位、T+1。每个窗口独立使用初始资金，
-            不做跨窗口资金复利；训练区间不参与参数优化。窗口失败会在汇总中显式计数。
+            元、卖出印花税 5bps、0.01
+            最小价位、T+1。填写参数网格时，每个窗口先在训练区间
+            评估全部候选并选择样本内收益最高者（同收益取回撤更小），再在验证区间执行选中参数；
+            每个窗口独立使用初始资金，不做跨窗口资金复利，窗口失败会在汇总中显式计数。
           </p>
         </form>
       )}

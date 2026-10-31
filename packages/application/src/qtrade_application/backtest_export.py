@@ -699,6 +699,7 @@ def walk_forward_csv(batch: BacktestWalkForwardRun) -> ExportArtifact:
             ("validation_window_seconds", batch.validation_window_seconds),
             ("step_seconds", batch.step_seconds),
             ("parameters_json", batch.parameters_json),
+            ("parameter_grid_json", batch.parameter_grid_json),
         ],
     )
     aggregate = batch.aggregate
@@ -748,6 +749,9 @@ def walk_forward_csv(batch: BacktestWalkForwardRun) -> ExportArtifact:
             "sharpe_ratio",
             "trade_count",
             "error_code",
+            "selected_parameters_json",
+            "in_sample_return",
+            "candidate_count",
         ),
         [
             (
@@ -765,6 +769,9 @@ def walk_forward_csv(batch: BacktestWalkForwardRun) -> ExportArtifact:
                 _decimal(window.sharpe_ratio) if window.sharpe_ratio is not None else "",
                 window.trade_count if window.trade_count is not None else "",
                 window.error_code,
+                window.selected_parameters_json,
+                _decimal(window.in_sample_return) if window.in_sample_return is not None else "",
+                window.candidate_count,
             )
             for window in batch.windows
         ],
@@ -797,6 +804,9 @@ def walk_forward_html(batch: BacktestWalkForwardRun) -> ExportArtifact:
             str(window.trade_count) if window.trade_count is not None else "—",
             str(window.run_id),
             window.error_code or "",
+            window.selected_parameters_json or "",
+            _percent(window.in_sample_return),
+            str(window.candidate_count),
         )
         for window in batch.windows
     ]
@@ -829,9 +839,22 @@ def walk_forward_html(batch: BacktestWalkForwardRun) -> ExportArtifact:
 <h2>窗口明细</h2>
 {
         _table(
-            ("窗口", "验证区间", "样本", "状态", "收益", "最大回撤", "成交", "运行", "错误"),
+            (
+                "窗口",
+                "验证区间",
+                "样本",
+                "状态",
+                "收益",
+                "最大回撤",
+                "成交",
+                "运行",
+                "错误",
+                "选定参数",
+                "样本内收益",
+                "候选数",
+            ),
             window_rows,
-            {2, 4, 5, 6},
+            {2, 4, 5, 6, 10},
         )
     }
 <h2>冻结输入</h2>
@@ -854,7 +877,9 @@ def walk_forward_html(batch: BacktestWalkForwardRun) -> ExportArtifact:
             set(),
         )
     }
-<p class="note">训练区间仅用于切分核对，未用于参数寻优；每个窗口独立使用初始资金，不做跨窗口资金复利。
+<p class="note">参数网格：{
+        escape(batch.parameter_grid_json or "未启用（固定参数）")
+    }。每个窗口先在训练区间运行全部候选并按样本内收益选择（同收益时取回撤更小、参数 JSON 更小者），再用选中参数执行验证区间；每个窗口独立使用初始资金，不做跨窗口资金复利。
 聚合只统计已完成窗口，失败或取消窗口单独计数。生成时间 {escape(datetime.now(UTC).isoformat())}。</p>
 </body>
 </html>

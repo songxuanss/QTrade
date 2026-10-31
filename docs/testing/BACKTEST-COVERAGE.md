@@ -17,7 +17,8 @@
 | T+1 可卖数量 | 已实现 | `test_mock_backtest_engine.py` | 当日买入不可卖，下一时段可卖 |
 | 成员区间/幸存者偏差 | 真实 Worker | run `d6c3a7a2-6a26-425f-9dc5-2dcf0f5853c6` | 区间结束强制平仓、期末持仓 0、现金对账；区间为工作区定义而非官方历史 |
 | tick size | 已实现 | `test_backtest_execution.py` | 买卖方向向不利方向取整；盘口仍未建模 |
-| Walk-forward 执行 | 真实 Worker | batch `f6311814-a419-4e11-852e-2116f832f865` | 9 个窗口全部完成，聚合与各窗口报告对账；不做参数寻优 |
+| Walk-forward 执行 | 真实 Worker | batch `f6311814-a419-4e11-852e-2116f832f865` | 9 个窗口全部完成，聚合与各窗口报告对账 |
+| Walk-forward 参数寻优 | 真实 Worker | batch `ec634205-1fee-4aa1-923a-0da38863a4a1` | 每窗口 4 候选，样本内选择与验证结果独立复核 |
 | 报告导出 | 真实下载 | run `9c33a542-94c7-4879-9ab1-22ee9646947f` | CSV/可打印 HTML 与持久化报告一致；刷新后一致；未登录 401 |
 | 配股/复权因子 | 引擎真实价格 + fixture 事件 | `rights-factor-report.json` | 认购 30 股、现金对账；因子冻结核对；`vendor_adjusted` 422 |
 | 订单类型/TIF | 真实 Worker | run `6232fa7e-e93a-4efc-ad0f-6e4599577c4b` | 止损入场、限价离场、day/FOK 撤销；现金对账 |

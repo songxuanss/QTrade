@@ -67,6 +67,7 @@ def build_service(
     memberships=None,
     adjustment_factors=None,
     instrument="MOCK:ABC",
+    parameter_schema_json='{"type":"object","properties":{},"required":[]}',
 ):
     actor, workspace_id = uuid4(), uuid4()
     now = datetime.now(UTC)
@@ -85,7 +86,7 @@ def build_service(
             created_at=now,
             code_object_key=f"strategies/{strategy_id}/v1.py",
             code_sha256=sha256(source.encode()).hexdigest(),
-            parameter_schema_json='{"type":"object","properties":{},"required":[]}',
+            parameter_schema_json=parameter_schema_json,
             dependencies_sha256=sha256(b"{}").hexdigest(),
         ),
     )
@@ -229,8 +230,9 @@ def test_walk_forward_rolls_up_failed_windows_without_inventing_metrics():
     )
     assert len(result.windows) == 4
 
-    first = result.windows[0]
-    record = runs.get(access.workspace.workspace_id, first.run_id)
+    stored = service._walk_forwards.get(access.workspace.workspace_id, result.walk_forward_id)
+    first = stored.windows[0]
+    record = runs.get(access.workspace.workspace_id, first.candidates[0].train_run_id)
     failed_run = record.run.model_copy(update={"status": "failed", "error_code": "engine_error"})
     runs.update(
         record.revision,
@@ -238,7 +240,7 @@ def test_walk_forward_rolls_up_failed_windows_without_inventing_metrics():
         BacktestRunEvent(
             uuid4(),
             access.workspace.workspace_id,
-            first.run_id,
+            first.candidates[0].train_run_id,
             "failed",
             record.run.progress,
             datetime.now(UTC),
@@ -249,10 +251,9 @@ def test_walk_forward_rolls_up_failed_windows_without_inventing_metrics():
 
     refreshed = service.walk_forward(access, result.walk_forward_id)
 
-    assert refreshed.status == "queued"
     assert refreshed.windows[0].status == "failed"
     assert refreshed.windows[0].total_return is None
-    assert refreshed.windows[0].error_code == "engine_error"
+    assert refreshed.windows[0].error_code == "candidates_failed"
 
 
 def test_walk_forward_requires_permission_and_valid_windows():
@@ -443,11 +444,10 @@ def test_submission_tolerates_a_worker_claiming_before_the_job_attach():
 
     assert runs.claimed
     assert len(result.windows) == 2
-    first = runs.get(access.workspace.workspace_id, result.windows[0].run_id)
-    assert first.run.status == "running"
-    assert result.windows[0].status == "running"
-    second = runs.get(access.workspace.workspace_id, result.windows[1].run_id)
-    assert second.run.status == "queued"
+    stored = service._walk_forwards.get(access.workspace.workspace_id, result.walk_forward_id)
+    claimed = runs.get(access.workspace.workspace_id, stored.windows[0].candidates[0].train_run_id)
+    assert claimed.run.status == "running"
+    assert result.windows[0].status in {"queued", "running"}
 
 
 class MemoryMemberships:
@@ -687,3 +687,97 @@ def test_unexplained_factor_changes_are_rejected():
         )
     assert unexplained.value.code == ErrorCode.UNSUPPORTED
     assert "2026-10-02" in str(unexplained.value)
+
+
+def test_walk_forward_grid_queues_train_and_validation_runs_per_candidate():
+    market = MockMarketData()
+    schema = (
+        '{"type":"object","properties":{"fast":{"type":"integer","minimum":1,'
+        '"maximum":10,"default":5}},"required":[],"additionalProperties":false}'
+    )
+    service, access, strategy_id, dataset_id, runs, _ = build_service(
+        market, parameter_schema_json=schema
+    )
+    write_hourly_bars(market, access.workspace.workspace_id, dataset_id)
+    start = datetime(2026, 10, 1, tzinfo=UTC)
+
+    batch = service.start_walk_forward(
+        access,
+        WalkForwardSubmission(
+            strategy_id,
+            1,
+            dataset_id,
+            "MOCK:ABC",
+            start,
+            start + timedelta(hours=12),
+            timedelta(hours=4),
+            timedelta(hours=2),
+            timedelta(hours=2),
+            Decimal("10000"),
+            "USD",
+            "cost.v1",
+            {"fast": 5},
+            parameter_grid={"fast": [2, 5]},
+        ),
+    )
+
+    assert len(batch.windows) == 4
+    assert json.loads(batch.parameter_grid_json or "{}") == {"fast": [2, 5]}
+    stored = service._walk_forwards.get(access.workspace.workspace_id, batch.walk_forward_id)
+    for window in stored.windows:
+        assert len(window.candidates) == 2
+        parameters = sorted(
+            json.loads(candidate.parameters_json)["fast"] for candidate in window.candidates
+        )
+        assert parameters == [2, 5]
+        for candidate in window.candidates:
+            train = runs.get(access.workspace.workspace_id, candidate.train_run_id)
+            validation = runs.get(access.workspace.workspace_id, candidate.validation_run_id)
+            assert train.run.start == window.train_start
+            assert validation.run.start == window.validation_start
+            assert train.run.end == window.train_end
+            assert validation.run.end == window.validation_end
+
+
+def test_walk_forward_grid_rejects_unknown_or_invalid_parameters():
+    market = MockMarketData()
+    service, access, strategy_id, dataset_id, _, _ = build_service(market)
+    write_hourly_bars(market, access.workspace.workspace_id, dataset_id)
+    start = datetime(2026, 10, 1, tzinfo=UTC)
+    with pytest.raises(PortError):
+        service.start_walk_forward(
+            access,
+            WalkForwardSubmission(
+                strategy_id,
+                1,
+                dataset_id,
+                "MOCK:ABC",
+                start,
+                start + timedelta(hours=12),
+                timedelta(hours=4),
+                timedelta(hours=2),
+                timedelta(hours=2),
+                Decimal("10000"),
+                "USD",
+                "cost.v1",
+                {},
+                parameter_grid={"unknown": [1]},
+            ),
+        )
+    with pytest.raises(PortError):
+        WalkForwardSubmission(
+            strategy_id,
+            1,
+            dataset_id,
+            "MOCK:ABC",
+            start,
+            start + timedelta(hours=12),
+            timedelta(hours=4),
+            timedelta(hours=2),
+            timedelta(hours=2),
+            Decimal("10000"),
+            "USD",
+            "cost.v1",
+            {},
+            parameter_grid={"fast": []},
+        )
