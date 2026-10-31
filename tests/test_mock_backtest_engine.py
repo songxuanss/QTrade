@@ -1,6 +1,6 @@
 """The mock engine replays deterministic signals and normalizes immutable results."""
 
-from datetime import time, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 from decimal import Decimal
 from pathlib import Path
 from uuid import uuid4
@@ -331,6 +331,13 @@ def test_batch_program_proposals_are_bound_to_their_bar():
     assert result["orders"][0]["submitted_at"] == bars[1].timestamp.isoformat()
 
 
+class BuyHundredOnce:
+    def on_bar(self, bar, history, parameters):
+        if not history:
+            return (MockOrderSignal(bar.instrument_id, "buy", Decimal("100")),)
+        return ()
+
+
 class BuyAndSellFirst:
     def on_bar(self, bar, history, parameters):
         if history:
@@ -362,3 +369,61 @@ def test_t_plus_one_blocks_same_session_sell_until_next_day():
     assert result["fills"][1]["side"] == "sell"
     assert result["fills"][1]["filled_at"] == next_day.timestamp.isoformat()
     assert len(result["orders"]) == 2
+
+
+def test_corporate_action_cash_and_bonus_shares_are_applied_on_ex_date():
+    from qtrade_data_contracts.research import CorporateAction
+
+    bar = Bar.model_validate_json((FIXTURES / "Bar.json").read_text())
+    run = BacktestRun.model_validate_json((FIXTURES / "BacktestRun.json").read_text())
+    manifest = ArtifactManifest.model_validate_json(
+        (FIXTURES / "ArtifactManifest.json").read_text()
+    )
+    instrument = "stock:CN:SH:600519"
+    day = bar.model_copy(
+        update={
+            "instrument_id": instrument,
+            "open": Decimal("10"),
+            "close": Decimal("10"),
+        }
+    )
+    bars = (
+        day,
+        day.model_copy(update={"timestamp": day.timestamp + timedelta(days=1)}),
+        day.model_copy(update={"timestamp": day.timestamp + timedelta(days=2)}),
+    )
+    action = CorporateAction.model_validate(
+        {
+            "schema_version": 2,
+            "scope_id": run.workspace_id,
+            "source": "fixture",
+            "instrument_id": instrument,
+            "collected_at": datetime(2026, 1, 1, tzinfo=UTC),
+            "mapping_version": "fixture.v1",
+            "source_event_id": "dividend-1",
+            "action": "distribution",
+            "announcement_date": date(2026, 9, 20),
+            "record_date": date(2026, 10, 1),
+            "ex_date": date(2026, 10, 3),
+            "status": "implemented",
+            "cash": Decimal("5"),
+            "cash_currency": "USD",
+            "cash_tax_basis": "before_tax",
+            "basis_shares": Decimal("10"),
+            "bonus_shares": Decimal("3"),
+            "terms_evidence": "fixture",
+        }
+    )
+    result = MockEngineAdapter._replay(
+        run,
+        manifest,
+        bars,
+        BuyHundredOnce(),
+        BacktestExecutionModel(lot_size=100),
+        (action,),
+    )
+    assert result["fills"][0]["filled_quantity"] == "100"
+    assert result["equity_curve"][-1]["positions"][0]["quantity"] == "130"
+    assert Decimal(result["equity_curve"][-1]["cash"]) == Decimal("10000") - Decimal(
+        "1000"
+    ) + Decimal("50")

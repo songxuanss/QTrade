@@ -7,6 +7,7 @@ from fastapi import FastAPI
 from qtrade_api.alerts import alert_evaluation_router, alert_rule_router
 from qtrade_api.audit_query import audit_query_router
 from qtrade_api.auth_bridge import auth_bridge
+from qtrade_api.backtest_corporate_actions import CollectorCorporateActions
 from qtrade_api.backtesting import backtesting_router
 from qtrade_api.calendars import calendar_router
 from qtrade_api.capabilities import capability_router
@@ -129,9 +130,10 @@ security = ApiSecurity(service, workspaces, policy, audit, os.environ.get("QTRAD
 app.include_router(
     collector_authorization_router(workspaces, os.environ.get("COLLECTOR_SERVICE_TOKEN"))
 )
+collector_client = collector_client_from_env()
 app.include_router(
     collector_router(
-        collector_client_from_env(),
+        collector_client,
         security,
         CollectorImportStatus(os.environ["DATABASE_URL"]) if service is not None else None,
         PostgresUniverses(
@@ -228,6 +230,11 @@ if service is not None:
                 os.environ.get("QTRADE_BACKTEST_IMAGE_DIGEST", "sha256:" + "0" * 64),
             ),
             market_data=backtest_market_data,
+            corporate_actions=(
+                CollectorCorporateActions(collector_client)
+                if collector_client is not None
+                else None
+            ),
         )
     else:
         backtests = None

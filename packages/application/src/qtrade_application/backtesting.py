@@ -4,7 +4,7 @@ import json
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from typing import cast
+from typing import Protocol, cast
 from uuid import UUID, uuid4
 
 from qtrade_application.artifacts import ManifestService
@@ -19,6 +19,7 @@ from qtrade_contracts import (
     BacktestWalkForwardWindow,
     MarketDataset,
 )
+from qtrade_data_contracts.research import CorporateAction
 from qtrade_domain.artifacts import ManifestInputs
 from qtrade_domain.authorization import Permission, WorkspaceAccess
 from qtrade_domain.backtest_execution import BacktestExecutionModel
@@ -120,6 +121,18 @@ class BacktestSubmission:
             ) from None
 
 
+class CorporateActionPort(Protocol):
+    """Load only published corporate actions for the frozen dataset scope."""
+
+    def load(
+        self,
+        access: WorkspaceAccess,
+        instrument_ids: tuple[str, ...],
+        start: datetime,
+        end: datetime,
+    ) -> tuple[CorporateAction, ...]: ...
+
+
 class BacktestService:
     def __init__(
         self,
@@ -132,6 +145,7 @@ class BacktestService:
         objects: ObjectStorePort,
         identity: BacktestEngineIdentity,
         market_data: MarketDataPort | None = None,
+        corporate_actions: CorporateActionPort | None = None,
     ) -> None:
         self._runs = runs
         self._strategies = strategies
@@ -142,6 +156,7 @@ class BacktestService:
         self._objects = objects
         self._identity = identity
         self._market_data = market_data
+        self._corporate_actions = corporate_actions
 
     def create(self, access: WorkspaceAccess, request: BacktestSubmission) -> BacktestRunRecord:
         access.require(Permission.BACKTEST_RUN)
@@ -171,6 +186,11 @@ class BacktestService:
             raise PortError(
                 ErrorCode.INVALID_INPUT, "benchmark must be present in the selected dataset"
             )
+        actions = (
+            self._corporate_actions.load(access, dataset.instrument_ids, request.start, request.end)
+            if self._corporate_actions is not None
+            else ()
+        )
         resolved_parameters = self._strategies.validate_parameters(
             access, request.strategy_id, request.strategy_version, request.parameters
         )
@@ -184,6 +204,13 @@ class BacktestService:
                 "currency": request.currency.upper(),
                 "end": request.end.astimezone(UTC).isoformat().replace("+00:00", "Z"),
                 "initial_cash": format(request.initial_cash, "f"),
+                "corporate_actions": [
+                    {
+                        **item.model_dump(mode="json"),
+                        "content_version": item.content_version,
+                    }
+                    for item in actions
+                ],
                 "execution_model": execution_model.to_config(),
                 "resource_profile": request.resource_profile,
                 "start": request.start.astimezone(UTC).isoformat().replace("+00:00", "Z"),

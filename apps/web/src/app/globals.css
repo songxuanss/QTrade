@@ -5994,6 +5994,20 @@ h2 {
     animation: none;
   }
 }
+.backtest-report-table-panel .table-scroll {
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+}
+.backtest-report-table-panel .table-scroll > table {
+  min-width: 620px;
+}
+.backtest-hash {
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, monospace);
+  font-size: 11.5px;
+  letter-spacing: 0.02em;
+  color: var(--muted);
+  word-break: break-all;
+}
 .backtest-model-note {
   margin: 0;
   padding: 8px 10px;

@@ -655,9 +655,9 @@ export function BacktestWorkbench({
                 </span>
               </div>
               <p className="backtest-model-note" role="note">
-                模型边界：当前事件回放未处理复权/分红送转、历史成分和逐笔盘口；
-                T+1
-                与整手/最小价位已建模，结果仍用于研究比较，不构成实盘可用性证明。
+                模型边界：现金分红、送转/拆并已按除权日入账，T+1、整手和最小价位已建模；
+                配股、供应商复权因子、历史成分和逐笔盘口仍未处理，结果用于研究比较，
+                不构成实盘可用性证明。
               </p>
               <button
                 className="button button-primary"

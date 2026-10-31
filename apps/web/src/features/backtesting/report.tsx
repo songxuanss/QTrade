@@ -216,11 +216,26 @@ export function BacktestReport({
   const metrics = report.metrics;
   let parameters: Record<string, unknown> = {};
   let execution: Record<string, unknown> = {};
+  let corporateActions: {
+    ex_date?: string;
+    action?: string;
+    cash?: string;
+    cash_currency?: string;
+    basis_shares?: string;
+    bonus_shares?: string;
+    transfer_shares?: string;
+    split_ratio?: string;
+    content_version?: string;
+  }[] = [];
   try {
     const config = JSON.parse(manifest?.execution_config_json ?? "{}") as {
       execution_model?: Record<string, unknown>;
+      corporate_actions?: unknown[];
     };
     execution = config.execution_model ?? {};
+    corporateActions = Array.isArray(config.corporate_actions)
+      ? (config.corporate_actions as typeof corporateActions)
+      : [];
   } catch {
     execution = {};
   }
@@ -449,6 +464,58 @@ export function BacktestReport({
           </div>
         )}
       </section>
+      {corporateActions.length > 0 && (
+        <section className="panel backtest-report-table-panel">
+          <div className="panel-heading">
+            <div>
+              <p className="eyebrow">CORPORATE ACTIONS</p>
+              <h2>已冻结公司行为</h2>
+            </div>
+            <span className="backtest-count">{corporateActions.length}</span>
+          </div>
+          <div className="table-scroll">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>除权日</th>
+                  <th>类型</th>
+                  <th>每股基准派息</th>
+                  <th>送转股</th>
+                  <th>拆并比例</th>
+                  <th>事件版本</th>
+                </tr>
+              </thead>
+              <tbody>
+                {corporateActions.map((action, index) => (
+                  <tr
+                    key={`${action.ex_date}-${action.content_version}-${index}`}
+                  >
+                    <td>{action.ex_date ?? "未知"}</td>
+                    <td>{action.action ?? "未知"}</td>
+                    <td>
+                      {action.cash == null
+                        ? "—"
+                        : `${action.cash} ${action.cash_currency ?? ""} / ${
+                            action.basis_shares ?? "10"
+                          } 股`}
+                    </td>
+                    <td>
+                      {action.bonus_shares == null &&
+                      action.transfer_shares == null
+                        ? "—"
+                        : `${action.bonus_shares ?? "0"} / ${action.transfer_shares ?? "0"}`}
+                    </td>
+                    <td>{action.split_ratio ?? "—"}</td>
+                    <td className="backtest-hash">
+                      {action.content_version?.slice(0, 12) ?? "—"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
       <div className="backtest-report-lower-grid">
         <section className="panel backtest-report-table-panel">
           <div className="panel-heading">
@@ -576,6 +643,14 @@ export function BacktestReport({
                 {execution.daily_price_limit_fraction == null
                   ? "无"
                   : percent(String(execution.daily_price_limit_fraction))}
+              </dd>
+            </div>
+            <div>
+              <dt>公司行为</dt>
+              <dd>
+                {corporateActions.length
+                  ? `${corporateActions.length} 条已冻结`
+                  : "无"}
               </dd>
             </div>
             <div>

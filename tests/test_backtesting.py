@@ -131,6 +131,7 @@ def test_submission_freezes_manifest_before_engine_and_syncs_immutable_result():
     assert manifest.execution_config_json is not None
     assert '"initial_cash":"10000"' in manifest.execution_config_json
     assert '"cost_model_version":"cost.v1"' in manifest.execution_config_json
+    assert json.loads(manifest.execution_config_json)["corporate_actions"] == []
     assert json.loads(manifest.execution_config_json)["execution_model"] == {
         "daily_price_limit_fraction": None,
         "fee_bps": "3",

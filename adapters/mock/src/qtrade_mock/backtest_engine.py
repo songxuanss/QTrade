@@ -19,8 +19,10 @@ from qtrade_contracts import (
     Bar,
 )
 from qtrade_contracts.models import BarGranularity
+from qtrade_data_contracts.research import CorporateAction
 from qtrade_domain.backtest_execution import BacktestExecutionModel
 from qtrade_domain.backtest_metrics import calculate_backtest_metrics
+from qtrade_domain.corporate_actions import CorporateActionLedger
 from qtrade_domain.ports import (
     ComputeJob,
     ErrorCode,
@@ -127,6 +129,25 @@ class MockEngineAdapter(TradingEnginePort):
             }.items()
         ):
             raise PortError(ErrorCode.INVALID_INPUT, "run differs from frozen manifest inputs")
+        raw_actions = execution_config.get("corporate_actions", [])
+        if not isinstance(raw_actions, list):
+            raise PortError(ErrorCode.INVALID_INPUT, "invalid frozen corporate actions")
+        try:
+            actions = tuple(
+                CorporateAction.model_validate_json(
+                    json.dumps(
+                        {key: value for key, value in action.items() if key != "content_version"}
+                    )
+                )
+                for action in raw_actions
+                if isinstance(action, dict)
+            )
+            if len(actions) != len(raw_actions):
+                raise ValueError
+        except ValueError:
+            raise PortError(ErrorCode.INVALID_INPUT, "invalid frozen corporate actions") from None
+        if any(action.scope_id != run.workspace_id for action in actions):
+            raise PortError(ErrorCode.INVALID_INPUT, "corporate action scope mismatch")
         key = (run.workspace_id, run.run_id)
         identity = run.model_dump_json() + manifest.model_dump_json()
         if key in self._inputs and self._inputs[key] != identity:
@@ -151,6 +172,7 @@ class MockEngineAdapter(TradingEnginePort):
                 bars,
                 program,
                 self._execution_model(execution_config.get("execution_model")),
+                actions,
             )
         except PortError:
             raise
@@ -289,6 +311,7 @@ class MockEngineAdapter(TradingEnginePort):
         bars: tuple[Bar, ...],
         program: MockStrategyProgram | BatchStrategyProgram,
         execution: BacktestExecutionModel,
+        corporate_actions: tuple[CorporateAction, ...] = (),
     ) -> dict[str, object]:
         parameters = json.loads(manifest.parameters_json)
         batch = getattr(program, "signals_for_bars", None)
@@ -300,6 +323,7 @@ class MockEngineAdapter(TradingEnginePort):
         ):
             raise PortError(ErrorCode.REJECTED, "invalid batch strategy proposals")
         cash = run.initial_cash
+        ledger = CorporateActionLedger(corporate_actions)
         positions: dict[str, Decimal] = {}
         available: dict[str, Decimal] = {}
         history: list[Bar] = []
@@ -329,6 +353,18 @@ class MockEngineAdapter(TradingEnginePort):
                 # Prior-session holdings become sellable at the next session.
                 available[bar.instrument_id] = positions.get(bar.instrument_id, Decimal(0))
             market_dates[bar.instrument_id] = market_date
+            adjusted = ledger.apply(
+                bar.instrument_id,
+                market_date,
+                positions.get(bar.instrument_id, Decimal(0)),
+                available.get(bar.instrument_id, Decimal(0)),
+                cash,
+                run.currency,
+            )
+            if adjusted.applied:
+                positions[bar.instrument_id] = adjusted.quantity
+                available[bar.instrument_id] = adjusted.available
+                cash = adjusted.cash
             local_time = local_timestamp.time()
             still_pending: list[_PendingOrder] = []
             for pending_order in pending:
