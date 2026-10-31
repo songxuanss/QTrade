@@ -59,6 +59,10 @@ def start():
         for path in (ROOT / group).iterdir()
         if (path / "src").is_dir()
     ]
+    runner_directory = Path("/tmp/opencode/qtrade-runner")
+    runner_directory.mkdir(parents=True, exist_ok=True, mode=0o700)
+    runner_socket = runner_directory / "runner.sock"
+    runner_socket.unlink(missing_ok=True)
     environment = {
         **{key: value for key, value in dotenv_values(ROOT / ".env").items() if value is not None},
         **os.environ,
@@ -77,6 +81,8 @@ def start():
         "QTRADE_PUBLIC_ORIGIN": "http://127.0.0.1:3120",
         "QTRADE_API_ORIGIN": "http://127.0.0.1:3122",
         "QTRADE_API_PUBLIC_ORIGIN": "http://127.0.0.1:3122",
+        "QTRADE_RUNNER_SOCKET": str(runner_socket),
+        "QTRADE_STRATEGY_RUNNER_SOCKET": str(runner_socket),
         "DATABASE_URL": state["api_url"],
         "PORT": "3120",
         "HOSTNAME": "127.0.0.1",
@@ -86,11 +92,7 @@ def start():
     cache, _ = container_environment("valkey")
     # User shells may inherit a Windows NO_PROXY with wildcard/CIDR forms that
     # HTTP clients do not reliably honor. Add the concrete dependency addresses.
-    bypass = ",".join(
-        dict.fromkeys(
-            ["127.0.0.1", "localhost", "::1", objects, market, cache]
-        )
-    )
+    bypass = ",".join(dict.fromkeys(["127.0.0.1", "localhost", "::1", objects, market, cache]))
     environment["NO_PROXY"] = environment["no_proxy"] = bypass
     environment.update(
         OBJECT_STORE_URL=f"http://{objects}:9000",
@@ -139,6 +141,11 @@ def start():
     commands = (
         ("sso", ROOT, [str(ROOT / ".tools/sso-venv/bin/python"), "scripts/sso-local.py", "serve"]),
         (
+            "runner",
+            ROOT,
+            [str(ROOT / ".venv/bin/python"), "-m", "qtrade_runner.main"],
+        ),
+        (
             "api",
             ROOT,
             [
@@ -186,6 +193,13 @@ def start():
             processes.append({"name": name, "pid": process.pid, "identity": identity(process.pid)})
         PROCESS_STATE.write_text(json.dumps(processes))
         PROCESS_STATE.chmod(0o600)
+        deadline = time.monotonic() + int(
+            os.environ.get("QTRADE_VERIFICATION_READINESS_SECONDS", "120")
+        )
+        while not runner_socket.is_socket():
+            if time.monotonic() >= deadline:
+                raise RuntimeError("deployment readiness failed: strategy runner socket")
+            time.sleep(0.2)
         for url in (
             "http://127.0.0.1:3121/healthz",
             "http://127.0.0.1:3122/ready",

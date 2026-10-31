@@ -28,6 +28,7 @@ _INTERVALS = {
     "1m": timedelta(minutes=1),
     "5m": timedelta(minutes=5),
     "15m": timedelta(minutes=15),
+    "30m": timedelta(minutes=30),
     "1h": timedelta(hours=1),
     "1d": timedelta(days=1),
 }

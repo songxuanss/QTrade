@@ -27,13 +27,39 @@ const Editor = dynamic(() => import("@monaco-editor/react"), {
 const DEFAULT_CODE = `from qtrade import Strategy
 
 class MovingAverage(Strategy):
+    """SMA crossover: buy on a golden cross and sell on a death cross."""
+
+    def on_start(self):
+        self.fast = int(self.parameters.get("fast", 5))
+        self.slow = int(self.parameters.get("slow", 20))
+        self.quantity = int(self.parameters.get("quantity", 1000))
+        if self.fast >= self.slow:
+            raise ValueError("fast must be smaller than slow")
+        self.closes = []
+        self.holding = 0
+
     def on_bar(self, bar):
-        # Write research logic here.
-        pass
+        self.closes.append(bar.close)
+        if len(self.closes) < self.slow + 1:
+            return
+        fast_now = sum(self.closes[-self.fast:]) / self.fast
+        slow_now = sum(self.closes[-self.slow:]) / self.slow
+        fast_prev = sum(self.closes[-self.fast - 1:-1]) / self.fast
+        slow_prev = sum(self.closes[-self.slow - 1:-1]) / self.slow
+        if fast_prev <= slow_prev and fast_now > slow_now and self.holding == 0:
+            self.buy(self.quantity)
+            self.holding = self.quantity
+        elif fast_prev >= slow_prev and fast_now < slow_now and self.holding > 0:
+            self.sell(self.holding)
+            self.holding = 0
 `;
 const DEFAULT_SCHEMA = `{
   "type": "object",
-  "properties": {},
+  "properties": {
+    "fast": {"type": "integer", "default": 5, "minimum": 2, "maximum": 60},
+    "slow": {"type": "integer", "default": 20, "minimum": 3, "maximum": 250},
+    "quantity": {"type": "integer", "default": 1000, "minimum": 100, "maximum": 1000000}
+  },
   "required": [],
   "additionalProperties": false
 }`;
@@ -125,6 +151,15 @@ export function StrategyWorkbench({
   >([]);
   const schema = useMemo(() => parseSchema(schemaText), [schemaText]);
   const properties = useMemo(() => schemaProperties(schema), [schema]);
+  const serverValidated = [
+    "validated",
+    "backtested",
+    "paper",
+    "approved",
+    "live",
+    "paused",
+  ].includes(lifecycle?.state ?? "");
+  const canBacktest = validated || serverValidated;
   const required = Array.isArray(schema?.required)
     ? (schema.required.filter(
         (value): value is string => typeof value === "string",
@@ -185,8 +220,12 @@ export function StrategyWorkbench({
   }
 
   async function validate() {
-    if (!selected || !currentVersion || properties.length === 0) {
+    if (!selected || !currentVersion) {
       setErrorMessage("请先保存策略版本和参数 schema。");
+      return;
+    }
+    if (lifecycle?.state === "draft" && staticPassed !== true) {
+      setErrorMessage("请先完成静态校验，再校验参数。");
       return;
     }
     setErrorMessage("");
@@ -205,7 +244,19 @@ export function StrategyWorkbench({
     }
     setParameters(outcome.parameters ?? {});
     setValidated(true);
-    setNotice("参数符合此 Strategy Version 的 schema。");
+    const marked = await markStrategyVersionValidated(
+      selected.strategy_id,
+      currentVersion.version,
+    );
+    if (!marked.ok) {
+      setValidated(false);
+      setErrorMessage(marked.error ?? "版本状态更新失败。");
+      return;
+    }
+    setNotice(
+      "参数符合此 Strategy Version 的 schema，版本状态已更新为“已校验”。",
+    );
+    router.refresh();
   }
 
   async function validateSource() {
@@ -257,32 +308,6 @@ export function StrategyWorkbench({
         ? `静态校验通过 · ${outcome.astNodeCount ?? 0} 个语法节点`
         : "静态校验发现需要修复的问题。",
     );
-    if (
-      outcome.passed &&
-      selected &&
-      currentVersion &&
-      lifecycle?.state === "draft"
-    ) {
-      if (
-        code !== savedCode ||
-        dependenciesText.trim() !== savedDependencies.trim()
-      ) {
-        setNotice(
-          "当前编辑内容校验通过；保存为新版本后，版本才会标记为“已校验”。",
-        );
-        return;
-      }
-      const marked = await markStrategyVersionValidated(
-        selected.strategy_id,
-        currentVersion.version,
-      );
-      if (marked.ok) {
-        setNotice("静态校验通过，版本状态已更新为“已校验”。");
-        router.refresh();
-      } else {
-        setErrorMessage(marked.error ?? "版本状态更新失败。");
-      }
-    }
   }
 
   function updateParameter(name: string, value: unknown) {
@@ -420,7 +445,7 @@ export function StrategyWorkbench({
                     colors: {
                       "editor.background": "#10151d",
                       "editor.foreground": "#d4dce5",
-                      "editorLineNumber.foreground": "#556272",
+                      "editorLineNumber.foreground": "#8193a8",
                       "editorLineNumber.activeForeground": "#93a5b8",
                       "editorCursor.foreground": "#7dc7b0",
                       "editor.selectionBackground": "#285a5066",
@@ -612,11 +637,7 @@ export function StrategyWorkbench({
                   type="button"
                   onClick={validate}
                   disabled={
-                    !selected ||
-                    !canEdit ||
-                    validating ||
-                    !currentVersion ||
-                    properties.length === 0
+                    !selected || !canEdit || validating || !currentVersion
                   }
                 >
                   {validating ? "校验中…" : "校验参数"}
@@ -759,11 +780,11 @@ export function StrategyWorkbench({
           {selected && (
             <div className="strategy-run-gate">
               <span>
-                {validated
+                {canBacktest
                   ? "参数通过，可前往回测实验选择数据和成本模型。"
                   : "先校验当前参数，再配置回测数据和成本模型。"}
               </span>
-              {validated ? (
+              {canBacktest ? (
                 <Link
                   className="button button-primary"
                   href="/workspace/backtests"
@@ -776,7 +797,7 @@ export function StrategyWorkbench({
                   className="button button-primary"
                   disabled
                 >
-                  运行回测
+                  配置回测
                 </button>
               )}
             </div>

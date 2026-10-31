@@ -124,6 +124,21 @@ services:
     <<: *python
     image: qtrade-api
     ports: ["127.0.0.1:18000:8000"]
+    volumes:
+      - strategy-runner-socket:/run/qtrade:ro
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      market-db:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      valkey:
+        condition: service_healthy
+      object-store:
+        condition: service_healthy
+      strategy-runner:
+        condition: service_healthy
 
   worker:
     <<: *python

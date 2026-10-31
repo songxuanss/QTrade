@@ -51,6 +51,11 @@ class RuntimeControlService:
     ):
         self._runtimes, self._orders, self._audit = runtimes, orders, audit
 
+    @property
+    def order_control_available(self) -> bool:
+        """True only when a broker-backed cancel/close adapter is composed."""
+        return not isinstance(self._orders, UnavailableRuntimeOrderControl)
+
     def list(self, access: WorkspaceAccess) -> tuple[ExecutionRuntime, ...]:
         access.require(Permission.READ)
         return self._runtimes.list(access.workspace.workspace_id, limit=100)

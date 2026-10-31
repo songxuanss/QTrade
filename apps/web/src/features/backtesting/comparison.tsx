@@ -2,7 +2,10 @@ import Link from "next/link";
 import type { BacktestComparisonInfo } from "../auth/server";
 
 function curvePath(values: string[]) {
-  const numbers = values.map(Number);
+  const stride = Math.max(1, Math.ceil(values.length / 240));
+  const numbers = values.filter((_, index) => index % stride === 0).map(Number);
+  if (values.length > 1 && values.length % stride !== 1)
+    numbers.push(Number(values.at(-1)));
   const min = Math.min(...numbers);
   const max = Math.max(...numbers);
   const span = max - min || 1;
@@ -30,7 +33,7 @@ const metrics: [
   ["Calmar", (run) => displayNumber(run.result.metrics?.calmar_ratio)],
   ["胜率", (run) => displayPercent(run.result.metrics?.win_rate)],
   ["盈亏比", (run) => displayNumber(run.result.metrics?.profit_factor)],
-  ["换手率", (run) => displayPercent(run.result.metrics?.turnover)],
+  ["换手率", (run) => `${displayNumber(run.result.metrics?.turnover)}×`],
 ];
 
 function displayPercent(value: string | null | undefined) {
@@ -38,7 +41,7 @@ function displayPercent(value: string | null | undefined) {
 }
 
 function displayNumber(value: string | null | undefined) {
-  return value == null ? "不可计算" : Number(value).toFixed(3);
+  return value == null ? "不可计算" : Number(value).toFixed(2);
 }
 
 export function BacktestComparison({
@@ -150,15 +153,31 @@ export function BacktestComparison({
                   ))}
                 </tr>
               ))}
-              {comparison.runs.map((run) => (
-                <tr key={`${run.run_id}-inputs`}>
-                  <th scope="row">数据集 / Strategy Version</th>
-                  <td colSpan={comparison.runs.length}>
-                    {run.dataset_id.slice(0, 8)} /{" "}
+              <tr>
+                <th scope="row">数据集</th>
+                {comparison.runs.map((run) => (
+                  <td key={`${run.run_id}-dataset`}>
+                    {run.dataset_id.slice(0, 8)}
+                  </td>
+                ))}
+              </tr>
+              <tr>
+                <th scope="row">策略版本</th>
+                {comparison.runs.map((run) => (
+                  <td key={`${run.run_id}-version`}>
                     {run.strategy_version_id.slice(0, 8)}
                   </td>
-                </tr>
-              ))}
+                ))}
+              </tr>
+              <tr>
+                <th scope="row">区间</th>
+                {comparison.runs.map((run) => (
+                  <td key={`${run.run_id}-range`}>
+                    {new Date(run.start).toLocaleDateString("zh-CN")} —{" "}
+                    {new Date(run.end).toLocaleDateString("zh-CN")}
+                  </td>
+                ))}
+              </tr>
             </tbody>
           </table>
         </div>

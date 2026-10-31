@@ -46,6 +46,7 @@ export type WorkspaceRuntime = {
   state: "running" | "paused" | "stopped";
   revision: number;
   updated_at: string;
+  order_control_available?: boolean;
 };
 
 export async function workspaceRuntimes(): Promise<{
@@ -208,6 +209,9 @@ export type WorkspaceStrategy = {
   description: string;
   current_version: number;
   archived: boolean;
+  /** Current-version parameter metadata is loaded with the workbench list so
+   * the run form can render typed inputs instead of a raw JSON blob. */
+  strategy_versions?: StrategyVersionInfo[];
 };
 
 export type StrategyVersionInfo = {
@@ -343,6 +347,8 @@ export type BacktestManifestInfo = {
   engine_version: string;
   adapter_version: string;
   environment_image_digest: string;
+  parameters_json: string;
+  random_seed: number;
   execution_config_json: string;
   execution_config_sha256: string;
 };
@@ -642,7 +648,34 @@ export async function workspaceBacktests(): Promise<{
       !Array.isArray(strategies)
     )
       throw Error("Invalid backtest response");
-    return { runs, datasets, strategies, error: false };
+    const withVersions = await Promise.all(
+      strategies.map(async (strategy: WorkspaceStrategy) => {
+        if (strategy.archived) return strategy;
+        try {
+          const response = await fetch(
+            `${root}/strategies/${strategy.strategy_id}/versions`,
+            { cache: "no-store", redirect: "error", headers },
+          );
+          if (!response.ok) return strategy;
+          const versions = (await response.json()) as StrategyVersionInfo[];
+          if (
+            !Array.isArray(versions) ||
+            versions.some(
+              (version) =>
+                !version ||
+                !Number.isInteger(version.version) ||
+                typeof version.strategy_version_id !== "string" ||
+                typeof version.parameter_schema !== "object",
+            )
+          )
+            return strategy;
+          return { ...strategy, strategy_versions: versions };
+        } catch {
+          return strategy;
+        }
+      }),
+    );
+    return { runs, datasets, strategies: withVersions, error: false };
   } catch {
     return { ...empty, error: true };
   }

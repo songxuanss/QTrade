@@ -44,6 +44,7 @@ def runtime_control_router(
                     "state": runtime.state,
                     "revision": runtime.revision,
                     "updated_at": runtime.updated_at.isoformat(),
+                    "order_control_available": service.order_control_available,
                 }
                 for runtime in service.list(access)
             ]

@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import type {
   BacktestDatasetInfo,
   BacktestRunInfo,
@@ -29,6 +29,35 @@ function localDateTime(value: string) {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}.${milliseconds}`;
 }
 
+type ParameterRule = {
+  type?: string;
+  default?: unknown;
+  minimum?: number;
+  maximum?: number;
+  minLength?: number;
+  maxLength?: number;
+  enum?: unknown[];
+  title?: string;
+  description?: string;
+};
+
+function parameterDefaults(schema: Record<string, unknown> | undefined) {
+  const properties = schema?.properties;
+  if (
+    !properties ||
+    typeof properties !== "object" ||
+    Array.isArray(properties)
+  )
+    return {};
+  const result: Record<string, unknown> = {};
+  for (const [name, value] of Object.entries(properties)) {
+    const rule = value as ParameterRule;
+    if (rule && typeof rule === "object" && "default" in rule)
+      result[name] = rule.default;
+  }
+  return result;
+}
+
 function localRangeStart(value: string) {
   const subMillisecond = value.match(/\.(\d+)/)?.[1]?.slice(3) ?? "";
   const needsRoundUp = /[1-9]/.test(subMillisecond);
@@ -50,13 +79,39 @@ export function BacktestWorkbench({
   error: boolean;
 }) {
   const router = useRouter();
-  const [strategyId, setStrategyId] = useState(
-    strategies[0]?.strategy_id ?? "",
+  const runnableStrategies = useMemo(
+    () => strategies.filter((item) => !item.archived),
+    [strategies],
   );
-  const [datasetId, setDatasetId] = useState(datasets[0]?.dataset_id ?? "");
+  const [strategyId, setStrategyId] = useState(
+    runnableStrategies[0]?.strategy_id ?? "",
+  );
+  const [version, setVersion] = useState(
+    runnableStrategies[0]?.current_version ?? 1,
+  );
+  const selectedStrategy = strategies.find(
+    (item) => item.strategy_id === strategyId,
+  );
+  const availableVersions = selectedStrategy?.strategy_versions ?? [];
+  const selectedVersion = availableVersions.find(
+    (item) => item.version === version,
+  );
+  const parameterRules = Object.entries(
+    (selectedVersion?.parameter_schema?.properties ?? {}) as Record<
+      string,
+      ParameterRule
+    >,
+  );
+  const runnableDatasets = useMemo(
+    () => datasets.filter((item) => item.granularity !== "tick"),
+    [datasets],
+  );
+  const [datasetId, setDatasetId] = useState(
+    runnableDatasets[0]?.dataset_id ?? "",
+  );
   const selectedDataset = useMemo(
-    () => datasets.find((item) => item.dataset_id === datasetId),
-    [datasets, datasetId],
+    () => runnableDatasets.find((item) => item.dataset_id === datasetId),
+    [runnableDatasets, datasetId],
   );
   const [start, setStart] = useState(
     selectedDataset ? localRangeStart(selectedDataset.start) : "",
@@ -66,7 +121,9 @@ export function BacktestWorkbench({
   );
   const [initialCash, setInitialCash] = useState("100000");
   const [currency, setCurrency] = useState("CNY");
-  const [parametersText, setParametersText] = useState("{}");
+  const [parameters, setParameters] = useState<Record<string, unknown>>(() =>
+    parameterDefaults(selectedVersion?.parameter_schema),
+  );
   const [benchmarkId, setBenchmarkId] = useState("");
   const [lotSize, setLotSize] = useState("100");
   const [feeBps, setFeeBps] = useState("3");
@@ -76,9 +133,67 @@ export function BacktestWorkbench({
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
+  const [compareIds, setCompareIds] = useState<string[]>([]);
   const comparableRuns = runs
     .filter((run) => run.status === "completed")
     .slice(0, 2);
+  const strategyLabel = (run: BacktestRunInfo) => {
+    for (const strategy of strategies) {
+      const match = strategy.strategy_versions?.find(
+        (candidate) =>
+          candidate.strategy_version_id === run.strategy_version_id,
+      );
+      if (match) return `${strategy.name} · v${match.version}`;
+    }
+    return `版本 ${run.strategy_version_id.slice(0, 8)}`;
+  };
+  const datasetLabel = (run: BacktestRunInfo) => {
+    const dataset = datasets.find((item) => item.dataset_id === run.dataset_id);
+    return dataset
+      ? `${dataset.instrument_ids.slice(0, 2).join(", ")} · ${dataset.granularity} · v${dataset.version}`
+      : `数据集 ${run.dataset_id.slice(0, 8)}`;
+  };
+  const pendingRuns = runs.some(
+    (run) => run.status === "queued" || run.status === "running",
+  );
+
+  useEffect(() => {
+    if (!pendingRuns) return;
+    const timer = window.setInterval(() => router.refresh(), 4000);
+    return () => window.clearInterval(timer);
+  }, [pendingRuns, router]);
+
+  function chooseVersion(nextStrategyId: string, nextVersion: number) {
+    setStrategyId(nextStrategyId);
+    setVersion(nextVersion);
+    const next = strategies.find((item) => item.strategy_id === nextStrategyId);
+    const info = next?.strategy_versions?.find(
+      (candidate) => candidate.version === nextVersion,
+    );
+    setParameters(parameterDefaults(info?.parameter_schema));
+  }
+
+  function toggleCompare(runId: string) {
+    setCompareIds((current) =>
+      current.includes(runId)
+        ? current.filter((id) => id !== runId)
+        : current.length >= 20
+          ? current
+          : [...current, runId],
+    );
+  }
+
+  function updateParameter(name: string, rule: ParameterRule, raw: string) {
+    setParameters((current) => ({
+      ...current,
+      [name]:
+        rule.type === "integer" || rule.type === "number"
+          ? raw === ""
+            ? ""
+            : Number(raw)
+          : raw,
+    }));
+  }
 
   async function createRun(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -92,21 +207,11 @@ export function BacktestWorkbench({
       setErrorMessage("开始时间必须早于结束时间。");
       return;
     }
-    let parameters: Record<string, unknown>;
-    try {
-      const parsed = JSON.parse(parametersText) as unknown;
-      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed))
-        throw Error("parameters must be an object");
-      parameters = parsed as Record<string, unknown>;
-    } catch {
-      setErrorMessage("参数必须是有效的 JSON 对象。");
-      return;
-    }
     setBusy(true);
-    const strategy = strategies.find((item) => item.strategy_id === strategyId);
+    const intraday = selectedDataset?.granularity !== "1d";
     const result = await submitBacktest({
       strategyId,
-      version: strategy?.current_version ?? 1,
+      version,
       datasetId,
       start,
       end,
@@ -120,13 +225,17 @@ export function BacktestWorkbench({
         slippage_bps: slippageBps,
         max_volume_fraction: participation,
         latency_bars: 1,
-        session_open: "09:30:00",
-        session_close: "15:00:00",
-        timezone_name: "Asia/Shanghai",
+        ...(intraday
+          ? {
+              session_open: "09:30:00",
+              session_close: "15:00:00",
+              timezone_name: "Asia/Shanghai",
+              session_breaks: [["11:30:00", "13:00:00"]],
+            }
+          : {}),
         daily_price_limit_fraction: dailyLimitPercent
           ? (Number(dailyLimitPercent) / 100).toString()
           : null,
-        session_breaks: [["11:30:00", "13:00:00"]],
         ...(selectedDataset?.granularity === "1d"
           ? { periods_per_year: 252 }
           : selectedDataset?.granularity === "1m"
@@ -135,9 +244,11 @@ export function BacktestWorkbench({
               ? { periods_per_year: 252 * 48 }
               : selectedDataset?.granularity === "15m"
                 ? { periods_per_year: 252 * 16 }
-                : selectedDataset?.granularity === "1h"
-                  ? { periods_per_year: 252 * 4 }
-                  : {}),
+                : selectedDataset?.granularity === "30m"
+                  ? { periods_per_year: 252 * 8 }
+                  : selectedDataset?.granularity === "1h"
+                    ? { periods_per_year: 252 * 4 }
+                    : {}),
       },
       ...(benchmarkId.trim() ? { benchmarkId: benchmarkId.trim() } : {}),
     });
@@ -207,7 +318,7 @@ export function BacktestWorkbench({
             <p className="backtest-empty">
               请先在策略研究中创建并校验策略版本。
             </p>
-          ) : datasets.length === 0 ? (
+          ) : runnableDatasets.length === 0 ? (
             <p className="backtest-empty">
               暂无已发布的数据集，请先完成行情采集和质量发布。
             </p>
@@ -216,17 +327,40 @@ export function BacktestWorkbench({
               <label>
                 <span>策略版本</span>
                 <select
-                  value={strategyId}
-                  onChange={(event) => setStrategyId(event.target.value)}
+                  value={`${strategyId}:${version}`}
+                  onChange={(event) => {
+                    const [nextStrategy, nextVersion] =
+                      event.target.value.split(":");
+                    chooseVersion(nextStrategy, Number(nextVersion));
+                  }}
                 >
-                  {strategies
-                    .filter((item) => !item.archived)
-                    .map((item) => (
-                      <option key={item.strategy_id} value={item.strategy_id}>
+                  {runnableStrategies.map((item) =>
+                    item.strategy_versions?.length ? (
+                      <optgroup key={item.strategy_id} label={item.name}>
+                        {item.strategy_versions.map((candidate) => (
+                          <option
+                            key={candidate.strategy_version_id}
+                            value={`${item.strategy_id}:${candidate.version}`}
+                          >
+                            {item.name} · v{candidate.version}
+                          </option>
+                        ))}
+                      </optgroup>
+                    ) : (
+                      <option
+                        key={item.strategy_id}
+                        value={`${item.strategy_id}:${item.current_version}`}
+                      >
                         {item.name} · v{item.current_version}
                       </option>
-                    ))}
+                    ),
+                  )}
                 </select>
+                <small>
+                  {selectedVersion
+                    ? `代码摘要 ${selectedVersion.code_sha256.slice(0, 12)}`
+                    : "参数与源码在提交时冻结到 manifest"}
+                </small>
               </label>
               <label>
                 <span>Market Dataset</span>
@@ -244,7 +378,7 @@ export function BacktestWorkbench({
                     }
                   }}
                 >
-                  {datasets.map((item) => (
+                  {runnableDatasets.map((item) => (
                     <option key={item.dataset_id} value={item.dataset_id}>
                       v{item.version} ·{" "}
                       {item.instrument_ids.slice(0, 3).join(", ")} ·{" "}
@@ -290,26 +424,103 @@ export function BacktestWorkbench({
                   onChange={(event) => setDailyLimitPercent(event.target.value)}
                 />
               </label>
-              <label>
-                <span>Strategy Version 参数</span>
-                <textarea
-                  value={parametersText}
-                  onChange={(event) => setParametersText(event.target.value)}
-                  rows={4}
-                  spellCheck={false}
-                  aria-label="回测参数 JSON"
-                />
+              <div className="backtest-parameters">
+                <span>策略参数</span>
+                {parameterRules.length ? (
+                  <div className="backtest-parameter-grid">
+                    {parameterRules.map(([name, rule]) => {
+                      const value = parameters[name] ?? rule.default ?? "";
+                      const label = rule.title ?? name;
+                      if (rule.type === "boolean")
+                        return (
+                          <label
+                            className="backtest-parameter-check"
+                            key={name}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={Boolean(value)}
+                              onChange={(event) =>
+                                setParameters((current) => ({
+                                  ...current,
+                                  [name]: event.target.checked,
+                                }))
+                              }
+                            />
+                            <span>{label}</span>
+                          </label>
+                        );
+                      if (rule.enum)
+                        return (
+                          <label key={name}>
+                            <span>{label}</span>
+                            <select
+                              value={String(value)}
+                              onChange={(event) =>
+                                setParameters((current) => ({
+                                  ...current,
+                                  [name]: event.target.value,
+                                }))
+                              }
+                            >
+                              {rule.enum.map((option) => (
+                                <option
+                                  key={String(option)}
+                                  value={String(option)}
+                                >
+                                  {String(option)}
+                                </option>
+                              ))}
+                            </select>
+                            {rule.description && (
+                              <small>{rule.description}</small>
+                            )}
+                          </label>
+                        );
+                      return (
+                        <label key={name}>
+                          <span>{label}</span>
+                          <input
+                            type={
+                              rule.type === "integer" || rule.type === "number"
+                                ? "number"
+                                : "text"
+                            }
+                            step={rule.type === "integer" ? "1" : "any"}
+                            min={rule.minimum}
+                            max={rule.maximum}
+                            value={String(value)}
+                            onChange={(event) =>
+                              updateParameter(name, rule, event.target.value)
+                            }
+                          />
+                          {rule.description && (
+                            <small>{rule.description}</small>
+                          )}
+                        </label>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p className="backtest-empty">该版本没有可调参数。</p>
+                )}
                 <small>
                   参数会按当前不可变版本的 schema 校验，默认值会写入 manifest。
                 </small>
-              </label>
+              </div>
               <label>
                 <span>基准标的（可选）</span>
-                <input
+                <select
                   value={benchmarkId}
                   onChange={(event) => setBenchmarkId(event.target.value)}
-                  placeholder="例如 000300.SH"
-                />
+                >
+                  <option value="">不设置基准</option>
+                  {selectedDataset?.instrument_ids.map((instrument) => (
+                    <option key={instrument} value={instrument}>
+                      {instrument}
+                    </option>
+                  ))}
+                </select>
               </label>
               <div className="backtest-date-grid">
                 <label>
@@ -386,9 +597,15 @@ export function BacktestWorkbench({
               <div className="backtest-frozen-note">
                 <strong>不可变运行输入</strong>
                 <span>
-                  A 股时段 Asia/Shanghai · 午休 11:30–13:00 · 信号延迟 1 根 K 线
+                  {selectedDataset?.granularity === "1d"
+                    ? "日线按交易日收盘后可用 · 信号延迟 1 根 K 线 · 无盘中时段过滤"
+                    : `${selectedDataset?.granularity ?? "当前周期"} · A 股时段 Asia/Shanghai · 午休 11:30–13:00 · 信号延迟 1 根 K 线`}
                 </span>
               </div>
+              <p className="backtest-model-note" role="note">
+                模型边界：当前事件回放未处理复权/分红送转、T+1、历史成分和逐笔盘口；
+                结果用于研究比较，不构成实盘可用性证明。
+              </p>
               <button
                 className="button button-primary"
                 type="submit"
@@ -408,16 +625,38 @@ export function BacktestWorkbench({
               <p className="eyebrow">RUN HISTORY</p>
               <h2 id="backtest-runs-title">最近任务</h2>
             </div>
-            <span className="backtest-count">{runs.length}</span>
+            <div className="backtest-run-actions">
+              {pendingRuns && <span className="backtest-live-dot" />}
+              <button
+                type="button"
+                className="button button-quiet"
+                onClick={() => router.refresh()}
+              >
+                刷新状态
+              </button>
+              <span className="backtest-count">{runs.length}</span>
+            </div>
           </div>
-          {comparableRuns.length === 2 && (
-            <Link
-              className="button button-secondary backtest-compare-link"
-              href={`/workspace/backtests/compare?run_id=${comparableRuns[0].run_id}&run_id=${comparableRuns[1].run_id}`}
-            >
-              对比最近两次完成回测
-            </Link>
-          )}
+          <div className="backtest-compare-actions">
+            {comparableRuns.length >= 2 && (
+              <Link
+                className="button button-secondary backtest-compare-link"
+                href={`/workspace/backtests/compare?run_id=${comparableRuns[0].run_id}&run_id=${comparableRuns[1].run_id}`}
+              >
+                对比最近两次完成回测
+              </Link>
+            )}
+            {compareIds.length >= 2 && (
+              <Link
+                className="button button-primary"
+                href={`/workspace/backtests/compare?${compareIds
+                  .map((id) => `run_id=${id}`)
+                  .join("&")}`}
+              >
+                对比已选 {compareIds.length} 次
+              </Link>
+            )}
+          </div>
           {runs.length === 0 ? (
             <p className="backtest-empty">提交后的回测任务会显示在这里。</p>
           ) : (
@@ -426,6 +665,15 @@ export function BacktestWorkbench({
                 <li key={run.run_id}>
                   <div className="backtest-run-topline">
                     <div>
+                      {run.status === "completed" && (
+                        <input
+                          className="backtest-run-check"
+                          type="checkbox"
+                          aria-label={`选择 ${run.run_id.slice(0, 8)} 进行对比`}
+                          checked={compareIds.includes(run.run_id)}
+                          onChange={() => toggleCompare(run.run_id)}
+                        />
+                      )}
                       {run.status === "completed" || run.status === "failed" ? (
                         <Link
                           className="backtest-run-report-link"
@@ -445,8 +693,7 @@ export function BacktestWorkbench({
                     </time>
                   </div>
                   <p>
-                    Version {run.strategy_version_id.slice(0, 8)} · Dataset{" "}
-                    {run.dataset_id.slice(0, 8)}
+                    {strategyLabel(run)} · {datasetLabel(run)}
                   </p>
                   <div
                     className="backtest-progress-track"

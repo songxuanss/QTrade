@@ -2,7 +2,7 @@
 
 Backtest assumptions are frozen in `ArtifactManifest.execution_config_json` and
 covered by its SHA-256. Engines must use the same values when replaying a run.
-The mock engine accepts an optional `execution_model` object:
+The local sandbox event engine accepts an optional `execution_model` object:
 
 ```json
 {
@@ -20,15 +20,20 @@ The mock engine accepts an optional `execution_model` object:
 ```
 
 Signals are eligible after the configured number of bars. Quantities are rounded
-down to the market lot before submission; fills may be partial up to the configured
-share-volume participation. Slippage is applied adversely by side, fees reduce cash,
-and both costs are represented in normalized fills and the equity curve. Session
-times are interpreted in `timezone_name`, excluding configured breaks such as the
-A-share lunch interval; price limits compare with the prior market day's close.
+down to the market lot before submission; the final fill after cash and volume
+caps is rounded to the same lot, so partial fills cannot create untradeable odd
+lots. Slippage is applied adversely by side, fees reduce cash, and both costs are
+represented in normalized fills and the equity curve. Session times are
+interpreted in `timezone_name`, excluding configured breaks such as the A-share
+lunch interval; daily bars bypass the intraday session and fill on the next
+daily bar. Price limits compare with the prior market day's close.
 The price-limit check is skipped until a prior close exists inside the selected
 dataset; include a prior session in the dataset when first-day limit behavior
 matters.
-These assumptions are user-editable and are frozen into each run's manifest. The
-base model deliberately exposes its assumptions for markets
-whose rules differ and should be extended with a versioned market calendar where
-split sessions, instrument-specific lots, or special price limits are required.
+Local deployments execute the stored Python strategy through the isolated
+Runner over a Unix socket. The Runner receives one ordered bar series and calls
+`on_bar` sequentially, so a strategy only sees current and prior bars. The model
+does not yet implement corporate actions, T+1 sellable quantity, historical
+universe membership, tick-size rounding, or order-book impact. These assumptions
+are user-editable and are frozen into each run's manifest; review
+`QUANT-MODEL-READINESS.md` before treating a report as production-ready.

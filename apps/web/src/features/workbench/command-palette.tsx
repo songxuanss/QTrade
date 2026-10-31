@@ -182,8 +182,8 @@ export function CommandPalette({
                 aria-expanded={open}
                 aria-controls={listboxId}
                 aria-activedescendant={activeOptionId}
-                aria-label="搜索 Instrument、Strategy、Backtest Run、Order 和 Alert"
-                placeholder="搜索 Instrument、Strategy、Backtest Run、Order 和 Alert…"
+                aria-label="搜索标的或页面"
+                placeholder="搜索标的或页面…"
                 value={query}
                 onChange={(event) => {
                   setActive(0);

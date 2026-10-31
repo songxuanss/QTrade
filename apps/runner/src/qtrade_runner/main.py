@@ -18,7 +18,9 @@ from qtrade_runtime.configuration import validate_configuration
 from qtrade_runtime.observability import configure_logging, instrument_app
 
 validate_configuration(os.environ, isolated=True)
-SOCKET = Path("/run/qtrade/runner.sock")
+SOCKET = Path(os.environ.get("QTRADE_RUNNER_SOCKET", "/run/qtrade/runner.sock"))
+if not SOCKET.is_absolute():
+    raise SystemExit("QTRADE_RUNNER_SOCKET must be an absolute path")
 SOCKET_GROUP = 10001
 sandbox = StrategySandbox()
 slots = asyncio.Semaphore(1)
@@ -88,7 +90,8 @@ def run() -> None:
         pass
     listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     listener.bind(str(SOCKET))
-    os.chown(SOCKET, 0, SOCKET_GROUP)
+    if os.geteuid() == 0:
+        os.chown(SOCKET, 0, SOCKET_GROUP)
     # The worker GID needs socket access; API has no socket volume and job GIDs differ.
     os.chmod(SOCKET, 0o660)  # nosec B103
     listener.listen(2048)

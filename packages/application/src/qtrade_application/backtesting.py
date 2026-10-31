@@ -162,6 +162,14 @@ class BacktestService:
         dataset = self._datasets.get(access.workspace.workspace_id, request.dataset_id).metadata
         if request.start < dataset.start or request.end > dataset.end:
             raise PortError(ErrorCode.INVALID_INPUT, "backtest range must stay within the dataset")
+        if dataset.granularity == "tick":
+            raise PortError(
+                ErrorCode.INVALID_INPUT, "tick datasets are not supported by event replay"
+            )
+        if request.benchmark_id is not None and request.benchmark_id not in dataset.instrument_ids:
+            raise PortError(
+                ErrorCode.INVALID_INPUT, "benchmark must be present in the selected dataset"
+            )
         resolved_parameters = self._strategies.validate_parameters(
             access, request.strategy_id, request.strategy_version, request.parameters
         )
@@ -278,8 +286,21 @@ class BacktestService:
             result.workspace_id != run.workspace_id
             or result.dataset_id != run.dataset_id
             or result.strategy_version_id != run.strategy_version_id
+            or result.currency != run.currency
         ):
             raise PortError(ErrorCode.CHECKSUM_MISMATCH, "stored report does not match its run")
+        if (
+            not result.equity_curve
+            or result.summary.sample_count != len(result.equity_curve)
+            or result.summary.final_equity != result.equity_curve[-1].equity
+        ):
+            raise PortError(ErrorCode.CHECKSUM_MISMATCH, "stored report summary is inconsistent")
+        manifest = self._manifests.get(run.workspace_id, run_id)
+        if (
+            manifest.manifest_id != run.manifest_id
+            or result.determinism.seed != manifest.random_seed
+        ):
+            raise PortError(ErrorCode.CHECKSUM_MISMATCH, "stored report manifest is inconsistent")
         return result
 
     def manifest(self, access: WorkspaceAccess, run_id: UUID) -> ArtifactManifest:
@@ -401,7 +422,25 @@ class BacktestService:
 
     def list(self, access: WorkspaceAccess, limit: int = 100) -> tuple[BacktestRunRecord, ...]:
         access.require(Permission.READ)
-        return self._runs.list(access.workspace.workspace_id, limit)
+        records = self._runs.list(access.workspace.workspace_id, limit)
+        reconciled: list[BacktestRunRecord] = []
+        for record in records:
+            if (
+                record.run.status in {"cancelled", "failed", "completed"}
+                or record.engine_job_id is None
+            ):
+                reconciled.append(record)
+                continue
+            try:
+                job = self._engine.status(access.workspace.workspace_id, record.engine_job_id)
+            except PortError as error:
+                # A lost in-memory job must not hide an otherwise readable run.
+                if error.code == ErrorCode.NOT_FOUND:
+                    reconciled.append(record)
+                    continue
+                raise
+            reconciled.append(self._apply_job(record, job))
+        return tuple(reconciled)
 
     def datasets(self, access: WorkspaceAccess, limit: int = 100) -> tuple[MarketDataset, ...]:
         access.require(Permission.READ)

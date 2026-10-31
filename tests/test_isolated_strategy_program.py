@@ -9,7 +9,10 @@ import pytest
 
 from qtrade_contracts import Bar
 from qtrade_domain.ports import ErrorCode, PortError
-from qtrade_runner_adapter.strategy_program import IsolatedStrategyProgram
+from qtrade_runner_adapter.strategy_program import (
+    IsolatedBatchStrategyProgram,
+    IsolatedStrategyProgram,
+)
 
 
 @pytest.fixture
@@ -163,3 +166,40 @@ def test_strategy_socket_propagates_only_trace_identity(bar, response):
     headers = calls[-1][2]
     assert headers == {"traceparent": "00-" + "a" * 32 + "-" + "b" * 16 + "-01"}
     assert "sentinel" not in str(headers)
+
+
+def test_isolated_batch_program_executes_one_full_series(bar, response):
+    from datetime import timedelta
+
+    values, calls = response
+    later = bar.model_copy(update={"timestamp": bar.timestamp + timedelta(minutes=1)})
+    values["output"] = "QTRADE_BATCH_SIGNALS_V1 " + json.dumps(
+        [
+            {"index": 0, "signals": [proposal(bar)]},
+            {"index": 1, "signals": []},
+        ]
+    )
+    batches = IsolatedBatchStrategyProgram("/tmp/runner.sock", "source").signals_for_bars(
+        (bar, later), {"window": 5}
+    )
+    assert len(batches) == 2
+    assert batches[0][0].quantity == 100
+    assert batches[1] == ()
+    assert calls[-1][1]["input"]["bars"][1]["timestamp"] == later.timestamp.isoformat().replace(
+        "+00:00", "Z"
+    )
+    assert "QTRADE_BATCH_SIGNALS_V1" in calls[-1][1]["code"]
+
+
+def test_isolated_batch_program_rejects_wrong_indexes_and_unknown_instruments(bar, response):
+    values, _ = response
+    values["output"] = "QTRADE_BATCH_SIGNALS_V1 " + json.dumps(
+        [{"index": 1, "signals": [proposal(bar)]}]
+    )
+    with pytest.raises(PortError):
+        IsolatedBatchStrategyProgram("/tmp/runner.sock", "source").signals_for_bars((bar,), {})
+    values["output"] = "QTRADE_BATCH_SIGNALS_V1 " + json.dumps(
+        [{"index": 0, "signals": [{**proposal(bar), "instrument_id": "UNKNOWN"}]}]
+    )
+    with pytest.raises(PortError):
+        IsolatedBatchStrategyProgram("/tmp/runner.sock", "source").signals_for_bars((bar,), {})

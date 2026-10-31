@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from decimal import Decimal
@@ -28,6 +29,7 @@ from qtrade_domain.ports import (
     PortError,
     TradingEnginePort,
 )
+from qtrade_domain.strategy_program import StrategySignal
 
 
 @dataclass(frozen=True, slots=True)
@@ -59,11 +61,27 @@ class _PendingOrder:
 
 
 class MockStrategyProgram(Protocol):
-    """Test-only signal source. Production strategy source runs in the isolated runner."""
+    """Per-bar signal source used by tests and simple registered models."""
 
     def on_bar(
         self, bar: Bar, history: tuple[Bar, ...], parameters: dict[str, object]
     ) -> tuple[MockOrderSignal, ...]: ...
+
+
+class BatchStrategyProgram(Protocol):
+    """Evaluate one stored strategy over the complete bar series.
+
+    Implementations may execute source in the isolated Runner. The engine
+    consumes only indexed proposals, so each proposal remains tied to the bar
+    that produced it and no future bar is exposed to the strategy.
+    """
+
+    def signals_for_bars(
+        self, bars: tuple[Bar, ...], parameters: dict[str, object]
+    ) -> tuple[tuple[StrategySignal, ...], ...]: ...
+
+
+ProgramResolver = Callable[[UUID, UUID, str, int], MockStrategyProgram | BatchStrategyProgram]
 
 
 class MockEngineAdapter(TradingEnginePort):
@@ -73,11 +91,13 @@ class MockEngineAdapter(TradingEnginePort):
         self,
         market: MarketDataPort,
         objects: ObjectStorePort,
-        programs: dict[str, MockStrategyProgram],
+        programs: dict[str, MockStrategyProgram | BatchStrategyProgram],
+        resolver: ProgramResolver | None = None,
     ) -> None:
         self._market = market
         self._objects = objects
         self._programs = programs
+        self._resolver = resolver
         self._jobs: dict[tuple[UUID, UUID], ComputeJob] = {}
         self._inputs: dict[tuple[UUID, UUID], str] = {}
 
@@ -114,8 +134,15 @@ class MockEngineAdapter(TradingEnginePort):
         if key in self._jobs:
             return self._jobs[key]
         program = self._programs.get(manifest.code_sha256)
+        if program is None and self._resolver is not None:
+            program = self._resolver(
+                run.workspace_id,
+                run.strategy_version_id,
+                manifest.code_sha256,
+                manifest.random_seed,
+            )
         if program is None:
-            raise PortError(ErrorCode.UNSUPPORTED, "no mock strategy program is registered")
+            raise PortError(ErrorCode.UNSUPPORTED, "no strategy program is registered")
         bars = self._load_bars(run)
         try:
             result = self._replay(
@@ -219,6 +246,35 @@ class MockEngineAdapter(TradingEnginePort):
         return tuple(sorted(result))
 
     @staticmethod
+    def _signals(
+        program: MockStrategyProgram | BatchStrategyProgram,
+        batch_signals: object,
+        bar_index: int,
+        bar: Bar,
+        history: tuple[Bar, ...],
+        parameters: dict[str, object],
+    ) -> tuple[MockOrderSignal, ...]:
+        raw_signals = (
+            batch_signals[bar_index]
+            if isinstance(batch_signals, tuple)
+            else program.on_bar(bar, history, parameters)  # type: ignore[union-attr]
+        )
+        result: list[MockOrderSignal] = []
+        for value in raw_signals:
+            if isinstance(value, StrategySignal):
+                if value.order_type != "market" or value.time_in_force not in {"day", "gtc"}:
+                    raise PortError(
+                        ErrorCode.UNSUPPORTED,
+                        "event replay supports market orders with day or gtc validity",
+                    )
+                result.append(MockOrderSignal(value.instrument_id, value.side, value.quantity))
+            elif isinstance(value, MockOrderSignal):
+                result.append(value)
+            else:
+                raise PortError(ErrorCode.REJECTED, "invalid strategy proposal")
+        return tuple(result)
+
+    @staticmethod
     def _execution_model(config: object) -> BacktestExecutionModel:
         if not isinstance(config, dict):
             if config is None:
@@ -231,10 +287,18 @@ class MockEngineAdapter(TradingEnginePort):
         run: BacktestRun,
         manifest: ArtifactManifest,
         bars: tuple[Bar, ...],
-        program: MockStrategyProgram,
+        program: MockStrategyProgram | BatchStrategyProgram,
         execution: BacktestExecutionModel,
     ) -> dict[str, object]:
         parameters = json.loads(manifest.parameters_json)
+        batch = getattr(program, "signals_for_bars", None)
+        batch_signals = batch(bars, parameters) if batch is not None else None
+        if batch_signals is not None and (
+            not isinstance(batch_signals, tuple)
+            or len(batch_signals) != len(bars)
+            or any(not isinstance(signals, tuple) for signals in batch_signals)
+        ):
+            raise PortError(ErrorCode.REJECTED, "invalid batch strategy proposals")
         cash = run.initial_cash
         positions: dict[str, Decimal] = {}
         history: list[Bar] = []
@@ -278,7 +342,9 @@ class MockEngineAdapter(TradingEnginePort):
                 )
                 if signal.side == "sell":
                     quantity = min(quantity, positions.get(bar.instrument_id, Decimal(0)))
-                if quantity <= 0 or not execution.in_session(local_time):
+                if quantity <= 0 or (
+                    bar.granularity != "1d" and not execution.in_session(local_time)
+                ):
                     still_pending.append(pending_order)
                     continue
                 price = execution.fill_price(signal.side, bar.open)
@@ -296,6 +362,16 @@ class MockEngineAdapter(TradingEnginePort):
                     if signal.side == "buy"
                     else min(quantity, volume_cap)
                 )
+                # Affordability and volume are continuous values; fills must
+                # still respect the instrument lot before cash is debited.
+                filled = execution.round_quantity(filled)
+                lot = Decimal(execution.lot_size)
+                while (
+                    signal.side == "buy"
+                    and filled > 0
+                    and filled * price + execution.fee(filled * price) > cash
+                ):
+                    filled -= lot
                 if filled <= 0 and execution.volume_capacity(bar.volume) <= 0:
                     still_pending.append(pending_order)
                     continue
@@ -374,8 +450,8 @@ class MockEngineAdapter(TradingEnginePort):
                 equity.append(
                     {
                         "timestamp": bar.timestamp.isoformat(),
-                        "cash": str(cash),
-                        "equity": str(marked),
+                        "cash": format(cash, "f"),
+                        "equity": format(marked, "f"),
                         "drawdown": (
                             format((equity_peak - marked) / equity_peak, "f")
                             if equity_peak > 0
@@ -399,7 +475,14 @@ class MockEngineAdapter(TradingEnginePort):
                         ],
                     }
                 )
-            for signal in program.on_bar(bar, tuple(history), parameters):
+            for signal in MockEngineAdapter._signals(
+                program,
+                batch_signals,
+                bar_index,
+                bar,
+                tuple(history),
+                parameters,
+            ):
                 requested = execution.round_quantity(signal.quantity)
                 if requested <= 0:
                     orders.append(
@@ -466,7 +549,7 @@ class MockEngineAdapter(TradingEnginePort):
         )
         return {
             "schema_version": 1,
-            "determinism": {"engine": "qtrade.mock-event", "seed": manifest.random_seed},
+            "determinism": {"engine": "qtrade.sandbox-event.v1", "seed": manifest.random_seed},
             "dataset_id": str(run.dataset_id),
             "strategy_version_id": str(run.strategy_version_id),
             "currency": run.currency,
@@ -475,8 +558,8 @@ class MockEngineAdapter(TradingEnginePort):
             "fills": fills,
             "summary": {
                 "initial_cash": str(run.initial_cash),
-                "final_equity": str(last),
-                "total_return": str((last - run.initial_cash) / run.initial_cash),
+                "final_equity": format(last, "f"),
+                "total_return": format((last - run.initial_cash) / run.initial_cash, "f"),
                 "ending_drawdown": str(ending_drawdown),
                 "sample_count": len(equity),
             },

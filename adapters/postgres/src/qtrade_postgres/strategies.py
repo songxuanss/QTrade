@@ -158,6 +158,21 @@ class PostgresStrategyStore(PostgresStore):
             ).fetchall()
         return tuple(self._version(row) for row in rows)
 
+    def version_by_id(
+        self, workspace_id: UUID, strategy_version_id: UUID
+    ) -> StrategyVersion | None:
+        """Resolve a frozen version by ID for execution-time source loading."""
+        with self._connection() as conn:
+            row = conn.execute(
+                column_query(
+                    "SELECT {} FROM strategy_version WHERE "
+                    "workspace_id=%s AND strategy_version_id=%s",
+                    self._version_columns(),
+                ),
+                (workspace_id, strategy_version_id),
+            ).fetchone()
+        return self._version(row) if row is not None else None
+
     def append_version(
         self,
         workspace_id: UUID,

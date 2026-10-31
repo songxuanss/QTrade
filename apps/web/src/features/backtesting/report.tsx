@@ -21,6 +21,11 @@ function percent(value: string | null | undefined) {
   return `${(Number(value) * 100).toFixed(2)}%`;
 }
 
+function ratio(value: string | null | undefined) {
+  if (value == null || !Number.isFinite(Number(value))) return "—";
+  return Number(value).toFixed(2);
+}
+
 function EquityChart({
   report,
   benchmarkId,
@@ -179,10 +184,14 @@ export function BacktestReport({
   run,
   report,
   manifest,
+  strategyLabel,
+  datasetLabel,
 }: {
   run: BacktestRunInfo;
   report: BacktestReportInfo | null;
   manifest: BacktestManifestInfo | null;
+  strategyLabel?: string;
+  datasetLabel?: string;
 }) {
   if (!report)
     return (
@@ -205,6 +214,7 @@ export function BacktestReport({
     );
 
   const metrics = report.metrics;
+  let parameters: Record<string, unknown> = {};
   let execution: Record<string, unknown> = {};
   try {
     const config = JSON.parse(manifest?.execution_config_json ?? "{}") as {
@@ -213,6 +223,14 @@ export function BacktestReport({
     execution = config.execution_model ?? {};
   } catch {
     execution = {};
+  }
+  try {
+    parameters = JSON.parse(manifest?.parameters_json ?? "{}") as Record<
+      string,
+      unknown
+    >;
+  } catch {
+    parameters = {};
   }
   const cards = [
     {
@@ -237,7 +255,7 @@ export function BacktestReport({
     },
     {
       label: "Sharpe",
-      value: metrics?.sharpe_ratio ?? "—",
+      value: ratio(metrics?.sharpe_ratio),
       tone: "neutral",
     },
     {
@@ -261,8 +279,9 @@ export function BacktestReport({
           </p>
           <h1>回测报告</h1>
           <p className="page-description">
-            Run {run.run_id} · 策略版本 {run.strategy_version_id.slice(0, 8)} ·
-            数据集 {run.dataset_id.slice(0, 8)}
+            Run {run.run_id.slice(0, 8)} ·{" "}
+            {strategyLabel ?? `策略版本 ${run.strategy_version_id.slice(0, 8)}`}{" "}
+            · {datasetLabel ?? `数据集 ${run.dataset_id.slice(0, 8)}`}
           </p>
         </div>
         <span className="backtest-status status-completed">已完成</span>
@@ -288,11 +307,11 @@ export function BacktestReport({
         aria-label="风险与交易统计"
       >
         {[
-          ["Calmar", report.metrics?.calmar_ratio ?? "—"],
-          ["Sortino", report.metrics?.sortino_ratio ?? "—"],
+          ["Calmar", ratio(report.metrics?.calmar_ratio)],
+          ["Sortino", ratio(report.metrics?.sortino_ratio)],
           ["胜率", percent(report.metrics?.win_rate)],
-          ["盈亏比", report.metrics?.profit_factor ?? "—"],
-          ["换手率", `${report.metrics?.turnover ?? "—"}×`],
+          ["盈亏比", ratio(report.metrics?.profit_factor)],
+          ["换手率", `${ratio(report.metrics?.turnover)}×`],
           ["平均暴露", percent(report.metrics?.average_exposure)],
           ["最大暴露", percent(report.metrics?.max_exposure)],
           [
@@ -422,6 +441,11 @@ export function BacktestReport({
                   ))}
               </tbody>
             </table>
+            {report.orders.length > 100 && (
+              <p className="backtest-table-note">
+                仅显示最近 100 条，共 {report.orders.length} 条订单。
+              </p>
+            )}
           </div>
         )}
       </section>
@@ -475,6 +499,11 @@ export function BacktestReport({
                     ))}
                 </tbody>
               </table>
+              {report.fills.length > 100 && (
+                <p className="backtest-table-note">
+                  仅显示最近 100 条，共 {report.fills.length} 条成交。
+                </p>
+              )}
             </div>
           )}
         </section>
@@ -536,9 +565,24 @@ export function BacktestReport({
               </dd>
             </div>
             <div>
+              <dt>策略参数</dt>
+              <dd className="backtest-hash">
+                {Object.keys(parameters).length
+                  ? JSON.stringify(parameters)
+                  : "未设置"}
+              </dd>
+            </div>
+            <div>
               <dt>执行模型 SHA-256</dt>
               <dd className="backtest-hash">
                 {manifest?.execution_config_sha256 ?? "—"}
+              </dd>
+            </div>
+            <div>
+              <dt>代码 / 数据集 SHA-256</dt>
+              <dd className="backtest-hash">
+                {manifest?.code_sha256?.slice(0, 16) ?? "—"} /{" "}
+                {manifest?.dataset_sha256?.slice(0, 16) ?? "—"}
               </dd>
             </div>
             <div>
@@ -552,7 +596,10 @@ export function BacktestReport({
             <div>
               <dt>执行引擎 / seed</dt>
               <dd>
-                {report.determinism.engine} / {report.determinism.seed}
+                {manifest?.engine_name
+                  ? `${manifest.engine_name} ${manifest.engine_version}`
+                  : report.determinism.engine}{" "}
+                / {report.determinism.seed}
               </dd>
             </div>
           </dl>

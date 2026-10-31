@@ -78,6 +78,7 @@ from qtrade_application.strategies import StrategyService  # noqa: E402
 from qtrade_application.strategy_lifecycle import StrategyLifecycleService  # noqa: E402
 from qtrade_application.workspaces import WorkspaceService  # noqa: E402
 from qtrade_contracts import (  # noqa: E402
+    BacktestDeterminism,
     BacktestEquityPoint,
     BacktestFill,
     BacktestMetrics,
@@ -165,11 +166,9 @@ class FixtureRuntimeStore:
         return self.rows.get((workspace_id, runtime_id))
 
     def list(self, workspace_id, limit=100):
-        return tuple(
-            runtime
-            for (scope, _), runtime in self.rows.items()
-            if scope == workspace_id
-        )[:limit]
+        return tuple(runtime for (scope, _), runtime in self.rows.items() if scope == workspace_id)[
+            :limit
+        ]
 
     def transition(self, runtime, *, expected_revision, state, updated_at, audit):
         current = self.get(runtime.workspace_id, runtime.runtime_id)
@@ -791,11 +790,16 @@ def fixture_complete_backtest(run_id: UUID, workspace_id: UUID):
     template = BacktestResult.model_validate_json(
         (ROOT / "tests/fixtures/contracts/BacktestResult.json").read_text()
     )
+    manifest = ManifestService(fixture_objects).get(workspace_id, run_id)
     result = template.model_copy(
         update={
             "workspace_id": workspace_id,
             "dataset_id": run.dataset_id,
             "strategy_version_id": run.strategy_version_id,
+            "determinism": BacktestDeterminism(
+                engine="browser-fixture",
+                seed=manifest.random_seed,
+            ),
             "equity_curve": (
                 BacktestEquityPoint(
                     timestamp=run.start,

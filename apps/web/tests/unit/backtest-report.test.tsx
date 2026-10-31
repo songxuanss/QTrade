@@ -33,7 +33,7 @@ const report: BacktestReportInfo = {
   dataset_id: run.dataset_id,
   strategy_version_id: run.strategy_version_id,
   currency: "CNY",
-  determinism: { engine: "qtrade.mock-event", seed: 0 },
+  determinism: { engine: "qtrade.sandbox-event.v1", seed: 0 },
   equity_curve: [
     {
       timestamp: "2026-01-01T00:00:00Z",
@@ -110,10 +110,12 @@ const manifest: BacktestManifestInfo = {
   manifest_id: run.manifest_id,
   dataset_sha256: "a".repeat(64),
   code_sha256: "b".repeat(64),
-  engine_name: "qtrade.mock-event",
+  engine_name: "qtrade.sandbox-event.v1",
   engine_version: "1",
   adapter_version: "1",
   environment_image_digest: `sha256:${"c".repeat(64)}`,
+  parameters_json: JSON.stringify({ fast: 5, slow: 20 }),
+  random_seed: 7,
   execution_config_json: JSON.stringify({
     execution_model: {
       lot_size: 100,

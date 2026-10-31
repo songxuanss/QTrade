@@ -158,3 +158,26 @@ def test_viewer_cannot_scan_or_change_quality_issue(sample):
             detected_at=start,
         )
     assert denied.value.code == ErrorCode.REJECTED
+
+
+def test_thirty_minute_bars_use_a_supported_interval(sample):
+    base, _, start, _, bars = sample
+    bars_30m = tuple(
+        bar.model_copy(
+            update={
+                "granularity": "30m",
+                "timestamp": start + timedelta(minutes=30 * index),
+            }
+        )
+        for index, bar in enumerate(bars[:6])
+    )
+    issues = detect_quality_issues(
+        workspace_id=base.workspace_id,
+        dataset_id=base.dataset_id,
+        bars=bars_30m,
+        calendars={},
+        start=start,
+        end=start + timedelta(minutes=180),
+        detected_at=start + timedelta(days=1),
+    )
+    assert isinstance(issues, tuple)

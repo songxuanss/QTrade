@@ -92,6 +92,29 @@ class TimescaleMarketData(PostgresStore):
                         )
                     )
 
+    def instruments_for_dataset(
+        self, workspace_id: UUID, dataset_id: UUID
+    ) -> tuple[tuple[str, str], ...]:
+        """Enumerate the immutable dataset's bar streams for event replay."""
+        with self._connection() as conn:
+            if (
+                conn.execute(
+                    "SELECT 1 FROM market_dataset_snapshot WHERE workspace_id=%s AND dataset_id=%s",
+                    (workspace_id, dataset_id),
+                ).fetchone()
+                is None
+            ):
+                raise PortError(ErrorCode.NOT_FOUND, "dataset unavailable")
+            rows = conn.execute(
+                """SELECT DISTINCT instrument_id,granularity FROM market_bar
+                WHERE workspace_id=%s AND dataset_id=%s
+                ORDER BY instrument_id,granularity""",
+                (workspace_id, dataset_id),
+            ).fetchall()
+        if not rows:
+            raise PortError(ErrorCode.NOT_FOUND, "dataset bars not found")
+        return tuple((str(row[0]), str(row[1])) for row in rows)
+
     def query_bars(self, query: BarQuery) -> BarPage:
         position = after(query)
         with self._connection() as conn:

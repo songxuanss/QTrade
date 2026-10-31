@@ -156,26 +156,35 @@ export function TradingConsole({
                       label="恢复"
                     />
                   )}
-                  <ControlForm
-                    runtime={runtime}
-                    action="cancel_orders"
-                    label="撤销未完成订单"
-                    danger
-                  />
-                  {canClose && (
-                    <ControlForm
-                      runtime={runtime}
-                      action="close_positions"
-                      label="一键平仓"
-                      danger
-                    />
+                  {runtime.order_control_available === false && (
+                    <p className="runtime-control-unavailable">
+                      券商订单/持仓控制尚未配置；暂停和恢复可用，撤销、平仓和停止会保持运行状态。
+                    </p>
                   )}
-                  <ControlForm
-                    runtime={runtime}
-                    action="stop"
-                    label="停止运行"
-                    danger
-                  />
+                  {runtime.order_control_available !== false && (
+                    <>
+                      <ControlForm
+                        runtime={runtime}
+                        action="cancel_orders"
+                        label="撤销未完成订单"
+                        danger
+                      />
+                      {canClose && (
+                        <ControlForm
+                          runtime={runtime}
+                          action="close_positions"
+                          label="一键平仓"
+                          danger
+                        />
+                      )}
+                      <ControlForm
+                        runtime={runtime}
+                        action="stop"
+                        label="停止运行"
+                        danger
+                      />
+                    </>
+                  )}
                 </div>
               )}
             </article>

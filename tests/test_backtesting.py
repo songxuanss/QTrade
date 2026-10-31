@@ -109,7 +109,7 @@ def test_submission_freezes_manifest_before_engine_and_syncs_immutable_result():
         "USD",
         "cost.v1",
         {},
-        random_seed=9,
+        random_seed=7,
         execution_model={
             "lot_size": 100,
             "fee_bps": "3",
@@ -126,7 +126,7 @@ def test_submission_freezes_manifest_before_engine_and_syncs_immutable_result():
     assert queued.engine_job_id == queued.run.run_id
     assert manifest.strategy_version_id == version_id
     assert manifest.dataset_sha256 == metadata.content_sha256
-    assert manifest.random_seed == 9
+    assert manifest.random_seed == 7
     assert manifest.parameters_json == "{}"
     assert manifest.execution_config_json is not None
     assert '"initial_cash":"10000"' in manifest.execution_config_json

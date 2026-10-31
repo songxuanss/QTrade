@@ -97,3 +97,15 @@ def test_metrics_calculate_fifo_trade_quality_turnover_and_exposure():
 def test_metrics_reject_invalid_annualization_period(periods: int):
     with pytest.raises(PortError):
         calculate_backtest_metrics((point(0, "100"), point(1, "101")), periods_per_year=periods)
+
+
+def test_metrics_include_the_first_funded_period_loss():
+    points = (
+        point(0, "90"),
+        point(1, "95"),
+        point(2, "94"),
+    )
+    metrics = calculate_backtest_metrics(points, periods_per_year=252, initial_cash=Decimal("100"))
+    assert metrics.max_drawdown == Decimal("0.1")
+    assert metrics.annualized_return is not None and metrics.annualized_return < 0
+    assert metrics.calmar_ratio is not None and metrics.calmar_ratio < 0

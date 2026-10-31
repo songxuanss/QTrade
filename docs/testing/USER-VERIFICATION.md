@@ -127,3 +127,12 @@ node tests/verification-research-data.mjs
 在项目根目录 `.env` 中设置 `QTRADE_TICK_DOWNLOAD_MAX_DAYS=0`，表示单次下载时长不限（默认值）。以后需要限制时改为正整数，例如 `QTRADE_TICK_DOWNLOAD_MAX_DAYS=30`。上限按起止时间之间的自然日时长计算，不是交易日数量；恰好等于上限可以提交。负数、空值和非整数会阻止服务启动，避免配置失效。
 
 修改后重新启动 API；Docker 部署执行 `docker compose up -d`，本地验证部署执行 `.venv/bin/python scripts/verification-local.py stop` 后再执行 `.venv/bin/python scripts/verification-local.py start`。页面从服务端读取并显示当前上限。来源自身的历史起始日期和按日分页不受此配置改变。
+
+
+## 回测与量化模型
+
+策略研究中的默认模板是一个可运行的 SMA 交叉模型：`fast=5`、`slow=20`、`quantity=1000`。新建策略后先执行“静态校验”，再执行“校验参数”，状态会持久化为“已校验”，刷新后仍可直接进入“配置回测”。
+
+回测表单会按所选 Strategy Version 的 JSON schema 渲染参数输入，不再要求手写参数 JSON。策略版本选择显示策略名和版本号；运行历史显示对应策略、数据集和周期。运行中每 4 秒自动刷新，也可点“刷新状态”；可勾选 2–20 个已完成运行进行对比。
+
+日线回测使用“收盘后可用、无盘中时段过滤”的语义；分钟回测才应用 A 股 09:30–15:00 和午休。报告显示参数、代码/数据集摘要、引擎与 seed；指标保留两位小数。当前模型仍不处理复权/分红送转、T+1、历史成分和逐笔盘口，页面会明确提示，结果不能当作实盘可用性证明。完整评审见 `docs/backtesting/QUANT-MODEL-READINESS.md`。

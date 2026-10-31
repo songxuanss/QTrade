@@ -407,7 +407,7 @@ test("strategy code, parameter schemas and dependencies are immutable by version
   await expect(
     page.getByText("参数类型或取值范围不符合此版本 schema"),
   ).toBeVisible();
-  await expect(page.getByRole("button", { name: "运行回测" })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "配置回测" })).toBeDisabled();
   await lookback.fill("50");
   await page.getByRole("button", { name: "校验参数" }).click();
   await expect(page.getByRole("status")).toContainText(
@@ -869,7 +869,7 @@ test("command palette keeps keyboard focus and active options accessible", async
   await trigger.click();
   const dialog = page.getByRole("dialog", { name: "命令面板" });
   const commandSearch = dialog.getByRole("combobox", {
-    name: "搜索 Instrument、Strategy、Backtest Run、Order 和 Alert",
+    name: "搜索标的或页面",
   });
   const listbox = dialog.getByRole("listbox", { name: "搜索结果" });
   await expect(commandSearch).toBeFocused();
@@ -1056,7 +1056,7 @@ test("protected workspace logs in through PKCE callback and logs out without exp
   expect(socketConnections).toBeGreaterThanOrEqual(2);
   await page.keyboard.press("Control+k");
   const commandSearch = page.getByRole("combobox", {
-    name: "搜索 Instrument、Strategy、Backtest Run、Order 和 Alert",
+    name: "搜索标的或页面",
   });
   await expect(commandSearch).toBeFocused();
   await commandSearch.fill("MOCK:ABC");
@@ -1071,7 +1071,7 @@ test("protected workspace logs in through PKCE callback and logs out without exp
   await page.keyboard.press("Control+k");
   await page
     .getByRole("combobox", {
-      name: "搜索 Instrument、Strategy、Backtest Run、Order 和 Alert",
+      name: "搜索标的或页面",
     })
     .fill("Order");
   await page

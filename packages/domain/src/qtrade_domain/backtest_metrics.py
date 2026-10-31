@@ -44,7 +44,11 @@ def calculate_backtest_metrics(
         raise PortError(ErrorCode.INVALID_INPUT, "invalid backtest metric inputs")
 
     equities = tuple(point.equity for point in points)
-    peak = equities[0]
+    # The first equity point is already after the first bar's fills and fees.
+    # Risk and growth must start from the funded account, otherwise the first
+    # loss disappears from drawdown and CAGR.
+    start_equity = initial_cash if initial_cash is not None else equities[0]
+    peak = start_equity
     max_drawdown = Decimal(0)
     for equity in equities:
         peak = max(peak, equity)
@@ -52,18 +56,21 @@ def calculate_backtest_metrics(
             max_drawdown = max(max_drawdown, (peak - equity) / peak)
     max_drawdown = max(max_drawdown, *(point.drawdown for point in points))
 
-    first, last = equities[0], equities[-1]
+    last = equities[-1]
     elapsed = (
         points[-1].timestamp.astimezone(UTC) - points[0].timestamp.astimezone(UTC)
     ).total_seconds()
     annualized_return: Decimal | None = None
-    if elapsed >= 86400 and first > 0 and last >= 0:
+    if elapsed >= 86400 and start_equity > 0 and last >= 0:
         years = Decimal(str(elapsed)) / Decimal("31556952")
-        annualized_return = (last / first) ** (Decimal(1) / years) - 1 if last > 0 else Decimal(-1)
+        annualized_return = (
+            (last / start_equity) ** (Decimal(1) / years) - 1 if last > 0 else Decimal(-1)
+        )
 
+    period_equities = (start_equity, *equities)
     returns = tuple(
         (current / previous) - 1
-        for previous, current in zip(equities, equities[1:], strict=False)
+        for previous, current in zip(period_equities, period_equities[1:], strict=False)
         if previous > 0
     )
     volatility: Decimal | None = None
@@ -84,6 +91,8 @@ def calculate_backtest_metrics(
         if downside_deviation > 0:
             sortino = mean / downside_deviation * Decimal(periods_per_year).sqrt()
 
+    # Trade matching must not depend on an adapter's dictionary/input order.
+    ordered_fills = tuple(sorted(fills, key=lambda fill: fill.filled_at))
     lots: dict[str, list[list[Decimal]]] = {}
     gross_profit = Decimal(0)
     gross_loss = Decimal(0)
@@ -91,7 +100,7 @@ def calculate_backtest_metrics(
     winning_trades = 0
     losing_trades = 0
     total_traded_notional = Decimal(0)
-    for fill in fills:
+    for fill in ordered_fills:
         quantity = fill.filled_quantity
         direction = Decimal(1) if fill.side == "buy" else Decimal(-1)
         fee_per_unit = fill.fee / quantity
@@ -124,7 +133,7 @@ def calculate_backtest_metrics(
         for point in points
         if point.equity > 0
     )
-    denominator = initial_cash if initial_cash is not None else first
+    denominator = initial_cash if initial_cash is not None else start_equity
     turnover = total_traded_notional / denominator if denominator > 0 else Decimal(0)
     calmar = (
         annualized_return / max_drawdown

@@ -1,6 +1,8 @@
 """Local API composition and infrastructure probes."""
 
+import hashlib
 import os
+from uuid import UUID
 
 from fastapi import FastAPI
 
@@ -62,7 +64,8 @@ from qtrade_composition.downloads import tick_download_policy_from_env
 from qtrade_composition.ingestion import historical_ingestion_from_env, research_replay_from_env
 from qtrade_composition.startup import validate_startup
 from qtrade_data_postgres.universes import PostgresUniverses
-from qtrade_mock.ports import MockTradingEngine
+from qtrade_domain.ports import ErrorCode, PortError
+from qtrade_mock.backtest_engine import MockEngineAdapter
 from qtrade_object_store.s3 import S3ObjectStore
 from qtrade_postgres.alert_events import PostgresAlertEventStore
 from qtrade_postgres.alert_jobs import PostgresAlertEvaluationQueue
@@ -86,6 +89,7 @@ from qtrade_postgres.risk import PostgresRiskDecisionStore, PostgresRiskLimitSto
 from qtrade_postgres.runtime_control import PostgresExecutionRuntimeStore
 from qtrade_postgres.strategies import PostgresStrategyStore
 from qtrade_postgres.workspaces import PostgresWorkspaceStore
+from qtrade_runner_adapter.strategy_program import IsolatedBatchStrategyProgram
 from qtrade_runtime.health import create_health_app
 
 validate_startup()
@@ -205,26 +209,65 @@ if service is not None:
     strategy_store = PostgresStrategyStore(os.environ["DATABASE_URL"])
     strategies = StrategyService(strategy_store, strategy_objects)
     strategy_lifecycle = StrategyLifecycleService(strategies, strategy_store)
-    if os.environ.get("QTRADE_ENV") == "local":
+    backtest_market_data = (
+        TimescaleMarketData(os.environ["MARKET_DATABASE_URL"])
+        if os.environ.get("MARKET_DATABASE_URL")
+        else None
+    )
+    if os.environ.get("QTRADE_ENV") == "local" and backtest_market_data is not None:
+        runner_socket = os.environ.get("QTRADE_STRATEGY_RUNNER_SOCKET", "/run/qtrade/runner.sock")
+        registered: dict[tuple[str, int], IsolatedBatchStrategyProgram] = {}
+
+        def resolve_strategy_program(
+            workspace_id: UUID,
+            strategy_version_id: UUID,
+            code_sha256: str,
+            seed: int,
+        ) -> IsolatedBatchStrategyProgram:
+            cached = registered.get((code_sha256, seed))
+            if cached is not None:
+                return cached
+            if not os.path.exists(runner_socket):
+                raise PortError(ErrorCode.UNAVAILABLE, "strategy runner socket is unavailable")
+            version = strategy_store.version_by_id(workspace_id, strategy_version_id)
+            if version is None or version.code_sha256 != code_sha256:
+                raise PortError(
+                    ErrorCode.CONFLICT, "strategy source no longer matches the manifest"
+                )
+            try:
+                source = strategy_objects.get(
+                    workspace_id,
+                    version.code_object_key,
+                    expected_sha256=version.code_sha256,
+                ).decode("utf-8")
+            except (OSError, UnicodeDecodeError):
+                raise PortError(ErrorCode.UNAVAILABLE, "strategy source is unavailable") from None
+            if hashlib.sha256(source.encode("utf-8")).hexdigest() != code_sha256:
+                raise PortError(ErrorCode.CONFLICT, "strategy source check failed")
+            program = IsolatedBatchStrategyProgram(runner_socket, source, seed=seed)
+            registered[(code_sha256, seed)] = program
+            return program
+
         backtests = BacktestService(
             PostgresBacktestRunStore(os.environ["DATABASE_URL"]),
             strategies,
             strategy_store,
             PostgresDatasetRepository(os.environ["DATABASE_URL"]),
             ManifestService(strategy_objects),
-            MockTradingEngine(),
+            MockEngineAdapter(
+                backtest_market_data,
+                strategy_objects,
+                {},
+                resolve_strategy_program,
+            ),
             strategy_objects,
             BacktestEngineIdentity(
-                "qtrade-local-mock",
-                "0.1.0",
-                "mock-engine.v1",
+                "qtrade-local-sandbox",
+                "1.0.0",
+                "runner-batch.v1",
                 os.environ.get("QTRADE_BACKTEST_IMAGE_DIGEST", "sha256:" + "0" * 64),
             ),
-            market_data=(
-                TimescaleMarketData(os.environ["MARKET_DATABASE_URL"])
-                if os.environ.get("MARKET_DATABASE_URL")
-                else None
-            ),
+            market_data=backtest_market_data,
         )
     else:
         backtests = None

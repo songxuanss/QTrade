@@ -63,9 +63,9 @@ function subscribePreferences(callback: () => void) {
     window.removeEventListener(preferenceEvent, callback);
   };
 }
-function readPreferences() {
+function readPreferenceValue(key: string) {
   try {
-    return localStorage.getItem(STORAGE_KEY);
+    return localStorage.getItem(key);
   } catch {
     return null;
   }
@@ -137,6 +137,11 @@ export function MarketWatch({
   initialGranularity?: string;
   initialDatasetId?: string;
 }) {
+  const storageKey = `${STORAGE_KEY}:${stream?.workspaceId ?? "unscoped"}`;
+  const readPreferences = useCallback(
+    () => readPreferenceValue(storageKey),
+    [storageKey],
+  );
   const rawPreferences = useSyncExternalStore(
     subscribePreferences,
     readPreferences,
@@ -230,15 +235,18 @@ export function MarketWatch({
     (update: (current: Preferences) => Preferences) => {
       try {
         const next = update(
-          parsePreferences(readPreferences(), new Set(byId.keys())),
+          parsePreferences(
+            readPreferenceValue(storageKey),
+            new Set(byId.keys()),
+          ),
         );
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+        localStorage.setItem(storageKey, JSON.stringify(next));
         window.dispatchEvent(new Event(preferenceEvent));
       } catch {
         // Keep rendering when browser storage is unavailable.
       }
     },
-    [byId],
+    [byId, storageKey],
   );
 
   useEffect(() => {
@@ -530,6 +538,14 @@ export function MarketWatch({
           </fieldset>
         </details>
       </div>
+      {activeChartInstrumentId &&
+        byId.has(activeChartInstrumentId) &&
+        chartAvailability.id === activeChartInstrumentId &&
+        chartAvailability.error && (
+          <p className="data-notice" role="alert">
+            图表数据暂不可用，请稍后重试或重新打开该标的。
+          </p>
+        )}
       {activeChartInstrumentId &&
         byId.has(activeChartInstrumentId) &&
         chartAvailability.id === activeChartInstrumentId &&
