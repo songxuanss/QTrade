@@ -12,14 +12,14 @@
 | 报告读取 | 真实 API/UI | `backtest-report-real-1440.png` | 指标、曲线、订单、成交、参数、哈希 |
 | 运行历史刷新 | 真实 UI | 截图/运行列表 | 自动 4 秒刷新 + 手动刷新 |
 | 选择对比 | 真实 UI | `backtest-compare-selected-1440.png` | 勾选 2 个完成运行，桌面/手机无溢出 |
-| 取消/进度 | Fixture | `login.spec.ts` | 未接真实 Worker 队列 |
+| 持久队列 | 真实 Worker | run `6b00d332-9a92-4d45-9ffb-170eb0e781a1` | API 只入队，Worker 认领后运行 |
 | 复权/分红/拆并股 | 未实现 | — | 报告与表单显示限制 |
 | T+1 可卖数量 | 已实现 | `test_mock_backtest_engine.py` | 当日买入不可卖，下一时段可卖 |
 | 历史成分/退市 | 未实现 | — | 存在幸存者偏差 |
 | tick size | 已实现 | `test_backtest_execution.py` | 买卖方向向不利方向取整；盘口仍未建模 |
 | Walk-forward 执行 | 仅计划 | `walk-forward` UI | 没有逐窗口运行和汇总 |
 | 导出 HTML/PDF/CSV | 未实现 | — | 报告只能页面查看 |
-| 持久化 Worker 回测队列 | 未实现 | — | 本地 API 同步执行 |
+| 持久化 Worker 回测队列 | 已实现 | `backtest_run.lease_*`, Worker consumer | REST 重启后 queued 运行恢复 |
 
 ## 当前验证结果
 

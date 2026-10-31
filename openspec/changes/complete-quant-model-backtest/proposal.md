@@ -30,8 +30,8 @@ apps/runner、adapters/runner、adapters/mock、packages/application/backtesting
 
 ## Non-goals and Safety Boundaries
 
-不实盘下单，不删除旧运行，不宣称未实现的复权/T+1/历史成分/tick 逐笔能力；无 Runner 时回测明确失败，不静默使用占位结果。
+不实盘下单，不删除旧运行，不宣称未实现的复权/历史成分/逐笔盘口能力；T+1、tick size 和持久队列已实现。无 Runner 时回测明确失败，不静默使用占位结果。
 
 ## Unresolved Material Assumptions
 
-公司行为、T+1、历史有效成分、逐笔盘口、持久化 Worker 队列尚未实现；当前本地 Runner 以 Unix socket 和子进程限额隔离，生产多副本仍需 Worker 化。
+公司行为、历史有效成分和逐笔盘口尚未实现；T+1、tick size 和持久 Worker 队列已实现。当前 Runner 以 Unix socket 和子进程限额隔离，多 Worker 公平调度仍需扩展。

@@ -33,3 +33,15 @@
 #### Scenario: 结果被替换
 - **WHEN** 结果文件与运行/manifest 不匹配
 - **THEN** 报告返回校验错误，不显示错误指标
+
+
+### Requirement: 持久队列与重启恢复
+回测创建 MUST 只持久化 queued run 并由 Worker 认领执行；Worker MUST 使用租约、尝试次数和取消标记，重启后恢复过期租约，取消后不得发布迟到结果。
+
+#### Scenario: Worker 停止后重启
+- **WHEN** run 已 queued 且 Worker 在认领前停止
+- **THEN** 完整重启后 Worker 认领该 run，历史记录 queued → running → completed
+
+#### Scenario: 取消已排队运行
+- **WHEN** 授权用户在 queued 或 running 时取消
+- **THEN** run 标记 cancelled，Worker 不写入结果对象，重复取消被拒绝

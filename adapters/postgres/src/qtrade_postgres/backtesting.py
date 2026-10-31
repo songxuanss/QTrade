@@ -1,9 +1,9 @@
 """PostgreSQL adapter for immutable Backtest Run inputs and CAS progress."""
 
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import cast
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from psycopg import Connection
 
@@ -102,6 +102,126 @@ class PostgresBacktestRunStore(PostgresStore):
                 ),
             )
             self._insert_event(conn, event)
+
+    def claim(
+        self, worker_id: UUID, now: datetime, lease_seconds: int, max_attempts: int
+    ) -> BacktestRunRecord | None:
+        """Atomically lease one queued or expired run for a worker."""
+        if (
+            not isinstance(worker_id, UUID)
+            or now.utcoffset() is None
+            or type(lease_seconds) is not int
+            or not 1 <= lease_seconds <= 3600
+            or type(max_attempts) is not int
+            or not 1 <= max_attempts <= 100
+        ):
+            raise PortError(ErrorCode.INVALID_INPUT, "invalid backtest lease")
+        expires = now + timedelta(seconds=lease_seconds)
+        with self._connection() as conn:
+            row = conn.execute(
+                """WITH candidate AS (
+                    SELECT workspace_id,run_id FROM backtest_run
+                    WHERE cancel_requested=false
+                      AND (status='queued'
+                           OR (status='running' AND lease_expires_at < %s))
+                      AND attempts < %s
+                    ORDER BY created_at,run_id
+                    FOR UPDATE SKIP LOCKED LIMIT 1
+                )
+                UPDATE backtest_run b
+                SET status='running', progress=GREATEST(b.progress,10),
+                    lease_owner=%s, lease_expires_at=%s, attempts=b.attempts+1,
+                    revision=b.revision+1,
+                    payload=jsonb_set(
+                        jsonb_set(b.payload,'{status}','"running"'),
+                        '{progress}',to_jsonb(GREATEST(b.progress,10))
+                    )
+                FROM candidate c
+                WHERE b.workspace_id=c.workspace_id AND b.run_id=c.run_id
+                RETURNING b.workspace_id,b.run_id,b.engine_job_id,b.revision,b.payload""",
+                (now, max_attempts, worker_id, expires),
+            ).fetchone()
+            if row is None:
+                return None
+            record = self._record(row)
+            self._insert_event(
+                conn,
+                BacktestRunEvent(
+                    uuid4(),
+                    record.run.workspace_id,
+                    record.run.run_id,
+                    "running",
+                    record.run.progress,
+                    now,
+                    revision=record.revision,
+                ),
+            )
+            return record
+
+    def request_cancel(self, workspace_id: UUID, run_id: UUID, now: datetime) -> BacktestRunRecord:
+        """Cancel a queued/running run and prevent a leased worker from publishing."""
+        if now.utcoffset() is None:
+            raise PortError(ErrorCode.INVALID_INPUT, "invalid cancellation time")
+        with self._connection() as conn:
+            row = conn.execute(
+                """UPDATE backtest_run
+                SET status='cancelled', cancel_requested=true,
+                    lease_owner=NULL, lease_expires_at=NULL, revision=revision+1,
+                    payload=jsonb_set(payload,'{status}','"cancelled"')
+                WHERE workspace_id=%s AND run_id=%s AND status IN ('queued','running')
+                RETURNING workspace_id,run_id,engine_job_id,revision,payload""",
+                (workspace_id, run_id),
+            ).fetchone()
+            if row is None:
+                current = self.get(workspace_id, run_id)
+                if current.run.status in _TERMINAL:
+                    raise PortError(ErrorCode.CONFLICT, "backtest run is already terminal")
+                raise PortError(ErrorCode.CONFLICT, "backtest run cannot be cancelled")
+            record = self._record(row)
+            self._insert_event(
+                conn,
+                BacktestRunEvent(
+                    uuid4(),
+                    workspace_id,
+                    run_id,
+                    "cancelled",
+                    record.run.progress,
+                    now,
+                    revision=record.revision,
+                ),
+            )
+            return record
+
+    def fail_exhausted(self, now: datetime, max_attempts: int) -> int:
+        """Fail expired running leases that exhausted their retry budget."""
+        with self._connection() as conn:
+            rows = conn.execute(
+                """UPDATE backtest_run
+                SET status='failed', revision=revision+1,
+                    lease_owner=NULL, lease_expires_at=NULL,
+                    payload=jsonb_set(
+                        jsonb_set(payload,'{status}','"failed"'),
+                        '{error_code}','"lease_expired"'
+                    )
+                WHERE status='running' AND lease_expires_at < %s AND attempts >= %s
+                RETURNING workspace_id,run_id,revision,progress""",
+                (now, max_attempts),
+            ).fetchall()
+            for row in rows:
+                self._insert_event(
+                    conn,
+                    BacktestRunEvent(
+                        uuid4(),
+                        UUID(str(row[0])),
+                        UUID(str(row[1])),
+                        "failed",
+                        cast(int, row[3]),
+                        now,
+                        "lease_expired",
+                        cast(int, row[2]),
+                    ),
+                )
+        return len(rows)
 
     def get(self, workspace_id: UUID, run_id: UUID) -> BacktestRunRecord:
         with self._connection() as conn:
@@ -207,12 +327,18 @@ class PostgresBacktestRunStore(PostgresStore):
                 raise PortError(ErrorCode.INVALID_INPUT, "invalid backtest run update")
             conn.execute(
                 "UPDATE backtest_run SET engine_job_id=%s,revision=%s,status=%s,progress=%s,"
+                "lease_owner=CASE WHEN %s IN ('completed','failed','cancelled') THEN NULL "
+                "ELSE lease_owner END,"
+                "lease_expires_at=CASE WHEN %s IN ('completed','failed','cancelled') THEN NULL "
+                "ELSE lease_expires_at END,"
                 "payload=%s::jsonb WHERE workspace_id=%s AND run_id=%s",
                 (
                     record.engine_job_id,
                     record.revision,
                     run.status,
                     run.progress,
+                    run.status,
+                    run.status,
                     run.model_dump_json(),
                     run.workspace_id,
                     run.run_id,

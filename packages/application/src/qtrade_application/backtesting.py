@@ -4,6 +4,7 @@ import json
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from typing import cast
 from uuid import UUID, uuid4
 
 from qtrade_application.artifacts import ManifestService
@@ -261,10 +262,14 @@ class BacktestService:
             return record
         if record.engine_job_id is None:
             return record
-        return self._apply_job(
-            record,
-            self._engine.status(access.workspace.workspace_id, record.engine_job_id),
-        )
+        try:
+            job = self._engine.status(access.workspace.workspace_id, record.engine_job_id)
+        except PortError as error:
+            # Durable queue workers own status; an in-memory engine has no job.
+            if error.code == ErrorCode.NOT_FOUND:
+                return record
+            raise
+        return self._apply_job(record, job)
 
     def report(self, access: WorkspaceAccess, run_id: UUID) -> BacktestResult:
         """Read and verify the immutable normalized result for a completed run."""
@@ -453,6 +458,12 @@ class BacktestService:
         record = self._runs.get(access.workspace.workspace_id, run_id)
         if record.run.status in {"cancelled", "failed", "completed"}:
             raise PortError(ErrorCode.CONFLICT, "backtest run is already terminal")
+        request_cancel = getattr(self._runs, "request_cancel", None)
+        if request_cancel is not None:
+            return cast(
+                BacktestRunRecord,
+                request_cancel(access.workspace.workspace_id, run_id, datetime.now(UTC)),
+            )
         if record.engine_job_id is None:
             raise PortError(ErrorCode.CONFLICT, "backtest submission is still being accepted")
         job = self._engine.cancel(access.workspace.workspace_id, record.engine_job_id)

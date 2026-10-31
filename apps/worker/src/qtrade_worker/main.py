@@ -30,6 +30,7 @@ from qtrade_postgres.ingestion import PostgresIngestionRepository
 from qtrade_postgres.notification_delivery import PostgresNotificationDeliveryQueue
 from qtrade_postgres.workspaces import PostgresWorkspaceStore
 from qtrade_runtime.health import create_health_app
+from qtrade_worker.backtests import consume_backtests
 
 validate_startup()
 app: FastAPI = create_health_app("qtrade-worker")
@@ -207,6 +208,7 @@ async def start_consumer() -> None:
         asyncio.create_task(_consume_campaigns()),
         asyncio.create_task(_consume_alert_evaluations()),
         asyncio.create_task(_consume_notifications()),
+        asyncio.create_task(consume_backtests()),
     ]
     ingestion = historical_ingestion_from_env()
     if ingestion is not None:
