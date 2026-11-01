@@ -30,9 +30,12 @@ Evidence: `.tools/verification-local/review/rights-feed-probe.json`.
 ## Alternative sources
 
 A verified comparison of free and commercial providers is in
-[`docs/data/RIGHTS-DATA-SOURCES.md`](RIGHTS-DATA-SOURCES.md). Sina Finance
-(via AkShare) does publish historical rights terms and can be integrated as a
-dedicated adapter.
+[`docs/data/RIGHTS-DATA-SOURCES.md`](RIGHTS-DATA-SOURCES.md). Sina Finance and
+Eastmoney publish historical rights terms and are technically integrable, but
+their terms require written permission for reproduction/redistribution and
+exchange consent for market-data dissemination; the measured access conditions
+and the internal-research-only recommendation are in
+[`docs/data/RIGHTS-FEED-CONDITIONS.md`](RIGHTS-FEED-CONDITIONS.md).
 
 ## Unblock
 

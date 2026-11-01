@@ -31,8 +31,17 @@ Live verification from this environment (public HTML, no licence):
 | 000002 | 3 | 1999-12-22, 2.727/10, 7.5 CNY; 1997-06-26, 2.37/10, 4.5 CNY |
 | 600519 | 0 | `暂时没有数据！` (no rights history) |
 
-Caveats: per-stock HTML scraping; page layout can change; no SLA; personal/
-non-commercial use should be confirmed against Sina's terms before production.
+Caveats: per-stock HTML scraping; page layout can change; no SLA; Sina's
+copyright statement requires written permission for reproduction or other use.
+Integration conditions, measured latency/limits, the Eastmoney market-wide
+JSON alternative, and a two-source reconciliation are in
+[`RIGHTS-FEED-CONDITIONS.md`](RIGHTS-FEED-CONDITIONS.md).
+
+Eastmoney's data centre publishes the same terms in JSON
+(`RPT_IPO_ALLOTMENT`, 982 rows back to 1991) and is the better primary source:
+one market-wide pull, explicit ex-date, no extra parser dependency. Its legal
+statement also prohibits unauthorised reproduction and requires exchange
+consent for market-data dissemination.
 
 ## 3. Other options
 
@@ -47,13 +56,14 @@ non-commercial use should be confirmed against Sina's terms before production.
 ## 4. Recommendation
 
 1. If a Wind/Choice/iFinD licence already exists, use it — least parsing risk and
-   strongest provenance.
-2. Otherwise integrate Sina Finance through a dedicated `rights_terms` research
-   adapter (same pipeline as the adjustment factors): fetch the per-stock table,
-   publish `CorporateAction(action="rights", rights_shares, rights_price,
-   ex_date, basis_shares=10, status=implemented)`, then verify on 600036's
-   2013-09 rights event end to end. Keep provenance and the "scraped public
-   page" limitation explicit.
+   strongest provenance, and the only option that also covers redistribution.
+2. For internal research, integrate Eastmoney as primary and Sina as a
+   cross-check through a dedicated `rights_terms` research adapter (same
+   pipeline as the adjustment factors): publish
+   `CorporateAction(action="rights", rights_shares, rights_price, ex_date,
+   basis_shares=10, status=implemented)` only when both sources agree, then
+   verify on 600036's 2013-09 rights event end to end. Keep provenance and the
+   "public page, not licensed for redistribution" limitation explicit.
 3. Use exchange/CNINFO announcements to spot-check the parsed terms.
 
 600519 has no rights history, so acceptance must use another instrument
