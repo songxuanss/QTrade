@@ -221,3 +221,18 @@ Worker MUST 在运行期间观察持久化取消状态，并在策略分块之�
 #### Scenario: 分配不重复
 - **WHEN** 同一运行同时存在公司行为与复权因子
 - **THEN** 复权模式不记现金股息，账本模式记股息，两者现金差额等于股息
+
+### Requirement: 逐笔价位量深度
+tick 数据集 MUST 在聚合执行窗口的同时构建「价位 → 成交量」深度，并在 manifest 冻结 `depth_model=tick_price_levels`；撮合成交价 MUST 取符合委托条件的价位成交量 VWAP，容量 MUST 受符合条件价位总量与 `max_volume_fraction` 约束，限价/锁价成交 MUST 再受 `limit_queue_fraction × 触及价位成交量` 约束。非 tick 数据集 MUST 使用显式的 bar 级近似并同样披露。报告与导出 MUST 展示当前深度模型。
+
+#### Scenario: 价位 VWAP 成交
+- **WHEN** tick 数据集回测产生成交
+- **THEN** 成交价等于该执行窗口符合条件价位的成交量 VWAP，且可由原始逐笔独立重算
+
+#### Scenario: 队列容量
+- **WHEN** 限价成交且队列比例使触及价位可成交量低于委托量
+- **THEN** 只成交队列允许的数量，剩余按 TIF 处理
+
+#### Scenario: 模式披露
+- **WHEN** 查看 tick 回测报告或导出
+- **THEN** 显示 `tick_price_levels` 深度模型；非 tick 运行显示 bar 级近似

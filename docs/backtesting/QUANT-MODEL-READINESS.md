@@ -287,6 +287,29 @@
 
 - `.tools/verification-local/review/vendor-adjusted-report.json`
 
+### 逐笔价位量深度模型（真实逐笔数据）
+
+- tick 数据集会额外构建「执行窗口 × 价位 → 成交量」的深度图，冻结为 `depth_model=tick_price_levels`；非 tick 数据集为 `bar_approximation`。
+- 撮合规则：
+  - 成交价取**符合委托条件的价位 VWAP**（市价单为窗口全部价位；限价单只统计不劣于限价的价位），并按最小价位取整。
+  - 可成交容量上限为「符合条件价位的总成交量」与 `max_volume_fraction × bar.volume` 的较小者；限价单或锁价成交再乘以 `limit_queue_fraction × 触及价位成交量`，模拟排队优先度。
+  - 现金不足时逐手减少数量并重算价位 VWAP，保持现金非负。
+- 报告、CSV、HTML 导出展示撮合深度模型；工作台说明同一条执行路径。
+- 真实验收（600519.SH 2026-08-14 真实逐笔，60 秒窗口，run `b22ea6fa-c52f-4e56-8256-a6168fc1fca8`）：
+  - manifest 冻结 `depth_model=tick_price_levels`、`tick_aggregation_seconds=60`
+  - 成交窗口内 13 个价位；独立重算该窗口 VWAP 得 `1352.71`，与报告成交价完全一致
+  - 买入 100 股、费用 `40.5813`，期末现金 `864688.4187` 与成交精确对账
+  - 报告显示「逐笔价位量（按价位走量计算成交价与容量）」，CSV 含 `depth_model,tick_price_levels`
+- 限制：逐笔成交价与成交量是深度代理，不是 L2 快照；真实盘口队列与逐笔成交概率仍不建模。
+
+证据：
+
+- `.tools/verification-local/review/tick-depth-report.json`
+- `.tools/verification-local/review/tick-depth-result.json`
+- `.tools/verification-local/review/tick-depth-vwap.json`
+- `.tools/verification-local/review/design/backtest-tick-depth-1440.png`
+- `.tools/verification-local/review/design/backtest-tick-depth-390.png`
+
 ## 5. 用户体验改进
 
 - 回测表单按策略版本 schema 渲染参数字段，不再要求用户手写 JSON。
@@ -295,7 +318,7 @@
 - 完成运行可勾选 2–20 个进行对比；保留“对比最近两次完成回测”快捷入口。
 - 日线回测显示“收盘后可用、无盘中时段过滤”，不再显示误导性的盘中午休假设。
 - 报告指标统一保留两位；显示参数、代码/数据集摘要、引擎和 seed；超过 100 条订单/成交显示截断说明。
-- 表单明确展示当前模型边界：逐笔数据按窗口聚合、无 L2 盘口，官方历史成员区间未接入；现金分红、送转/拆并、配股策略、供应商因子冻结核对、T+1、整手、最小价位和成员区间校验已建模。
+- 表单明确展示当前模型边界：逐笔数据按窗口聚合并使用价位量深度、无 L2 快照，官方历史成员区间未接入；现金分红、送转/拆并、配股策略、供应商因子冻结核对、T+1、整手、最小价位和成员区间校验已建模。
 
 ## 6. 仍不满足的专业能力
 
@@ -303,8 +326,8 @@
 
 - 供应商未接通配股与复权因子数据；配股策略、因子冻结/核对与复权价回放逻辑已实现，真实因子数据仍缺。
 - 供应商历史成员区间不可用；当前只能使用工作区定义或供应方区间，非官方区间仍可能低估幸存者偏差。
-- 逐笔数据（`granularity=tick`）可作为已发布数据集参与回测：按 `tick_aggregation_seconds` 聚合为执行 bar（OHLCV），策略与撮合都运行在聚合后的 bar 上；无 L2 盘口，冲击仍用平方根模型，逐笔成交概率与真实队列深度未建模。
-- 停牌与锁价已建模：停牌 bar（零成交量或数据源标记 suspect）会拒绝受影响订单并标记 `halted`；一字涨/跌停按前一收盘价的涨跌幅识别，买入在涨停锁死、卖出在跌停锁死时被拒绝，原因分别为 `limit_up` / `limit_down`；无法判定方向时标记 `locked`。逐笔数据已支持，L2 盘口深度仍未建模。
+- 逐笔数据（`granularity=tick`）可作为已发布数据集参与回测：按 `tick_aggregation_seconds` 聚合为执行 bar（OHLCV），策略在聚合 bar 上运行；撮合使用按执行窗口聚合的**逐笔价位量**（`depth_model=tick_price_levels`），成交价取符合委托条件的价位 VWAP，容量与锁价队列按价位成交量限制。无 L2 快照，价位量是逐笔成交的可观测深度代理。
+- 停牌与锁价已建模：停牌 bar（零成交量或数据源标记 suspect）会拒绝受影响订单并标记 `halted`；一字涨/跌停按前一收盘价的涨跌幅识别，买入在涨停锁死、卖出在跌停锁死时被拒绝，原因分别为 `limit_up` / `limit_down`；无法判定方向时标记 `locked`。逐笔数据已支持价位量深度，L2 快照仍未接入。
 - 未实现基准相对指标（alpha/beta/超额/跟踪误差/信息比率）与基准时间对齐。
 - Walk-forward 支持冻结参数网格：每个窗口先在训练区间运行全部候选，按样本内收益选择（同收益取回撤更小、参数 JSON 更小者），再用选中参数执行验证区间；聚合只统计选中参数的样本外结果。
 - 回测任务使用持久队列 + 多 Worker 消费：`SKIP LOCKED` 原子认领、按尝试次数/创建时间排序、运行期间租约心跳续期；租约过期的运行先回到队列再被重新认领，超过重试次数才失败。

@@ -225,7 +225,7 @@ class MockEngineAdapter(TradingEnginePort):
         if program is None:
             raise PortError(ErrorCode.UNSUPPORTED, "no strategy program is registered")
         execution_model = self._execution_model(execution_config.get("execution_model"))
-        bars = self._load_bars(run, execution_model)
+        bars, depth = self._load_bars(run, execution_model)
         if factor_mode == "vendor_adjusted":
             bars = self._apply_adjustment_factors(bars, factors, run, execution_model)
         try:
@@ -239,6 +239,7 @@ class MockEngineAdapter(TradingEnginePort):
                 universe,
                 rights_policy,
                 self.interrupt,
+                depth,
             )
         except (PortError, ExecutionCancelled):
             raise
@@ -292,7 +293,7 @@ class MockEngineAdapter(TradingEnginePort):
 
     def _load_bars(
         self, run: BacktestRun, execution: BacktestExecutionModel | None = None
-    ) -> tuple[Bar, ...]:
+    ) -> tuple[tuple[Bar, ...], dict[tuple[str, datetime], dict[Decimal, Decimal]]]:
         # Query one deterministic page stream per instrument. The dataset and bars
         # are immutable, so a stable sort creates a stable event order across adapters.
         from qtrade_domain.ports import BarQuery
@@ -321,15 +322,16 @@ class MockEngineAdapter(TradingEnginePort):
                     break
                 cursor = page.next_cursor
         ordered = tuple(sorted(collected, key=lambda bar: (bar.timestamp, bar.instrument_id)))
+        depth: dict[tuple[str, datetime], dict[Decimal, Decimal]] = {}
         if ordered and ordered[0].granularity == "tick":
-            ordered = MockEngineAdapter._aggregate_ticks(
-                ordered, execution.tick_aggregation_seconds if execution else 3
-            )
+            seconds = execution.tick_aggregation_seconds if execution else 3
+            depth = MockEngineAdapter._tick_depth(ordered, seconds)
+            ordered = MockEngineAdapter._aggregate_ticks(ordered, seconds)
         if not any(bar.quality == "valid" for bar in ordered):
             raise PortError(
                 ErrorCode.INVALID_INPUT, "dataset has no tradable bars in the run range"
             )
-        return ordered
+        return ordered, depth
 
     @staticmethod
     def _apply_adjustment_factors(
@@ -414,6 +416,26 @@ class MockEngineAdapter(TradingEnginePort):
                 )
             )
         return tuple(aggregated)
+
+    @staticmethod
+    def _tick_depth(
+        bars: tuple[Bar, ...], seconds: int
+    ) -> dict[tuple[str, datetime], dict[Decimal, Decimal]]:
+        """Per execution window, the volume printed at each price level.
+
+        This is the observable depth proxy for trade-tick datasets: no order
+        book snapshots exist, so the traded volume at each price is the best
+        available estimate of liquidity at that level.
+        """
+        if type(seconds) is not int or not 1 <= seconds <= 3600:
+            raise PortError(ErrorCode.INVALID_INPUT, "invalid tick aggregation window")
+        depth: dict[tuple[str, datetime], dict[Decimal, Decimal]] = {}
+        for bar in bars:
+            bucket = int(bar.timestamp.timestamp()) // seconds * seconds
+            key = (bar.instrument_id, datetime.fromtimestamp(bucket, UTC))
+            levels = depth.setdefault(key, {})
+            levels[bar.close] = levels.get(bar.close, Decimal(0)) + bar.volume
+        return depth
 
     def _market_instruments(
         self, workspace_id: UUID, dataset_id: UUID
@@ -538,6 +560,57 @@ class MockEngineAdapter(TradingEnginePort):
         return tuple(collected)
 
     @staticmethod
+    def _acceptable_levels(
+        levels: dict[Decimal, Decimal], side: str, limit: Decimal | None
+    ) -> list[tuple[Decimal, Decimal]]:
+        prices = sorted(levels, reverse=side == "sell")
+        result: list[tuple[Decimal, Decimal]] = []
+        for price in prices:
+            if limit is not None:
+                if side == "buy" and price > limit:
+                    continue
+                if side == "sell" and price < limit:
+                    continue
+            result.append((price, levels[price]))
+        return result
+
+    @staticmethod
+    def _level_liquidity(
+        levels: dict[Decimal, Decimal], side: str, limit: Decimal | None
+    ) -> Decimal:
+        return sum(
+            (volume for _, volume in MockEngineAdapter._acceptable_levels(levels, side, limit)),
+            Decimal(0),
+        )
+
+    @staticmethod
+    def _touch_price(levels: dict[Decimal, Decimal], side: str) -> Decimal | None:
+        if not levels:
+            return None
+        return min(levels) if side == "buy" else max(levels)
+
+    @staticmethod
+    def _level_vwap(
+        levels: dict[Decimal, Decimal], side: str, quantity: Decimal, limit: Decimal | None
+    ) -> Decimal:
+        """Volume-weighted price of the prints the order could have traded against.
+
+        Trade ticks carry no order book, so the fill price is the VWAP of the
+        eligible price levels in the window (all levels for a market order,
+        only levels at or better than the limit otherwise). Level volumes are
+        used for capacity and queue priority, not to cherry-pick the cheapest
+        print. `quantity` is accepted for signature symmetry and future
+        quantity-dependent models.
+        """
+        del quantity
+        eligible = MockEngineAdapter._acceptable_levels(levels, side, limit)
+        total = sum((volume for _, volume in eligible), Decimal(0))
+        if total <= 0:
+            touch = MockEngineAdapter._touch_price(levels, side)
+            return touch if touch is not None else Decimal(0)
+        return sum((price * volume for price, volume in eligible), Decimal(0)) / total
+
+    @staticmethod
     def _signals(
         program: MockStrategyProgram | BatchStrategyProgram,
         batch_signals: dict[int, tuple[StrategySignal, ...]] | None,
@@ -657,6 +730,7 @@ class MockEngineAdapter(TradingEnginePort):
         universe: BacktestUniverse | None = None,
         rights_policy: str = "subscribe",
         interrupt: Callable[[], bool] | None = None,
+        depth: dict[tuple[str, datetime], dict[Decimal, Decimal]] | None = None,
     ) -> dict[str, object]:
         parameters = json.loads(manifest.parameters_json)
         tradable_indices = tuple(index for index, bar in enumerate(bars) if bar.quality == "valid")
@@ -822,8 +896,25 @@ class MockEngineAdapter(TradingEnginePort):
                     else:
                         still_pending.append(pending_order)
                     continue
+                levels = depth.get((bar.instrument_id, bar.timestamp)) if depth else None
                 volume_cap = execution.volume_capacity(bar.volume)
-                if execution.at_daily_limit(price, previous_day_closes.get(bar.instrument_id)):
+                if levels:
+                    volume_cap = min(
+                        volume_cap,
+                        MockEngineAdapter._level_liquidity(levels, signal.side, signal.limit_price),
+                    )
+                    touch = MockEngineAdapter._touch_price(levels, signal.side)
+                    if touch is not None and (
+                        signal.limit_price is not None
+                        or execution.at_daily_limit(
+                            price, previous_day_closes.get(bar.instrument_id)
+                        )
+                    ):
+                        volume_cap = min(
+                            volume_cap,
+                            execution.limit_queue_capacity(levels.get(touch, Decimal(0))),
+                        )
+                elif execution.at_daily_limit(price, previous_day_closes.get(bar.instrument_id)):
                     volume_cap = min(volume_cap, execution.limit_queue_capacity(bar.volume))
                 affordable = cash / price if signal.side == "buy" else quantity
                 filled = (
@@ -835,7 +926,17 @@ class MockEngineAdapter(TradingEnginePort):
                 # still respect the instrument lot before cash is debited.
                 filled = execution.round_quantity(filled)
                 lot = Decimal(execution.lot_size)
-                if filled > 0 and bar.volume > 0 and execution.impact_bps > 0:
+
+                if filled > 0 and levels:
+                    # Tick runs walk the observed price levels instead of using
+                    # the bar-level square-root impact approximation.
+                    price = execution.round_to_tick(
+                        signal.side,
+                        MockEngineAdapter._level_vwap(
+                            levels, signal.side, filled, signal.limit_price
+                        ),
+                    )
+                elif filled > 0 and bar.volume > 0 and execution.impact_bps > 0:
                     price = execution.impact_price(signal.side, price, filled / bar.volume)
                     if signal.limit_price is not None:
                         price = (
@@ -849,6 +950,13 @@ class MockEngineAdapter(TradingEnginePort):
                     and filled * price + execution.fee(filled * price, "buy") > cash
                 ):
                     filled -= lot
+                    if filled > 0 and levels:
+                        price = execution.round_to_tick(
+                            signal.side,
+                            MockEngineAdapter._level_vwap(
+                                levels, signal.side, filled, signal.limit_price
+                            ),
+                        )
                 if signal.time_in_force == "fok" and filled < quantity:
                     orders.append(MockEngineAdapter._cancelled(pending_order))
                     continue

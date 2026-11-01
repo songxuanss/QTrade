@@ -234,6 +234,7 @@ export function BacktestReport({
     );
 
   const metrics = report.metrics;
+  let depthModel = "bar_approximation";
   let rightsPolicy = "subscribe";
   let factorStatus = "vendor_unavailable";
   let factorCount = 0;
@@ -259,10 +260,15 @@ export function BacktestReport({
       corporate_actions?: unknown[];
       universe?: UniverseConfig;
       rights_policy?: string;
+      depth_model?: string;
       adjustment_factor_status?: string;
       adjustment_factors?: unknown[];
     };
     execution = config.execution_model ?? {};
+    depthModel =
+      config.depth_model === "tick_price_levels"
+        ? "tick_price_levels"
+        : "bar_approximation";
     rightsPolicy = config.rights_policy === "skip" ? "skip" : "subscribe";
     factorStatus = config.adjustment_factor_status ?? "vendor_unavailable";
     factorCount = Array.isArray(config.adjustment_factors)
@@ -734,6 +740,14 @@ export function BacktestReport({
               <dd>
                 {String(execution.fee_bps ?? "—")} /{" "}
                 {String(execution.slippage_bps ?? "—")} bps
+              </dd>
+            </div>
+            <div>
+              <dt>撮合深度模型</dt>
+              <dd>
+                {depthModel === "tick_price_levels"
+                  ? "逐笔价位量（按价位走量计算成交价与容量）"
+                  : "bar 级近似（平方根冲击 + 队列比例）"}
               </dd>
             </div>
             <div>

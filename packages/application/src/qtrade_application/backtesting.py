@@ -421,6 +421,9 @@ class BacktestService:
                     for item in actions
                 ],
                 "execution_model": execution_model.to_config(),
+                "depth_model": (
+                    "tick_price_levels" if dataset.granularity == "tick" else "bar_approximation"
+                ),
                 "resource_profile": request.resource_profile,
                 "rights_policy": request.rights_policy,
                 "adjustment_factors": [

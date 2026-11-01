@@ -1015,3 +1015,101 @@ def test_vendor_factor_series_scales_prices_relative_to_run_start():
     assert adjusted[0].close == Decimal("10")
     assert adjusted[1].close == Decimal("5")
     assert adjusted[2].close == Decimal("5")
+
+
+def test_tick_depth_groups_volume_by_execution_window_and_price():
+    template = Bar.model_validate_json((FIXTURES / "Bar.json").read_text())
+    base = datetime(2026, 8, 14, 1, 30, tzinfo=UTC)
+    prints = tuple(
+        template.model_copy(
+            update={
+                "granularity": "tick",
+                "timestamp": base + timedelta(seconds=second),
+                "open": Decimal(price),
+                "high": Decimal(price),
+                "low": Decimal(price),
+                "close": Decimal(price),
+                "volume": Decimal(volume),
+                "value": Decimal(price) * Decimal(volume),
+            }
+        )
+        for second, price, volume in [
+            (0, "10.00", 100),
+            (1, "10.10", 200),
+            (2, "10.00", 50),
+            (60, "10.20", 300),
+        ]
+    )
+    depth = MockEngineAdapter._tick_depth(prints, 60)
+    first = depth[("MOCK:ABC", base)]
+    assert first == {Decimal("10.00"): Decimal("150"), Decimal("10.10"): Decimal("200")}
+    second = depth[("MOCK:ABC", base + timedelta(seconds=60))]
+    assert second == {Decimal("10.20"): Decimal("300")}
+
+
+def test_depth_vwap_walks_price_levels_and_respects_limits():
+    levels = {
+        Decimal("10.00"): Decimal("100"),
+        Decimal("10.10"): Decimal("100"),
+        Decimal("10.20"): Decimal("100"),
+    }
+    assert MockEngineAdapter._level_liquidity(levels, "buy", None) == Decimal("300")
+    assert MockEngineAdapter._level_liquidity(levels, "buy", Decimal("10.10")) == Decimal("200")
+    assert MockEngineAdapter._level_vwap(levels, "buy", Decimal("200"), None) == Decimal("10.10")
+    assert MockEngineAdapter._level_vwap(
+        levels, "buy", Decimal("200"), Decimal("10.10")
+    ) == Decimal("10.05")
+    # A market order uses the eligible-window VWAP, not the cheapest print.
+    assert MockEngineAdapter._level_vwap(levels, "buy", Decimal("400"), None) == Decimal("10.10")
+    assert MockEngineAdapter._level_vwap(
+        levels, "buy", Decimal("999"), Decimal("10.00")
+    ) == Decimal("10.00")
+
+
+def test_depth_model_prices_fills_from_price_levels_and_caps_queue():
+    template = Bar.model_validate_json((FIXTURES / "Bar.json").read_text())
+    run = BacktestRun.model_validate_json((FIXTURES / "BacktestRun.json").read_text())
+    manifest = ArtifactManifest.model_validate_json(
+        (FIXTURES / "ArtifactManifest.json").read_text()
+    )
+    first = template.model_copy(
+        update={
+            "open": Decimal("10"),
+            "high": Decimal("10"),
+            "low": Decimal("10"),
+            "close": Decimal("10"),
+            "volume": Decimal("1000"),
+        }
+    )
+    second = first.model_copy(update={"timestamp": first.timestamp + timedelta(days=1)})
+    depth = {
+        (first.instrument_id, second.timestamp): {
+            Decimal("10.00"): Decimal("100"),
+            Decimal("10.20"): Decimal("100"),
+        }
+    }
+
+    def replay(signal, execution):
+        return MockEngineAdapter._replay(
+            run,
+            manifest,
+            (first, second),
+            OnceSignal(signal),
+            execution,
+            depth=depth,
+        )
+
+    buy = MockOrderSignal("MOCK:ABC", "buy", Decimal("200"))
+    result = replay(buy, BacktestExecutionModel(lot_size=1))
+    assert result["fills"][0]["price"] == "10.10"
+    assert result["fills"][0]["filled_quantity"] == "200"
+
+    queued = replay(
+        MockOrderSignal("MOCK:ABC", "buy", Decimal("200"), "limit", Decimal("10.00")),
+        BacktestExecutionModel(
+            lot_size=1,
+            limit_queue_fraction=Decimal("0.5"),
+        ),
+    )
+    assert queued["fills"][0]["filled_quantity"] == "50"
+    assert queued["fills"][0]["price"] == "10.00"

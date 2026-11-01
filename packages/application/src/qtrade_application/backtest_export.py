@@ -185,6 +185,15 @@ def run_csv(run: BacktestRun, result: BacktestResult, manifest: ArtifactManifest
         "execution_model",
         ("name", "value"),
         [(name, json.dumps(value, ensure_ascii=False)) for name, value in execution.items()]
+        + [
+            (
+                "depth_model",
+                json.dumps(
+                    _execution_config(manifest).get("depth_model", "bar_approximation"),
+                    ensure_ascii=False,
+                ),
+            )
+        ]
         if isinstance(execution, dict)
         else [],
     )
@@ -511,6 +520,15 @@ def run_html(
     execution = _execution_config(manifest).get("execution_model", {})
     execution_rows = (
         [(str(name), json.dumps(value, ensure_ascii=False)) for name, value in execution.items()]
+        + [
+            (
+                "depth_model",
+                json.dumps(
+                    _execution_config(manifest).get("depth_model", "bar_approximation"),
+                    ensure_ascii=False,
+                ),
+            )
+        ]
         if isinstance(execution, dict)
         else []
     )
