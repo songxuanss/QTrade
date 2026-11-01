@@ -737,6 +737,10 @@ export function BacktestReport({
               </dd>
             </div>
             <div>
+              <dt>tick 聚合窗口</dt>
+              <dd>{String(execution.tick_aggregation_seconds ?? "3")} 秒</dd>
+            </div>
+            <div>
               <dt>市场冲击 / 队列比例</dt>
               <dd>
                 {String(execution.impact_bps ?? "0")} bps /{" "}

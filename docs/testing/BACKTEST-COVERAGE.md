@@ -17,6 +17,7 @@
 | T+1 可卖数量 | 已实现 | `test_mock_backtest_engine.py` | 当日买入不可卖，下一时段可卖 |
 | 成员区间/幸存者偏差 | 真实 Worker | run `d6c3a7a2-6a26-425f-9dc5-2dcf0f5853c6` | 区间结束强制平仓、期末持仓 0、现金对账；区间为工作区定义而非官方历史 |
 | tick size | 已实现 | `test_backtest_execution.py` | 买卖方向向不利方向取整；盘口仍未建模 |
+| tick 数据集回测 | 真实逐笔 | run `701bab74-2e27-4358-ba14-ad5e47395fbb` | 真实 600519 逐笔发布为 tick 数据集，60s 聚合、现金对账 |
 | Walk-forward 执行 | 真实 Worker | batch `f6311814-a419-4e11-852e-2116f832f865` | 9 个窗口全部完成，聚合与各窗口报告对账 |
 | Walk-forward 参数寻优 | 真实 Worker | batch `ec634205-1fee-4aa1-923a-0da38863a4a1` | 每窗口 4 候选，样本内选择与验证结果独立复核 |
 | 报告导出 | 真实下载 | run `9c33a542-94c7-4879-9ab1-22ee9646947f` | CSV/可打印 HTML 与持久化报告一致；刷新后一致；未登录 401 |

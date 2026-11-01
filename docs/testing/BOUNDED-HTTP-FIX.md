@@ -35,5 +35,5 @@ reached.
 
 ## Evidence
 
-`pytest` (full suite) exits 0 with no failures (1354 passed, 298 skipped); see
+`pytest` (full suite) exits 0 with no failures (1355 passed, 298 skipped); see
 `.tools/verification-local/review/full-pytest.txt`.

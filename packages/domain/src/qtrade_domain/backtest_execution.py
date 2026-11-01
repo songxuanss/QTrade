@@ -33,6 +33,7 @@ class BacktestExecutionModel:
     session_close: time | None = None
     session_breaks: tuple[tuple[time, time], ...] = ()
     daily_price_limit_fraction: Decimal | None = None
+    tick_aggregation_seconds: int = 3
     timezone_name: str = "UTC"
     periods_per_year: int | None = None
 
@@ -58,6 +59,7 @@ class BacktestExecutionModel:
             "session_close",
             "session_breaks",
             "daily_price_limit_fraction",
+            "tick_aggregation_seconds",
             "timezone_name",
             "periods_per_year",
         }
@@ -125,6 +127,7 @@ class BacktestExecutionModel:
                     if config.get("daily_price_limit_fraction") is not None
                     else None
                 ),
+                tick_aggregation_seconds=config.get("tick_aggregation_seconds", 3),  # type: ignore[arg-type]
                 timezone_name=config.get("timezone_name", "UTC"),  # type: ignore[arg-type]
                 periods_per_year=config.get("periods_per_year"),  # type: ignore[arg-type]
             )
@@ -155,6 +158,7 @@ class BacktestExecutionModel:
             "session_open": self.session_open.isoformat() if self.session_open else None,
             "slippage_bps": format(self.slippage_bps, "f"),
             "impact_bps": format(self.impact_bps, "f"),
+            "tick_aggregation_seconds": self.tick_aggregation_seconds,
             "limit_queue_fraction": format(self.limit_queue_fraction, "f"),
             "timezone_name": self.timezone_name,
         }
@@ -204,6 +208,8 @@ class BacktestExecutionModel:
             or self.limit_queue_fraction > 1
             or type(self.settlement_days) is not int
             or not 0 <= self.settlement_days <= 1
+            or type(self.tick_aggregation_seconds) is not int
+            or not 1 <= self.tick_aggregation_seconds <= 3600
             or (
                 self.daily_price_limit_fraction is not None
                 and (

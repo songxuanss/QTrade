@@ -199,3 +199,14 @@ Worker MUST 在运行期间观察持久化取消状态，并在策略分块之�
 #### Scenario: 取消不影响其他 Worker
 - **WHEN** 一个 Worker 的运行被取消而另一个 Worker 正在执行
 - **THEN** 另一个运行正常完成且只执行一次
+
+### Requirement: 逐笔数据集回测
+已发布的 tick 数据集 MUST 可用于回测：引擎 MUST 按冻结的聚合窗口把逐笔打印聚合为执行 bar（OHLCV），并在聚合 bar 上运行策略与撮合；聚合窗口 MUST 写入 manifest 并在报告中可见。数据发布 MUST 支持从真实逐笔原始批次生成 tick 数据集。
+
+#### Scenario: 真实逐笔回测
+- **WHEN** 用户用已发布的 tick 数据集提交回测并设置聚合窗口
+- **THEN** 引擎按窗口聚合逐笔、完成撮合，成交与现金可与报告对账
+
+#### Scenario: 聚合可见
+- **WHEN** 查看 tick 回测报告
+- **THEN** 展示使用的 tick 聚合窗口

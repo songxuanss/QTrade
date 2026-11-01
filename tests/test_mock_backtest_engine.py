@@ -933,3 +933,33 @@ def test_chunked_strategy_evaluation_replays_prefixes_and_aborts_early():
         assert calls == [2]
     finally:
         MockEngineAdapter._SIGNAL_CHUNK = 1000
+
+
+def test_tick_prints_aggregate_into_execution_bars():
+    from datetime import UTC, datetime
+
+    template = Bar.model_validate_json((FIXTURES / "Bar.json").read_text())
+    base = datetime(2026, 8, 14, 1, 30, tzinfo=UTC)
+    ticks = tuple(
+        template.model_copy(
+            update={
+                "granularity": "tick",
+                "timestamp": base + timedelta(seconds=index * 2),
+                "open": Decimal(str(10 + index * 0.01)),
+                "high": Decimal(str(10 + index * 0.01)),
+                "low": Decimal(str(10 + index * 0.01)),
+                "close": Decimal(str(10 + index * 0.01)),
+                "volume": Decimal("100"),
+                "value": Decimal("1000"),
+            }
+        )
+        for index in range(6)
+    )
+    bars = MockEngineAdapter._aggregate_ticks(ticks, 4)
+    assert len(bars) == 3
+    assert bars[0].timestamp == base
+    assert bars[0].open == Decimal("10")
+    assert bars[0].close == Decimal("10.01")
+    assert bars[0].volume == Decimal("200")
+    assert bars[1].timestamp == base + timedelta(seconds=4)
+    assert bars[2].granularity == "tick"

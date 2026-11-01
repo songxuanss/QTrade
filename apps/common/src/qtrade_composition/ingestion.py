@@ -14,6 +14,7 @@ from qtrade_mairui import MaiRuiAShareTickProvider
 from qtrade_mairui.bar_quality import MaiRuiBarQuality
 from qtrade_mairui.history_bars import MaiRuiBarTransformation, MaiRuiHistoricalBars
 from qtrade_mairui.minute_bars import MaiRuiMinuteBars
+from qtrade_mairui.trade_ticks import MaiRuiTradeTicks
 from qtrade_object_store.s3 import S3ObjectStore
 from qtrade_parquet.raw_records import ParquetRawRecordCodec
 from qtrade_postgres.batches import PostgresBatchRepository
@@ -97,6 +98,6 @@ def research_replay_from_env(env: Mapping[str, str] = os.environ) -> DatasetRepl
         ),
         TimescaleMarketData(env["MARKET_DATABASE_URL"]),
         objects,
-        (MaiRuiMinuteBars(), MaiRuiBarTransformation()),
+        (MaiRuiMinuteBars(), MaiRuiTradeTicks(), MaiRuiBarTransformation()),
         (MaiRuiBarQuality(),),
     )

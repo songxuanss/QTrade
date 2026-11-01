@@ -106,10 +106,7 @@ export function BacktestWorkbench({
       ParameterRule
     >,
   );
-  const runnableDatasets = useMemo(
-    () => datasets.filter((item) => item.granularity !== "tick"),
-    [datasets],
-  );
+  const runnableDatasets = useMemo(() => datasets, [datasets]);
   const [datasetId, setDatasetId] = useState(
     runnableDatasets[0]?.dataset_id ?? "",
   );
@@ -132,6 +129,7 @@ export function BacktestWorkbench({
   const [lotSize, setLotSize] = useState("100");
   const [feeBps, setFeeBps] = useState("3");
   const [slippageBps, setSlippageBps] = useState("5");
+  const [tickAggregation, setTickAggregation] = useState("60");
   const [impactBps, setImpactBps] = useState("0");
   const [limitQueueFraction, setLimitQueueFraction] = useState("1");
   const [tickSize, setTickSize] = useState("0.01");
@@ -241,6 +239,7 @@ export function BacktestWorkbench({
         minimum_fee: minimumFee,
         sell_tax_bps: sellTaxBps,
         slippage_bps: slippageBps,
+        tick_aggregation_seconds: Number(tickAggregation),
         impact_bps: impactBps,
         limit_queue_fraction: limitQueueFraction,
         tick_size: tickSize,
@@ -617,6 +616,19 @@ export function BacktestWorkbench({
                   />
                 </label>
               </div>
+              {selectedDataset?.granularity === "tick" && (
+                <label>
+                  <span>tick 聚合窗口（秒）</span>
+                  <input
+                    type="number"
+                    min="1"
+                    max="3600"
+                    step="1"
+                    value={tickAggregation}
+                    onChange={(event) => setTickAggregation(event.target.value)}
+                  />
+                </label>
+              )}
               <div className="backtest-date-grid">
                 <label>
                   <span>市场冲击系数（基点）</span>

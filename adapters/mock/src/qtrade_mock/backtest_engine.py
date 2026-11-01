@@ -202,7 +202,7 @@ class MockEngineAdapter(TradingEnginePort):
             )
         if program is None:
             raise PortError(ErrorCode.UNSUPPORTED, "no strategy program is registered")
-        bars = self._load_bars(run)
+        bars = self._load_bars(run, self._execution_model(execution_config.get("execution_model")))
         try:
             result = self._replay(
                 run,
@@ -265,7 +265,9 @@ class MockEngineAdapter(TradingEnginePort):
         self._jobs[(workspace_id, job_id)] = cancelled
         return cancelled
 
-    def _load_bars(self, run: BacktestRun) -> tuple[Bar, ...]:
+    def _load_bars(
+        self, run: BacktestRun, execution: BacktestExecutionModel | None = None
+    ) -> tuple[Bar, ...]:
         # Query one deterministic page stream per instrument. The dataset and bars
         # are immutable, so a stable sort creates a stable event order across adapters.
         from qtrade_domain.ports import BarQuery
@@ -294,11 +296,51 @@ class MockEngineAdapter(TradingEnginePort):
                     break
                 cursor = page.next_cursor
         ordered = tuple(sorted(collected, key=lambda bar: (bar.timestamp, bar.instrument_id)))
+        if ordered and ordered[0].granularity == "tick":
+            ordered = MockEngineAdapter._aggregate_ticks(
+                ordered, execution.tick_aggregation_seconds if execution else 3
+            )
         if not any(bar.quality == "valid" for bar in ordered):
             raise PortError(
                 ErrorCode.INVALID_INPUT, "dataset has no tradable bars in the run range"
             )
         return ordered
+
+    @staticmethod
+    def _aggregate_ticks(bars: tuple[Bar, ...], seconds: int) -> tuple[Bar, ...]:
+        """Aggregate tick prints into fixed execution buckets (open/high/low/close/volume)."""
+        if type(seconds) is not int or not 1 <= seconds <= 3600:
+            raise PortError(ErrorCode.INVALID_INPUT, "invalid tick aggregation window")
+        grouped: dict[tuple[str, int], list[Bar]] = {}
+        for bar in bars:
+            bucket = int(bar.timestamp.timestamp()) // seconds * seconds
+            grouped.setdefault((bar.instrument_id, bucket), []).append(bar)
+        aggregated: list[Bar] = []
+        for (instrument, bucket), ticks in sorted(grouped.items()):
+            ordered = sorted(ticks, key=lambda item: item.timestamp)
+            first, last = ordered[0], ordered[-1]
+            aggregated.append(
+                Bar(
+                    schema_version=1,
+                    workspace_id=first.workspace_id,
+                    instrument_id=instrument,
+                    specification_version=first.specification_version,
+                    timestamp=datetime.fromtimestamp(bucket, UTC),
+                    granularity="tick",
+                    open=ordered[0].open,
+                    high=max(item.high for item in ordered),
+                    low=min(item.low for item in ordered),
+                    close=last.close,
+                    volume=sum((item.volume for item in ordered), Decimal(0)),
+                    value=sum((item.value or Decimal(0) for item in ordered), Decimal(0)),
+                    batch_id=first.batch_id,
+                    dataset_id=first.dataset_id,
+                    quality=(
+                        "valid" if all(item.quality == "valid" for item in ordered) else "suspect"
+                    ),
+                )
+            )
+        return tuple(aggregated)
 
     def _market_instruments(
         self, workspace_id: UUID, dataset_id: UUID

@@ -148,6 +148,7 @@ def test_submission_freezes_manifest_before_engine_and_syncs_immutable_result():
         "session_open": "09:30:00",
         "settlement_days": 0,
         "slippage_bps": "0",
+        "tick_aggregation_seconds": 3,
         "tick_size": "0",
         "timezone_name": "Asia/Shanghai",
     }

@@ -90,7 +90,7 @@ class BarQuery:
             or not isinstance(self.dataset_id, UUID)
             or not isinstance(self.instrument_id, str)
             or not 1 <= len(self.instrument_id) <= 256
-            or self.granularity not in ("1m", "5m", "15m", "30m", "1h", "1d")
+            or self.granularity not in ("tick", "1m", "5m", "15m", "30m", "1h", "1d")
             or not isinstance(self.start, datetime)
             or not isinstance(self.end, datetime)
             or self.start.utcoffset() is None

@@ -369,10 +369,6 @@ class BacktestService:
         dataset = self._datasets.get(access.workspace.workspace_id, request.dataset_id).metadata
         if request.start < dataset.start or request.end > dataset.end:
             raise PortError(ErrorCode.INVALID_INPUT, "backtest range must stay within the dataset")
-        if dataset.granularity == "tick":
-            raise PortError(
-                ErrorCode.INVALID_INPUT, "tick datasets are not supported by event replay"
-            )
         if request.benchmark_id is not None and request.benchmark_id not in dataset.instrument_ids:
             raise PortError(
                 ErrorCode.INVALID_INPUT, "benchmark must be present in the selected dataset"

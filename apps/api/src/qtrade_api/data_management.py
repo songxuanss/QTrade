@@ -83,11 +83,12 @@ def data_management_router(
         access: Annotated[
             WorkspaceAccess, Depends(security.workspace(Permission.DATA_MANAGE, mutate=True))
         ],
+        output: Annotated[str, Query(pattern="^(1m|tick)$")] = "1m",
     ) -> dict[str, object]:
         if research is None:
             raise HTTPException(503, "research publication unavailable")
         try:
-            dataset = research.publish(access, task_id)
+            dataset = research.publish(access, task_id, output)
             _audit(
                 audit,
                 access,

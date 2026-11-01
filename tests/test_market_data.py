@@ -103,7 +103,7 @@ def test_adapter_invalid_pages_fail_closed(data, mutation):
     [
         {"limit": True},
         {"instrument_id": ""},
-        {"granularity": "tick"},
+        {"granularity": "2m"},
         {"cursor": ""},
         {"start": "invalid"},
         {"dataset_id": "invalid"},
