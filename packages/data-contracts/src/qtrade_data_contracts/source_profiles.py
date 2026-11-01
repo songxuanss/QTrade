@@ -35,6 +35,7 @@ ProfileKind = Literal[
     "membership_interval",
     "security_identity_change",
     "adjustment_factor",
+    "rights_terms",
     "current_membership",
 ]
 

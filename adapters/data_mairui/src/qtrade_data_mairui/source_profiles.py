@@ -175,6 +175,13 @@ def profiles(provider: MaiRuiCollection) -> tuple[SourceProfile, ...]:
             "退市与证券身份变更",
             "取得历史证券目录、身份映射及成功退市样本；单样本404不能推导供应商不提供",
         ),
+        (
+            "rights_terms",
+            "配股条款",
+            "取得历史配股接口与样本；已核对本供应商公开文档与候选端点"
+            "（hscp/jnpg、hscp/pg 返回 422，hscp/jnfh 无配股字段），"
+            "结论仅限当前供应商与当前订阅",
+        ),
     )
     for kind, name, condition in extensions:
         result.append(

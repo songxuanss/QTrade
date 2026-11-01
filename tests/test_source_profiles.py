@@ -20,9 +20,13 @@ def test_complete_scoped_evidence_with_real_references_and_no_plan_mutation(tmp_
     before = [v.model_dump_json() for v in provider.datasets()]
     financial = MaiRuiFinancial(provider, "income").capabilities()[0].model_dump_json()
     rows = profiles(provider)
-    assert len(rows) == 10
+    assert len(rows) == 11
     assert all(row.state == "unconfigured" for row in rows if row.mapping_version)
     assert all(row.state == "not_connected" for row in rows if not row.mapping_version)
+    rights = next(row for row in rows if row.kind == "rights_terms")
+    assert rights.state == "not_connected"
+    assert rights.source == "extension.rights_terms"
+    assert any("hscp/jnpg" in (v.unblock_condition or "") for v in rights.facts)
     root = Path(__file__).resolve().parents[1]
     for row in rows:
         assert {v.aspect for v in row.facts} == set(ASPECTS)
