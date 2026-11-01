@@ -177,3 +177,14 @@ Walk-forward MUST 支持冻结参数网格；每个窗口 MUST 在训练区间�
 #### Scenario: 锁价队列容量
 - **WHEN** 涨跌停锁价 bar 的队列比例使可成交量低于一手
 - **THEN** 订单不成交并以明确状态记录
+
+### Requirement: 多 Worker 公平调度与租约心跳
+回测队列 MUST 支持多个 Worker 安全并发认领：使用 `SKIP LOCKED` 原子认领，运行期间 MUST 续租，租约过期的运行 MUST 先回到队列并保留尝试次数，只有超过重试预算才失败；租约丢失的 Worker MUST NOT 发布结果。
+
+#### Scenario: 两个 Worker 并行
+- **WHEN** 多个 Worker 同时消费队列
+- **THEN** 每个运行只被一个 Worker 执行一次，结果唯一，租约到期时间随心跳推进
+
+#### Scenario: Worker 被杀
+- **WHEN** 持有运行的 Worker 被强制终止且租约过期
+- **THEN** 运行回到 `queued`，被其他 Worker 重新认领并完成，历史保留两次 running

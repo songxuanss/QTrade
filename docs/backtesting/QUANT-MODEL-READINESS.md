@@ -235,6 +235,18 @@
 - `.tools/verification-local/review/design/backtest-impact-390.png`
 - 全量 `pytest` 通过记录：`.tools/verification-local/review/full-pytest.txt`（本轮修复 `test_bounded_supplier_http` 后无失败）
 
+### 多 Worker 公平调度与租约心跳（真实两 Worker）
+
+- 认领使用 `FOR UPDATE SKIP LOCKED`，按 `attempts, created_at` 排序；每个 Worker 同时只持有一个租约，多个 Worker 自然分摊队列。
+- 运行期间每 `lease/3` 秒续租（`revision+1`，租约列更新）；发布结果前再续租一次，租约丢失时跳过发布，避免重复结果。
+- 租约过期的运行由扫描任务改回 `queued`（保留 attempts），只有超过最大尝试次数才标记 `lease_expired` 失败；认领只接受 `queued`，因此生命周期显式为 `queued → running → queued → running → completed`。
+- 迁移 `0041` 放宽触发器：仅允许 `running → queued` 且必须清空租约，终态仍不可变。
+- 真实验收（两个 Worker，租约 1 秒，真实 600519 队列）：
+  - 3 个并行运行全部完成，attempts 均为 1，结果对象齐全，两个 Worker 都实际处理了运行
+  - 运行期间观测到租约到期时间被心跳推进（同一运行的 `lease_expires_at` 连续增大）
+  - SIGKILL 持有运行的 Worker 后，运行经 `queued` 重新入队，由另一个 Worker 完成；attempts=2，history 为 `queued → running → queued → running → completed`，结果唯一
+- 证据：`.tools/verification-local/review/lease-fairness.json`
+
 ## 5. 用户体验改进
 
 - 回测表单按策略版本 schema 渲染参数字段，不再要求用户手写 JSON。
@@ -255,7 +267,7 @@
 - 停牌与锁价已建模：停牌 bar（零成交量或数据源标记 suspect）会拒绝受影响订单并标记 `halted`；一字涨/跌停按前一收盘价的涨跌幅识别，买入在涨停锁死、卖出在跌停锁死时被拒绝，原因分别为 `limit_up` / `limit_down`；无法判定方向时标记 `locked`。逐笔盘口仍未建模。
 - 未实现基准相对指标（alpha/beta/超额/跟踪误差/信息比率）与基准时间对齐。
 - Walk-forward 支持冻结参数网格：每个窗口先在训练区间运行全部候选，按样本内收益选择（同收益取回撤更小、参数 JSON 更小者），再用选中参数执行验证区间；聚合只统计选中参数的样本外结果。
-- 回测任务已改为持久队列 + Worker 消费；重启恢复和取消已验证。多 Worker 公平调度、租约心跳和细粒度执行中断仍未实现。
+- 回测任务使用持久队列 + 多 Worker 消费：`SKIP LOCKED` 原子认领、按尝试次数/创建时间排序、运行期间租约心跳续期；租约过期的运行先回到队列再被重新认领，超过重试次数才失败。
 - 已提供 CSV 与可打印 HTML（另存为 PDF）导出；未提供服务端直接生成 PDF 的接口。
 - 风险引擎未接入回测/Paper 订单路径，qualification 可被伪造。
 

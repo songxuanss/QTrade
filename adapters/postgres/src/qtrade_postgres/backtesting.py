@@ -122,10 +122,9 @@ class PostgresBacktestRunStore(PostgresStore):
                 """WITH candidate AS (
                     SELECT workspace_id,run_id FROM backtest_run
                     WHERE cancel_requested=false
-                      AND (status='queued'
-                           OR (status='running' AND lease_expires_at < %s))
+                      AND status='queued'
                       AND attempts < %s
-                    ORDER BY created_at,run_id
+                    ORDER BY attempts,created_at,run_id
                     FOR UPDATE SKIP LOCKED LIMIT 1
                 )
                 UPDATE backtest_run b
@@ -139,7 +138,7 @@ class PostgresBacktestRunStore(PostgresStore):
                 FROM candidate c
                 WHERE b.workspace_id=c.workspace_id AND b.run_id=c.run_id
                 RETURNING b.workspace_id,b.run_id,b.engine_job_id,b.revision,b.payload""",
-                (now, max_attempts, worker_id, expires),
+                (max_attempts, worker_id, expires),
             ).fetchone()
             if row is None:
                 return None
@@ -157,6 +156,32 @@ class PostgresBacktestRunStore(PostgresStore):
                 ),
             )
             return record
+
+    def renew(
+        self,
+        workspace_id: UUID,
+        run_id: UUID,
+        worker_id: UUID,
+        now: datetime,
+        lease_seconds: int,
+    ) -> bool:
+        """Extend a live lease; False means this worker no longer owns the run."""
+        if (
+            not isinstance(worker_id, UUID)
+            or now.utcoffset() is None
+            or type(lease_seconds) is not int
+            or not 1 <= lease_seconds <= 3600
+        ):
+            raise PortError(ErrorCode.INVALID_INPUT, "invalid backtest lease renewal")
+        with self._connection() as conn:
+            row = conn.execute(
+                """UPDATE backtest_run SET lease_expires_at=%s, revision=revision+1
+                WHERE workspace_id=%s AND run_id=%s AND status='running'
+                  AND lease_owner=%s
+                RETURNING run_id""",
+                (now + timedelta(seconds=lease_seconds), workspace_id, run_id, worker_id),
+            ).fetchone()
+        return row is not None
 
     def request_cancel(self, workspace_id: UUID, run_id: UUID, now: datetime) -> BacktestRunRecord:
         """Cancel a queued/running run and prevent a leased worker from publishing."""
@@ -192,36 +217,64 @@ class PostgresBacktestRunStore(PostgresStore):
             )
             return record
 
-    def fail_exhausted(self, now: datetime, max_attempts: int) -> int:
-        """Fail expired running leases that exhausted their retry budget."""
+    def requeue_expired(self, now: datetime, max_attempts: int) -> tuple[int, int]:
+        """Requeue expired leases; fail only after the retry budget is spent.
+
+        Returns (requeued, failed). Requeued runs keep their attempts count and
+        become claimable again, so a killed Worker loses no work.
+        """
+        if now.utcoffset() is None or type(max_attempts) is not int or max_attempts < 1:
+            raise PortError(ErrorCode.INVALID_INPUT, "invalid lease expiry sweep")
         with self._connection() as conn:
             rows = conn.execute(
-                """UPDATE backtest_run
-                SET status='failed', revision=revision+1,
-                    lease_owner=NULL, lease_expires_at=NULL,
-                    payload=jsonb_set(
-                        jsonb_set(payload,'{status}','"failed"'),
-                        '{error_code}','"lease_expired"'
-                    )
-                WHERE status='running' AND lease_expires_at < %s AND attempts >= %s
-                RETURNING workspace_id,run_id,revision,progress""",
-                (now, max_attempts),
+                """WITH expired AS (
+                    SELECT workspace_id,run_id FROM backtest_run
+                    WHERE status='running' AND lease_expires_at < %s
+                    ORDER BY lease_expires_at
+                    FOR UPDATE SKIP LOCKED
+                ), requeued AS (
+                    UPDATE backtest_run b
+                    SET status='queued', lease_owner=NULL, lease_expires_at=NULL,
+                        revision=b.revision+1,
+                        payload=jsonb_set(b.payload,'{status}','"queued"')
+                    FROM expired e
+                    WHERE b.workspace_id=e.workspace_id AND b.run_id=e.run_id
+                      AND b.attempts < %s
+                    RETURNING b.workspace_id,b.run_id,b.revision,b.progress
+                ), failed AS (
+                    UPDATE backtest_run b
+                    SET status='failed', lease_owner=NULL, lease_expires_at=NULL,
+                        revision=b.revision+1,
+                        payload=jsonb_set(
+                            jsonb_set(b.payload,'{status}','"failed"'),
+                            '{error_code}','"lease_expired"'
+                        )
+                    FROM expired e
+                    WHERE b.workspace_id=e.workspace_id AND b.run_id=e.run_id
+                      AND b.attempts >= %s
+                    RETURNING b.workspace_id,b.run_id,b.revision,b.progress
+                )
+                SELECT 'requeued',workspace_id,run_id,revision,progress FROM requeued
+                UNION ALL
+                SELECT 'failed',workspace_id,run_id,revision,progress FROM failed""",
+                (now, max_attempts, max_attempts),
             ).fetchall()
             for row in rows:
                 self._insert_event(
                     conn,
                     BacktestRunEvent(
                         uuid4(),
-                        UUID(str(row[0])),
                         UUID(str(row[1])),
-                        "failed",
-                        cast(int, row[3]),
+                        UUID(str(row[2])),
+                        "queued" if row[0] == "requeued" else "failed",
+                        cast(int, row[4]),
                         now,
-                        "lease_expired",
-                        cast(int, row[2]),
+                        None if row[0] == "requeued" else "lease_expired",
+                        cast(int, row[3]),
                     ),
                 )
-        return len(rows)
+        requeued = sum(1 for row in rows if row[0] == "requeued")
+        return requeued, len(rows) - requeued
 
     def get(self, workspace_id: UUID, run_id: UUID) -> BacktestRunRecord:
         with self._connection() as conn:

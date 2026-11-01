@@ -26,8 +26,8 @@ from qtrade_postgres.strategies import PostgresStrategyStore
 from qtrade_runner_adapter.strategy_program import IsolatedBatchStrategyProgram
 
 logger = logging.getLogger(__name__)
-LEASE_SECONDS = 300
-MAX_ATTEMPTS = 3
+LEASE_SECONDS = int(os.environ.get("QTRADE_BACKTEST_LEASE_SECONDS", "300"))
+MAX_ATTEMPTS = int(os.environ.get("QTRADE_BACKTEST_MAX_ATTEMPTS", "3"))
 POLL_SECONDS = 0.5
 
 
@@ -131,10 +131,13 @@ async def consume_backtests() -> None:
         _program_resolver(strategy_store, objects, runner_socket, programs),
     )
     worker_id = uuid4()
+    logger.info("backtest worker started id=%s lease=%ss", worker_id, LEASE_SECONDS)
     while True:
         now = datetime.now(UTC)
         try:
-            await asyncio.to_thread(runs.fail_exhausted, now, MAX_ATTEMPTS)
+            requeued, expired = await asyncio.to_thread(runs.requeue_expired, now, MAX_ATTEMPTS)
+            if requeued or expired:
+                logger.info("backtest leases expired: requeued=%s failed=%s", requeued, expired)
             record = await asyncio.to_thread(
                 runs.claim, worker_id, now, LEASE_SECONDS, MAX_ATTEMPTS
             )
@@ -142,9 +145,30 @@ async def consume_backtests() -> None:
                 await asyncio.sleep(POLL_SECONDS)
                 continue
             run_id = record.run.run_id
+            lease_lost = asyncio.Event()
+            heartbeat = asyncio.create_task(_heartbeat(runs, record, worker_id, lease_lost))
             try:
                 manifest = await asyncio.to_thread(manifests.get, record.run.workspace_id, run_id)
                 job = await asyncio.to_thread(engine.submit, record.run, manifest)
+                heartbeat.cancel()
+                try:
+                    await heartbeat
+                except asyncio.CancelledError:
+                    pass
+                if lease_lost.is_set():
+                    logger.warning("backtest lease lost during execution: %s", run_id)
+                    continue
+                renewed = await asyncio.to_thread(
+                    runs.renew,
+                    record.run.workspace_id,
+                    run_id,
+                    worker_id,
+                    datetime.now(UTC),
+                    LEASE_SECONDS,
+                )
+                if not renewed:
+                    logger.warning("backtest lease no longer owned; skipping publish: %s", run_id)
+                    continue
                 latest = await asyncio.to_thread(runs.get, record.run.workspace_id, run_id)
                 if latest.run.status == "cancelled":
                     continue
@@ -174,16 +198,55 @@ async def consume_backtests() -> None:
                     ),
                 )
             except PortError as error:
+                logger.warning(
+                    "backtest run failed: %s code=%s detail=%s",
+                    run_id,
+                    error.code.value,
+                    str(error),
+                )
                 await _fail(runs, record, error.code.value)
             except Exception:
                 logger.exception("backtest worker execution failed: %s", run_id)
                 await _fail(runs, record, "engine_error")
+            finally:
+                heartbeat.cancel()
+                try:
+                    await heartbeat
+                except asyncio.CancelledError:
+                    pass
         except PortError:
             logger.exception("backtest queue cycle failed")
             await asyncio.sleep(1)
         except Exception:
             logger.exception("backtest queue cycle failed")
             await asyncio.sleep(1)
+
+
+async def _heartbeat(
+    runs: PostgresBacktestRunStore,
+    record: BacktestRunRecord,
+    worker_id: UUID,
+    lost: asyncio.Event,
+) -> None:
+    """Renew the lease while a long run executes; stop when ownership is lost."""
+    interval = max(0.2, LEASE_SECONDS / 3)
+    while True:
+        await asyncio.sleep(interval)
+        try:
+            renewed = await asyncio.to_thread(
+                runs.renew,
+                record.run.workspace_id,
+                record.run.run_id,
+                worker_id,
+                datetime.now(UTC),
+                LEASE_SECONDS,
+            )
+        except Exception:
+            logger.exception("backtest lease renewal failed: %s", record.run.run_id)
+            renewed = False
+        if not renewed:
+            lost.set()
+            return
 
 
 async def _fail(runs: PostgresBacktestRunStore, record: BacktestRunRecord, code: str) -> None:
