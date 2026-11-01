@@ -18,7 +18,7 @@ from qtrade_application.artifacts import ManifestService
 from qtrade_contracts import BacktestRun
 from qtrade_domain.backtesting import BacktestRunEvent, BacktestRunRecord
 from qtrade_domain.ports import ErrorCode, PortError
-from qtrade_mock.backtest_engine import MockEngineAdapter
+from qtrade_mock.backtest_engine import ExecutionCancelled, MockEngineAdapter
 from qtrade_object_store.s3 import S3ObjectStore
 from qtrade_postgres.backtesting import PostgresBacktestRunStore
 from qtrade_postgres.market_data import TimescaleMarketData
@@ -27,6 +27,7 @@ from qtrade_runner_adapter.strategy_program import IsolatedBatchStrategyProgram
 
 logger = logging.getLogger(__name__)
 LEASE_SECONDS = int(os.environ.get("QTRADE_BACKTEST_LEASE_SECONDS", "300"))
+SIGNAL_CHUNK = int(os.environ.get("QTRADE_BACKTEST_SIGNAL_CHUNK", "1000"))
 MAX_ATTEMPTS = int(os.environ.get("QTRADE_BACKTEST_MAX_ATTEMPTS", "3"))
 POLL_SECONDS = 0.5
 
@@ -129,6 +130,7 @@ async def consume_backtests() -> None:
         objects,
         {},
         _program_resolver(strategy_store, objects, runner_socket, programs),
+        signal_chunk_bars=SIGNAL_CHUNK,
     )
     worker_id = uuid4()
     logger.info("backtest worker started id=%s lease=%ss", worker_id, LEASE_SECONDS)
@@ -146,15 +148,26 @@ async def consume_backtests() -> None:
                 continue
             run_id = record.run.run_id
             lease_lost = asyncio.Event()
+            cancelled = asyncio.Event()
             heartbeat = asyncio.create_task(_heartbeat(runs, record, worker_id, lease_lost))
+            watcher = asyncio.create_task(_watch_cancellation(runs, record, cancelled))
+            engine.interrupt = cancelled.is_set
             try:
                 manifest = await asyncio.to_thread(manifests.get, record.run.workspace_id, run_id)
                 job = await asyncio.to_thread(engine.submit, record.run, manifest)
                 heartbeat.cancel()
+                watcher.cancel()
                 try:
                     await heartbeat
                 except asyncio.CancelledError:
                     pass
+                try:
+                    await watcher
+                except asyncio.CancelledError:
+                    pass
+                if cancelled.is_set():
+                    logger.info("backtest cancelled during execution: %s", run_id)
+                    continue
                 if lease_lost.is_set():
                     logger.warning("backtest lease lost during execution: %s", run_id)
                     continue
@@ -197,6 +210,9 @@ async def consume_backtests() -> None:
                         revision=revision,
                     ),
                 )
+            except ExecutionCancelled:
+                logger.info("backtest cancelled cooperatively: %s", run_id)
+                continue
             except PortError as error:
                 logger.warning(
                     "backtest run failed: %s code=%s detail=%s",
@@ -209,11 +225,14 @@ async def consume_backtests() -> None:
                 logger.exception("backtest worker execution failed: %s", run_id)
                 await _fail(runs, record, "engine_error")
             finally:
+                engine.interrupt = None
                 heartbeat.cancel()
-                try:
-                    await heartbeat
-                except asyncio.CancelledError:
-                    pass
+                watcher.cancel()
+                for task in (heartbeat, watcher):
+                    try:
+                        await task
+                    except asyncio.CancelledError:
+                        pass
         except PortError:
             logger.exception("backtest queue cycle failed")
             await asyncio.sleep(1)
@@ -246,6 +265,23 @@ async def _heartbeat(
             renewed = False
         if not renewed:
             lost.set()
+            return
+
+
+async def _watch_cancellation(
+    runs: PostgresBacktestRunStore,
+    record: BacktestRunRecord,
+    cancelled: asyncio.Event,
+) -> None:
+    """Observe durable cancellation while the engine runs; do not busy-poll."""
+    while not cancelled.is_set():
+        await asyncio.sleep(0.25)
+        try:
+            latest = await asyncio.to_thread(runs.get, record.run.workspace_id, record.run.run_id)
+        except Exception:
+            continue
+        if latest.run.status == "cancelled":
+            cancelled.set()
             return
 
 

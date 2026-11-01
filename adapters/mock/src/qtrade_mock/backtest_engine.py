@@ -34,6 +34,10 @@ from qtrade_domain.ports import (
 from qtrade_domain.strategy_program import StrategySignal
 
 
+class ExecutionCancelled(RuntimeError):
+    """Cooperative cancellation requested while a backtest is running."""
+
+
 @dataclass(frozen=True, slots=True)
 class MockOrderSignal:
     instrument_id: str
@@ -111,12 +115,15 @@ ProgramResolver = Callable[[UUID, UUID, str, int], MockStrategyProgram | BatchSt
 class MockEngineAdapter(TradingEnginePort):
     """Replay immutable bars in timestamp order and convert fills to canonical JSON."""
 
+    _SIGNAL_CHUNK = 1000
+
     def __init__(
         self,
         market: MarketDataPort,
         objects: ObjectStorePort,
         programs: dict[str, MockStrategyProgram | BatchStrategyProgram],
         resolver: ProgramResolver | None = None,
+        signal_chunk_bars: int = 1000,
     ) -> None:
         self._market = market
         self._objects = objects
@@ -124,6 +131,11 @@ class MockEngineAdapter(TradingEnginePort):
         self._resolver = resolver
         self._jobs: dict[tuple[UUID, UUID], ComputeJob] = {}
         self._inputs: dict[tuple[UUID, UUID], str] = {}
+        if type(signal_chunk_bars) is not int or not 1 <= signal_chunk_bars <= 100_000:
+            raise PortError(ErrorCode.INVALID_INPUT, "invalid strategy chunk size")
+        MockEngineAdapter._SIGNAL_CHUNK = signal_chunk_bars
+        # Set by the Worker to observe cooperative cancellation between chunks.
+        self.interrupt: Callable[[], bool] | None = None
 
     def submit(self, run: BacktestRun, manifest: ArtifactManifest) -> ComputeJob:
         if (
@@ -201,8 +213,9 @@ class MockEngineAdapter(TradingEnginePort):
                 actions,
                 universe,
                 rights_policy,
+                self.interrupt,
             )
-        except PortError:
+        except (PortError, ExecutionCancelled):
             raise
         except Exception:
             raise PortError(ErrorCode.UNAVAILABLE, "mock strategy execution failed") from None
@@ -379,6 +392,37 @@ class MockEngineAdapter(TradingEnginePort):
         }
 
     @staticmethod
+    def _chunked_signals(
+        evaluate: Callable[
+            [tuple[Bar, ...], dict[str, object]],
+            tuple[tuple[StrategySignal, ...], ...],
+        ],
+        bars: tuple[Bar, ...],
+        parameters: dict[str, object],
+        interrupt: Callable[[], bool] | None,
+    ) -> tuple[tuple[StrategySignal, ...], ...]:
+        """Evaluate the strategy in causal chunks and honor cancellation between them."""
+        chunk = MockEngineAdapter._SIGNAL_CHUNK
+        collected: list[tuple[StrategySignal, ...]] = []
+        start = 0
+        while start < len(bars):
+            if interrupt is not None and interrupt():
+                raise ExecutionCancelled("backtest run cancelled")
+            end = min(start + chunk, len(bars))
+            result = evaluate(bars[:end], parameters)
+            if (
+                not isinstance(result, tuple)
+                or len(result) != end
+                or any(not isinstance(signals, tuple) for signals in result)
+            ):
+                raise PortError(ErrorCode.REJECTED, "invalid batch strategy proposals")
+            collected.extend(result[start:end])
+            start = end
+        if interrupt is not None and interrupt():
+            raise ExecutionCancelled("backtest run cancelled")
+        return tuple(collected)
+
+    @staticmethod
     def _signals(
         program: MockStrategyProgram | BatchStrategyProgram,
         batch_signals: dict[int, tuple[StrategySignal, ...]] | None,
@@ -497,23 +541,21 @@ class MockEngineAdapter(TradingEnginePort):
         corporate_actions: tuple[CorporateAction, ...] = (),
         universe: BacktestUniverse | None = None,
         rights_policy: str = "subscribe",
+        interrupt: Callable[[], bool] | None = None,
     ) -> dict[str, object]:
         parameters = json.loads(manifest.parameters_json)
         tradable_indices = tuple(index for index, bar in enumerate(bars) if bar.quality == "valid")
         tradable_bars = tuple(bars[index] for index in tradable_indices)
         batch = getattr(program, "signals_for_bars", None)
-        batch_result = batch(tradable_bars, parameters) if batch is not None else None
-        if batch_result is not None and (
-            not isinstance(batch_result, tuple)
-            or len(batch_result) != len(tradable_bars)
-            or any(not isinstance(signals, tuple) for signals in batch_result)
-        ):
-            raise PortError(ErrorCode.REJECTED, "invalid batch strategy proposals")
-        batch_signals = (
-            dict(zip(tradable_indices, batch_result, strict=True))
-            if batch_result is not None
-            else None
-        )
+        batch_signals: dict[int, tuple[StrategySignal, ...]] | None = None
+        if batch is not None:
+            chunked = MockEngineAdapter._chunked_signals(
+                batch, tradable_bars, parameters, interrupt
+            )
+            batch_signals = {
+                original: signals
+                for original, signals in zip(tradable_indices, chunked, strict=True)
+            }
         cash = run.initial_cash
         ledger = CorporateActionLedger(corporate_actions, rights_policy)
         membership = MockEngineAdapter._membership_windows(universe)
@@ -539,6 +581,8 @@ class MockEngineAdapter(TradingEnginePort):
         benchmark_initial = benchmark_bars[0].close if benchmark_bars else None
 
         for bar_index, bar in enumerate(bars):
+            if interrupt is not None and interrupt():
+                raise ExecutionCancelled("backtest run cancelled")
             # Signals raised after a close can only fill at a later bar's open.
             local_timestamp = bar.timestamp.astimezone(ZoneInfo(execution.timezone_name))
             market_date = local_timestamp.date()

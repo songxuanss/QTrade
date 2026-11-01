@@ -26,6 +26,7 @@
 | 市场冲击/队列 | 真实数据 | run `aa7ac7e7-…`、`ec552671-…` | 平方根冲击改变成交价并现金对账；锁价队列比例限制成交 |
 | 全量 pytest | 全绿 | `full-pytest.txt` | 修复 bounded HTTP 子进程启动根因后 0 失败（详见 `docs/testing/BOUNDED-HTTP-FIX.md`） |
 | 多 Worker/租约 | 真实双 Worker | `lease-fairness.json` | 并行运行 attempts=1、心跳续租、SIGKILL 后重新入队完成 |
+| 协作式取消 | 真实双 Worker | `cooperative-cancel.json` | 运行中取消在块间中止，无结果对象，另一运行正常完成 |
 | 导出 HTML/PDF/CSV | 未实现 | — | 报告只能页面查看 |
 | 持久化 Worker 回测队列 | 已实现 | `backtest_run.lease_*`, Worker consumer | REST 重启后 queued 运行恢复 |
 

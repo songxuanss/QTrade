@@ -188,3 +188,14 @@ Walk-forward MUST 支持冻结参数网格；每个窗口 MUST 在训练区间�
 #### Scenario: Worker 被杀
 - **WHEN** 持有运行的 Worker 被强制终止且租约过期
 - **THEN** 运行回到 `queued`，被其他 Worker 重新认领并完成，历史保留两次 running
+
+### Requirement: 运行中协作式取消
+Worker MUST 在运行期间观察持久化取消状态，并在策略分块之间检查中断；取消后 MUST 停止执行、保持运行状态为 cancelled、记录取消历史且不发布结果对象。单次 Runner 调用不可中断时 MUST 在返回后的下一个检查点停止。
+
+#### Scenario: 取消运行中的回测
+- **WHEN** 授权用户取消一个处于 running 的运行
+- **THEN** Worker 在下一个块边界停止，history 为 queued → running → cancelled，attempts 不变且无结果对象
+
+#### Scenario: 取消不影响其他 Worker
+- **WHEN** 一个 Worker 的运行被取消而另一个 Worker 正在执行
+- **THEN** 另一个运行正常完成且只执行一次

@@ -247,6 +247,17 @@
   - SIGKILL 持有运行的 Worker 后，运行经 `queued` 重新入队，由另一个 Worker 完成；attempts=2，history 为 `queued → running → queued → running → completed`，结果唯一
 - 证据：`.tools/verification-local/review/lease-fairness.json`
 
+### 协作式取消（真实两 Worker）
+
+- Worker 在运行期间每 0.25 秒读取持久化运行状态；观察到 `cancelled` 后设置中断标记。
+- 引擎按 `QTRADE_BACKTEST_SIGNAL_CHUNK`（默认 1000 根）分块调用 Runner，块间与每个 bar 前检查中断；命中后抛出 `ExecutionCancelled`，Worker 直接返回，不写失败事件也不发布结果。
+- 取消仍可由 API 完成；快照/结果与历史保持不可变。
+- 真实验收（两个 Worker、信号块 5 根、租约 10 秒）：
+  - 取消一个运行中的 600519 回测，0.045 秒内持久化状态变为 `cancelled`
+  - Worker 在块间协作中止（日志 `backtest cancelled cooperatively`），history 为 `queued → running → cancelled`，attempts=1，无结果对象
+  - 同一时刻另一个 Worker 的运行正常完成且仅执行一次
+- 证据：`.tools/verification-local/review/cooperative-cancel.json`
+
 ## 5. 用户体验改进
 
 - 回测表单按策略版本 schema 渲染参数字段，不再要求用户手写 JSON。

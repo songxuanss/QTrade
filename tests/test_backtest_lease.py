@@ -69,3 +69,27 @@ def test_heartbeat_stops_immediately_when_renewal_fails():
 
     assert asyncio.run(scenario())
     assert store.calls == 1
+
+
+def test_cancellation_watcher_sets_event_for_durable_cancellation():
+    from pathlib import Path
+
+    record = BacktestRunRecord(
+        backtests.BacktestRun.model_validate_json(
+            (Path(__file__).parent / "fixtures/contracts/BacktestRun.json").read_text()
+        ),
+        None,
+        2,
+    )
+    cancelled_run = record.run.model_copy(update={"status": "cancelled"})
+
+    class Runs:
+        def get(self, _workspace, _run_id):
+            return BacktestRunRecord(cancelled_run, None, 3)
+
+    async def scenario():
+        cancelled = asyncio.Event()
+        await asyncio.wait_for(backtests._watch_cancellation(Runs(), record, cancelled), 3)
+        return cancelled.is_set()
+
+    assert asyncio.run(scenario())

@@ -899,3 +899,37 @@ def test_limit_queue_fraction_caps_fills_at_the_daily_limit():
     )
     assert capped["fills"] == []
     assert capped["orders"][0]["status"] in {"rejected", "unfilled_end_of_data"}
+
+
+def test_chunked_strategy_evaluation_replays_prefixes_and_aborts_early():
+    import pytest
+
+    from qtrade_mock.backtest_engine import ExecutionCancelled
+
+    bar = Bar.model_validate_json((FIXTURES / "Bar.json").read_text())
+    bars = tuple(
+        bar.model_copy(update={"timestamp": bar.timestamp + timedelta(minutes=index)})
+        for index in range(6)
+    )
+    calls: list[int] = []
+
+    def evaluate(prefix, parameters):
+        calls.append(len(prefix))
+        return tuple(() for _ in prefix)
+
+    result = MockEngineAdapter._chunked_signals(evaluate, bars, {}, None)
+    assert result == tuple(() for _ in bars)
+    assert calls == [6]
+
+    MockEngineAdapter._SIGNAL_CHUNK = 2
+    try:
+        calls.clear()
+        MockEngineAdapter._chunked_signals(evaluate, bars, {}, None)
+        assert calls == [2, 4, 6]
+
+        calls.clear()
+        with pytest.raises(ExecutionCancelled):
+            MockEngineAdapter._chunked_signals(evaluate, bars, {}, lambda: len(calls) >= 1)
+        assert calls == [2]
+    finally:
+        MockEngineAdapter._SIGNAL_CHUNK = 1000
