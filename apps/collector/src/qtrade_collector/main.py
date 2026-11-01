@@ -56,7 +56,11 @@ from qtrade_data_files.archive import FileCollectionArchive
 from qtrade_data_files.research import FileResearchArchive
 from qtrade_data_http.client import RemoteDataAuthorizer, StaticScopeAuthorizer
 from qtrade_data_mairui.collection import MaiRuiCollection
-from qtrade_data_mairui.research import MaiRuiDistributions, MaiRuiFinancial
+from qtrade_data_mairui.research import (
+    MaiRuiAdjustmentFactors,
+    MaiRuiDistributions,
+    MaiRuiFinancial,
+)
 from qtrade_data_mairui.source_profiles import profiles as mairui_source_profiles
 from qtrade_data_postgres.collection_replay import PostgresCollectionReplays
 from qtrade_data_postgres.freshness import PostgresFreshness
@@ -343,6 +347,7 @@ def create_app() -> FastAPI:
         MaiRuiFinancial(provider, "income"),
         MaiRuiFinancial(provider, "cashflow"),
         MaiRuiDistributions(provider),
+        MaiRuiAdjustmentFactors(provider),
     )
     app.state.research_service = ResearchService(
         auth,

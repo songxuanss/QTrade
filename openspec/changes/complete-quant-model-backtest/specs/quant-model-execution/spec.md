@@ -236,3 +236,19 @@ tick 数据集 MUST 在聚合执行窗口的同时构建「价位 → 成交量�
 #### Scenario: 模式披露
 - **WHEN** 查看 tick 回测报告或导出
 - **THEN** 显示 `tick_price_levels` 深度模型；非 tick 运行显示 bar 级近似
+
+
+### Requirement: 真实供应商复权因子采集
+系统 MUST 能从真实供应商采集复权因子证据：以供应商前复权与不复权收盘价推导因子序列，MUST 过滤分位取整造成的日间噪声，只在真实调整事件日形成阶跃；采集 MUST 经计划预览、预算确认、研究发布后，由回测冻结其内容版本并应用于 `vendor_adjusted` 执行价格。因子来源不可用时 MUST 拒绝 `vendor_adjusted`，不得回退到占位数据。
+
+#### Scenario: 供应商因子采集
+- **WHEN** 授权用户提交 adjustment_factor 研究任务
+- **THEN** 采集端请求复权与不复权价格并发布因子记录，记录日期与真实除权日一致
+
+#### Scenario: 回测应用
+- **WHEN** 回测以 vendor_adjusted 使用该发布
+- **THEN** manifest 冻结因子内容版本，执行价格按 factor(t)/factor(start) 缩放且可由原始收盘价独立复算
+
+#### Scenario: 来源不可用
+- **WHEN** 供应商因子缺失或采集失败
+- **THEN** vendor_adjusted 请求被拒绝，不回退到 fixture 或静默使用未复权价

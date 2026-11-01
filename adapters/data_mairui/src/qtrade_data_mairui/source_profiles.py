@@ -18,7 +18,7 @@ from qtrade_data_contracts.source_profiles import (
 )
 
 from .collection import MaiRuiCollection
-from .research import MaiRuiDistributions, MaiRuiFinancial
+from .research import MaiRuiAdjustmentFactors, MaiRuiDistributions, MaiRuiFinancial
 
 AUDIT = "docs/data/CAPABILITY-AUDIT-2026-10-12.md"
 SCOPE = "docs/data/COLLECTION-ACCEPTANCE-SCOPE.md"
@@ -51,6 +51,7 @@ def profiles(provider: MaiRuiCollection) -> tuple[SourceProfile, ...]:
             MaiRuiFinancial(provider, "income"),
             MaiRuiFinancial(provider, "cashflow"),
             MaiRuiDistributions(provider),
+            MaiRuiAdjustmentFactors(provider),
         )
         for c in p.capabilities()
     ]
@@ -173,11 +174,6 @@ def profiles(provider: MaiRuiCollection) -> tuple[SourceProfile, ...]:
             "security_identity_change",
             "退市与证券身份变更",
             "取得历史证券目录、身份映射及成功退市样本；单样本404不能推导供应商不提供",
-        ),
-        (
-            "adjustment_factor",
-            "复权因子与基准",
-            "取得因子、基准、事件链及版本证据；复权价格不等于复权因子",
         ),
     )
     for kind, name, condition in extensions:

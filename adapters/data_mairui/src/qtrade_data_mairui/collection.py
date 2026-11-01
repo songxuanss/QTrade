@@ -57,6 +57,10 @@ def request_classification(path: str) -> tuple[str, int]:
         return "metadata.names", 1
     if "/financial/" in path or path.startswith("hscp/"):
         return "research.data", 1
+    # Adjusted-price series are research evidence (factor derivation), not the
+    # ordinary unadjusted bar collection stream.
+    if re.fullmatch(r"(hsstock|bj)/history/[0-9]{6}(\.(SH|SZ|BJ))?/d/(f|fr|b|br)", path):
+        return "research.data", 1
     return "bars.history", 1
 
 
@@ -206,6 +210,7 @@ class MaiRuiCollection:
         *,
         pro: bool = False,
         capture: RawCapture | None = None,
+        operation: str | None = None,
     ) -> Any:
         if not self.licence:
             raise DataFailure("unauthorized")
@@ -220,7 +225,8 @@ class MaiRuiCollection:
         try:
             self.pace()
             pace_wait_ms = round((monotonic() - started) * 1000)
-            operation, credits = request_classification(path)
+            classified, credits = request_classification(path)
+            operation = operation or classified
             if self.usage:
                 # Classify vendor routes here; core bookkeeping never sees URLs
                 # or licence-bearing paths. Factor history is 5 operator credits.

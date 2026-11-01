@@ -13,6 +13,7 @@ from qtrade_data_contracts.collection import RawPayloadKind, digest
 from qtrade_data_contracts.models import ExactDecimal
 from qtrade_data_contracts.planning import CollectionCostEstimate
 from qtrade_data_contracts.research import (
+    AdjustmentFactor,
     CorporateAction,
     FinancialMetric,
     FinancialStatement,
@@ -349,3 +350,176 @@ class MaiRuiDistributions:
         except (KeyError, ValueError, TypeError):
             raise DataFailure("unverified") from None
         return tuple(records.values())
+
+
+class MaiRuiAdjustmentFactors:
+    """Forward-adjustment factor series derived from the supplier's own prices.
+
+    The supplier publishes forward-adjusted and unadjusted daily closes. Their
+    ratio on each observation date is an observable, reproducible adjustment
+    factor; changes are expected only on ex-dates.
+    """
+
+    source = "mairui.adjustment.factors"
+
+    def estimate(self, request: ResearchPlanRequest, parts: int) -> CollectionCostEstimate:
+        # One forward-adjusted and one unadjusted request per partition.
+        return research_estimate(parts * 2)
+
+    def __init__(self, transport: MaiRuiCollection):
+        self.transport = transport
+
+    def capabilities(self) -> tuple[ResearchCapability, ...]:
+        configured = bool(self.transport.licence)
+        return (
+            ResearchCapability(
+                source=self.source,
+                name="MaiRui 前复权因子（由复权/不复权价格推导）",
+                kind="adjustment_factor",
+                configured=configured,
+                evidence="sample",
+                markets=("CN",),
+                instrument_kinds=("stock",),
+                date_axes=("observation_date",),
+                timezone="Asia/Shanghai",
+                mapping_version="mairui.forward-ratio.v1",
+                limitations=(
+                    "因子由供应商前复权与不复权收盘价比值推导，不是供应商原生因子字段。",
+                    "仅前复权口径；等比/后复权未纳入。",
+                    "只在比值变化日与首个观测日输出记录，缺失交易日不补。",
+                ),
+                unblock_condition=None if configured else "配置现有MaiRui证书",
+            ),
+        )
+
+    def partitions(self, request: ResearchPlanRequest) -> Iterator[ResearchPartition]:
+        for identifier in request.instrument_ids:
+            symbol, index = self.transport._symbol(identifier)
+            if index or not symbol.endswith((".SH", ".SZ")):
+                raise DataFailure("unsupported")
+            yield ResearchPartition(instrument_id=identifier, start=request.start, end=request.end)
+
+    def fetch(
+        self, request: ResearchPlanRequest, partition: ResearchPartition, cursor: str | None
+    ) -> ResearchRawPage:
+        return self._fetch(request, partition, cursor, None)
+
+    def fetch_with_capture(
+        self,
+        request: ResearchPlanRequest,
+        partition: ResearchPartition,
+        cursor: str | None,
+        capture: ResponseSink,
+    ) -> ResearchRawPage:
+        return self._fetch(request, partition, cursor, response_capture(capture))
+
+    def _fetch(
+        self,
+        request: ResearchPlanRequest,
+        partition: ResearchPartition,
+        cursor: str | None,
+        capture: RawCapture | None,
+    ) -> ResearchRawPage:
+        if cursor is not None:
+            raise DataFailure("invalid_input")
+        symbol, index = self.transport._symbol(partition.instrument_id)
+        if index or not symbol.endswith((".SH", ".SZ")):
+            raise DataFailure("unsupported")
+        params = {
+            "st": partition.start.strftime("%Y%m%d"),
+            "et": (partition.end - timedelta(days=1)).strftime("%Y%m%d"),
+        }
+        code = symbol.split(".")[0]
+
+        def closes(adjustment: str) -> dict[date, Decimal]:
+            rows = self.transport._rows(
+                self.transport._get(
+                    f"hsstock/history/{code}/d/{adjustment}",
+                    params,
+                    capture=capture,
+                    operation="research.data",
+                )
+            )
+            result: dict[date, Decimal] = {}
+            for row in rows:
+                try:
+                    day = date.fromisoformat(str(row.get("t") or row["d"])[:10])
+                    raw = row.get("c")
+                    close = (
+                        None
+                        if raw in (None, "", "-", "--")
+                        else TypeAdapter(ExactDecimal).validate_python(raw)
+                    )
+                except (KeyError, ValueError, TypeError):
+                    raise DataFailure("unverified") from None
+                if close is None or close <= 0 or not partition.start <= day < partition.end:
+                    continue
+                result[day] = close
+            return result
+
+        adjusted, unadjusted = closes("f"), closes("n")
+        rows: tuple[dict[str, object], ...] = tuple(
+            {
+                "_day": day.isoformat(),
+                "_instrument_id": partition.instrument_id,
+                "_adjusted_close": format(adjusted[day], "f"),
+                "_unadjusted_close": format(unadjusted[day], "f"),
+            }
+            for day in sorted(set(adjusted) & set(unadjusted))
+        )
+        if not rows:
+            raise DataFailure("unverified")
+        return ResearchRawPage(rows, None, None)
+
+    def normalize(
+        self, request: ResearchPlanRequest, page: ResearchRawPage, collected_at: datetime
+    ) -> tuple[AdjustmentFactor, ...]:
+        series: list[tuple[date, Decimal]] = []
+        try:
+            for row in page.rows:
+                adjusted = Decimal(str(row["_adjusted_close"]))
+                unadjusted = Decimal(str(row["_unadjusted_close"]))
+                if adjusted <= 0 or unadjusted <= 0:
+                    raise ValueError
+                series.append(
+                    (
+                        date.fromisoformat(str(row["_day"])),
+                        (adjusted / unadjusted).quantize(Decimal("0.00000001")),
+                    )
+                )
+        except (KeyError, ValueError, TypeError, ArithmeticError):
+            raise DataFailure("unverified") from None
+        if not series:
+            raise DataFailure("unverified")
+        series.sort()
+        base_date, base_value = series[0]
+        records: list[AdjustmentFactor] = []
+        # Forward-adjusted closes are published rounded to cents, so the raw
+        # ratio carries cent-level day-to-day noise. Only material jumps (a real
+        # adjustment event) start a new factor record; the noise baseline still
+        # tracks every observation so slow drift does not accumulate.
+        tolerance = Decimal("0.005")
+        previous: Decimal | None = None
+        for day, factor in series:
+            if previous is not None and abs(factor / previous - 1) <= tolerance:
+                previous = factor
+                continue
+            records.append(
+                AdjustmentFactor(
+                    scope_id=request.scope_id,
+                    source=self.source,
+                    instrument_id=str(page.rows[0]["_instrument_id"]),
+                    collected_at=collected_at,
+                    mapping_version=self.capabilities()[0].mapping_version,
+                    source_revision=digest([day.isoformat(), format(factor, "f")]),
+                    observation_date=day,
+                    adjustment="forward",
+                    factor=factor,
+                    base_date=base_date,
+                    base_value=base_value,
+                    algorithm_version="mairui.forward-ratio.v1",
+                    convention_evidence="https://www.mairuiapi.com/hsdata#hsstock/history",
+                )
+            )
+            previous = factor
+        return tuple(records)
