@@ -178,6 +178,68 @@
     },
     "observed_rate_limit_note": "AkShare transport comments document Eastmoney push2 quote hosts blocking an IP after about 5 pages for 5 to 40+ minutes"
   },
+  "tushare": {
+    "evidence": "documentation_only",
+    "live_call": false,
+    "note": "no Tushare token in this environment; statements are from official interface docs",
+    "dedicated_rights_interface": false,
+    "dividend": {
+      "doc_id": 103,
+      "name": "分红送股",
+      "coverage_start": "2000-01-01",
+      "rows_per_call": 2000,
+      "points_required": 2000,
+      "fields": [
+        "ts_code",
+        "end_date",
+        "ann_date",
+        "div_proc",
+        "stk_div",
+        "stk_bo_rate",
+        "stk_co_rate",
+        "cash_div",
+        "cash_div_tax",
+        "record_date",
+        "ex_date",
+        "pay_date",
+        "div_listdate",
+        "imp_ann_date",
+        "base_date",
+        "base_share"
+      ],
+      "rights_ratio_or_price": false
+    },
+    "stk_seasoned": {
+      "doc_id": 494,
+      "name": "股票增发",
+      "coverage_start": "1991",
+      "points_required": 2000,
+      "note": "seasoned offering, not rights issue; old_sh_pre_plac_ratio is an SEO allocation ratio"
+    },
+    "announcement_dataset": {
+      "note": "separate permission about 1000 CNY/year, 10+ years of announcements and PDF links; unstructured text only"
+    },
+    "access": {
+      "auth": "personal token",
+      "http_endpoint": "http://api.tushare.pro",
+      "request_fields": ["api_name", "token", "params", "fields"],
+      "points_tiers": [
+        {"points": 2000, "price_cny_per_year": 200, "calls_per_minute": 200, "daily_limit_per_api": 100000},
+        {"points": 5000, "price_cny_per_year": 500, "calls_per_minute": 500, "daily_limit_per_api": "no cap on ordinary data"}
+      ],
+      "institutional_price": "10x personal list price"
+    },
+    "terms": {
+      "url": "https://tushare.pro/document/1?doc_id=405",
+      "constraints": [
+        "personal, non-transferable, non-commercial, revocable, time-limited, non-exclusive licence",
+        "personal viewing only",
+        "token/account may not be shared, transferred, rented or resold",
+        "no accuracy, completeness or continuity guarantee"
+      ]
+    },
+    "verdict": "no rights terms; not a substitute for a licensed vendor and not usable for redistribution"
+  },
   "cross_source_reconciliation": {
     "agree": ["600036 2013", "600036 2010", "000002 2000", "000002 1997"],
     "disagree": [

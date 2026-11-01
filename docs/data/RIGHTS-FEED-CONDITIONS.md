@@ -64,7 +64,7 @@ Published fields: 公告日期, 配股方案(每 10 股配股股数), 配股价�
 Caveats found in real rows:
 
 - Missing dates are placeholders (`1900-01-01`), not nulls.
-- The 1991 000002 event disagrees with Eastmoney on record/ex-date (see §4).
+- The 1991 000002 event disagrees with Eastmoney on record/ex-date (see §5).
 - Payment is a **window**; `CorporateAction.payment_date` is a single date, so it
   must stay `None` rather than being invented.
 - No native event id; identity must be derived and same-day ambiguity rejected.
@@ -111,7 +111,42 @@ may not be reproduced or disseminated without the prior written consent of the
 exchanges (SSE/SZSE). The data is presented as reference only, with no accuracy
 or continuity guarantee.
 
-## 4. Cross-source reconciliation (real rows)
+## 4. Tushare Pro — no rights terms
+
+Checked against the official interface documentation on 2026-11-01. **No live
+call was made**: this environment has no Tushare token, so every statement
+below is documentation evidence, not a data sample.
+
+| Check | Result |
+| --- | --- |
+| Dedicated rights interface | None in the published interface list |
+| `dividend` (分红送股) | Cash dividend, bonus and transfer only: `stk_div`, `stk_bo_rate`, `stk_co_rate`, `cash_div`, `cash_div_tax`; no rights ratio or rights price |
+| `dividend` coverage / gate | From 2000-01-01; 2000 rows per call; **2000 points** required |
+| `stk_seasoned` (股票增发) | Seasoned offering (增发), from 1991; 2000 points; `old_sh_pre_plac_ratio` is an SEO priority-allocation ratio, not a rights ratio |
+| Announcement dataset | Separate permission (~1000 CNY/year), 10+ years of announcements and PDF links; would require parsing prospectuses, not a structured rights feed |
+
+Access conditions:
+
+- Register an account and use a personal **token**; HTTP endpoint
+  `http://api.tushare.pro` with `api_name`, `token`, `params`, `fields`.
+- 2000 points ≈ 200 CNY/year: 200 requests/minute, 100,000 calls/day per API.
+  5000 points (500 CNY/year): 500 requests/minute, no cap on ordinary data.
+- Institutional pricing is 10× the personal list price.
+
+Terms (`Tushare数据服务协议`):
+
+- The service is licensed as **personal, non-transferable, non-commercial,
+  revocable, time-limited and non-exclusive**, and **for personal viewing
+  only**.
+- The account/token may not be shared, transferred, rented or resold.
+- Data accuracy, completeness and continuity are not guaranteed.
+
+Verdict: Tushare cannot fill the rights-terms gap. For other corporate
+actions its terms are stricter than the public-page route (personal,
+non-commercial, viewing only), while still not granting redistribution rights.
+It is therefore not a substitute for a licensed vendor in a product.
+
+## 5. Cross-source reconciliation (real rows)
 
 | Instrument / event | Eastmoney | Sina | Agreement |
 | --- | --- | --- | --- |
@@ -127,7 +162,7 @@ placeholders exist. Publishing a rights event therefore requires two-source
 agreement on ratio, price, record date and ex-date, and rejection of
 placeholder dates.
 
-## 5. Integration conditions (if we proceed)
+## 6. Integration conditions (if we proceed)
 
 1. **Opt-in, not default.** Enable with an explicit environment flag and a
    recorded acknowledgement that the source is a public page, not a licensed
@@ -155,10 +190,10 @@ placeholder dates.
    bars for 600036 around the event are available from the current supplier
    (22 rows for 2013-08-20…09-18 verified).
 
-## 6. Recommendation
+## 7. Recommendation
 
 - For **research/internal use**, integrate Eastmoney as primary with Sina as a
-  cross-check, behind an opt-in flag, following §5.
+  cross-check, behind an opt-in flag, following §6.
 - For **any redistribution or commercial display**, do not use these pages.
   Buy a licensed corporate-action feed (Wind / Choice / iFinD) or use an
   authorised exchange/CNINFO disclosure feed, then connect it through the same

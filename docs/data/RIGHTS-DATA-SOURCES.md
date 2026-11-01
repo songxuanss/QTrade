@@ -47,8 +47,8 @@ consent for market-data dissemination.
 
 | Provider | Rights terms | Notes |
 | --- | --- | --- |
-| Tushare Pro | No dedicated rights interface | `dividend` covers cash dividend, bonus and transfer only; 增发 is a separate dataset. Not sufficient for 配股. |
-| Eastmoney data center | Page `data.eastmoney.com/xg/pg/` exists (JS data API) | Could be wrapped as a second free source; API shape needs mapping and terms review. |
+| Tushare Pro | No dedicated rights interface | `dividend` (2000+, 2000 points) has cash/bonus/transfer fields only; `stk_seasoned` (1991+, 2000 points) is seasoned offering, not 配股; announcement data is unstructured text. Terms allow personal, non-commercial, viewing-only use. See `RIGHTS-FEED-CONDITIONS.md` §4. |
+| Eastmoney data center | Yes — `RPT_IPO_ALLOTMENT` JSON | 982 rows back to 1991, explicit ex-date and payment window; no auth. Verified; terms allow internal research only, not redistribution. |
 | Wind / Choice / iFinD | Yes (corporate-action tables) | Commercial terminals; need a licence and field mapping agreed with the vendor. |
 | JoinQuant JQData / RiceQuant RQData | Corporate-action datasets | Paid research data; confirm rights fields and redistribution terms with the vendor. |
 | SSE / SZSE / CNINFO disclosures | Yes (authoritative announcements) | Best as a verification source: rights prospectus and issuance-result announcements; requires announcement parsing and terms review. |
