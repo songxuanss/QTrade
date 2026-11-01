@@ -27,6 +27,13 @@ Evidence: `.tools/verification-local/review/rights-feed-probe.json`.
   catalog instead of being implied by silent absence.
 - No fixture rights event is presented as a live integration.
 
+## Alternative sources
+
+A verified comparison of free and commercial providers is in
+[`docs/data/RIGHTS-DATA-SOURCES.md`](RIGHTS-DATA-SOURCES.md). Sina Finance
+(via AkShare) does publish historical rights terms and can be integrated as a
+dedicated adapter.
+
 ## Unblock
 
 Any one of:
