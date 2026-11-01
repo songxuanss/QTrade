@@ -210,3 +210,14 @@ Worker MUST 在运行期间观察持久化取消状态，并在策略分块之�
 #### Scenario: 聚合可见
 - **WHEN** 查看 tick 回测报告
 - **THEN** 展示使用的 tick 聚合窗口
+
+### Requirement: 供应商复权价回放
+回测 MUST 支持 `vendor_adjusted`：按冻结因子序列相对运行起点的比例缩放执行 bar 的 OHLC，并 MUST 在该模式下禁用现金分红、送转、拆并与配股入账以避免重复计入。因子缺失或口径冲突 MUST 拒绝运行；模式与披露 MUST 写入 manifest 并在报告与导出中展示。
+
+#### Scenario: 复权价格
+- **WHEN** 除权日后启用 vendor_adjusted
+- **THEN** 执行价格按因子比例缩放，资金按复权价结算
+
+#### Scenario: 分配不重复
+- **WHEN** 同一运行同时存在公司行为与复权因子
+- **THEN** 复权模式不记现金股息，账本模式记股息，两者现金差额等于股息

@@ -794,13 +794,29 @@ export function BacktestReport({
               </dd>
             </div>
             <div>
+              <dt>价格口径</dt>
+              <dd>
+                {String(
+                  (
+                    JSON.parse(manifest?.execution_config_json ?? "{}") as {
+                      adjustment_factor_mode?: string;
+                    }
+                  ).adjustment_factor_mode ?? "freeze",
+                ) === "vendor_adjusted"
+                  ? "供应商复权价（分配已禁用以防重复计入）"
+                  : "未复权价 + 公司行为账本"}
+              </dd>
+            </div>
+            <div>
               <dt>供应商复权因子</dt>
               <dd>
                 {factorCount > 0
                   ? `${factorCount} 条已冻结 · ${
-                      factorStatus === "frozen_reconciliation_only"
-                        ? "仅核对，未用于成交价"
-                        : "状态未知"
+                      factorStatus === "applied_to_execution_prices"
+                        ? "已应用于成交价"
+                        : factorStatus === "frozen_reconciliation_only"
+                          ? "仅核对，未用于成交价"
+                          : "状态未知"
                     }`
                   : "供应商未接入（未应用于成交价）"}
               </dd>

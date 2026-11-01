@@ -130,6 +130,9 @@ export function BacktestWorkbench({
   const [feeBps, setFeeBps] = useState("3");
   const [slippageBps, setSlippageBps] = useState("5");
   const [tickAggregation, setTickAggregation] = useState("60");
+  const [adjustmentFactorMode, setAdjustmentFactorMode] = useState<
+    "freeze" | "vendor_adjusted"
+  >("freeze");
   const [impactBps, setImpactBps] = useState("0");
   const [limitQueueFraction, setLimitQueueFraction] = useState("1");
   const [tickSize, setTickSize] = useState("0.01");
@@ -274,6 +277,7 @@ export function BacktestWorkbench({
       ...(benchmarkId.trim() ? { benchmarkId: benchmarkId.trim() } : {}),
       universeMode,
       rightsPolicy,
+      adjustmentFactorMode,
     });
     setBusy(false);
     if (!result.ok) {
@@ -718,6 +722,24 @@ export function BacktestWorkbench({
                 </select>
               </label>
               <label>
+                <span>价格口径</span>
+                <select
+                  value={adjustmentFactorMode}
+                  onChange={(event) =>
+                    setAdjustmentFactorMode(
+                      event.target.value === "vendor_adjusted"
+                        ? "vendor_adjusted"
+                        : "freeze",
+                    )
+                  }
+                >
+                  <option value="freeze">未复权价 + 公司行为账本</option>
+                  <option value="vendor_adjusted">
+                    供应商复权价（禁用来账本分配）
+                  </option>
+                </select>
+              </label>
+              <label>
                 <span>配股处理</span>
                 <select
                   value={rightsPolicy}
@@ -744,8 +766,9 @@ export function BacktestWorkbench({
               <p className="backtest-model-note" role="note">
                 模型边界：现金分红、送转/拆并已按除权日入账，T+1、整手和最小价位已建模；
                 成员校验可启用工作区/供应方区间并在区间结束强制平仓，但区间若非官方历史仍可能有幸存者偏差；
-                配股按所选策略认购或跳过；供应商复权因子只冻结并核对，未用于成交价（暂不支持复权价回放）；
-                逐笔盘口仍未处理，结果用于研究比较， 不构成实盘可用性证明。
+                配股按所选策略认购或跳过；价格口径可选「未复权价 +
+                公司行为账本」或「供应商复权价（禁用来账本分配）」； 无 L2
+                盘口，结果用于研究比较， 不构成实盘可用性证明。
               </p>
               <button
                 className="button button-primary"

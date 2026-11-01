@@ -196,6 +196,16 @@ def run_csv(run: BacktestRun, result: BacktestResult, manifest: ArtifactManifest
         [
             ("rights_policy", execution_config.get("rights_policy", "subscribe")),
             (
+                "adjustment_factor_mode",
+                execution_config.get("adjustment_factor_mode", "freeze"),
+            ),
+            (
+                "price_basis",
+                "供应商复权价（分配禁用）"
+                if execution_config.get("adjustment_factor_mode") == "vendor_adjusted"
+                else "未复权价 + 公司行为账本",
+            ),
+            (
                 "adjustment_factor_status",
                 execution_config.get("adjustment_factor_status", "vendor_unavailable"),
             ),
@@ -631,7 +641,20 @@ def run_html(
                     if _execution_config(manifest).get("rights_policy") == "skip"
                     else "按现金认购",
                 ),
-                ("复权因子状态", "仅冻结核对，未用于成交价"),
+                (
+                    "价格口径",
+                    "供应商复权价（分配禁用）"
+                    if _execution_config(manifest).get("adjustment_factor_mode")
+                    == "vendor_adjusted"
+                    else "未复权价 + 公司行为账本",
+                ),
+                (
+                    "复权因子状态",
+                    "已应用于成交价"
+                    if _execution_config(manifest).get("adjustment_factor_mode")
+                    == "vendor_adjusted"
+                    else "仅冻结核对，未用于成交价",
+                ),
                 ("复权因子条数", str(len(_factor_list(manifest)))),
             ],
             set(),

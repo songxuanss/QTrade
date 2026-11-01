@@ -19,7 +19,7 @@ from qtrade_contracts import (
     Bar,
 )
 from qtrade_contracts.models import BacktestUniverse, BarGranularity
-from qtrade_data_contracts.research import CorporateAction
+from qtrade_data_contracts.research import AdjustmentFactor, CorporateAction
 from qtrade_domain.backtest_execution import BacktestExecutionModel
 from qtrade_domain.backtest_metrics import calculate_backtest_metrics
 from qtrade_domain.corporate_actions import CorporateActionLedger
@@ -183,6 +183,28 @@ class MockEngineAdapter(TradingEnginePort):
         if any(action.scope_id != run.workspace_id for action in actions):
             raise PortError(ErrorCode.INVALID_INPUT, "corporate action scope mismatch")
         universe = self._universe(execution_config.get("universe"))
+        factor_mode = execution_config.get("adjustment_factor_mode", "freeze")
+        if factor_mode not in {"freeze", "vendor_adjusted"}:
+            raise PortError(ErrorCode.INVALID_INPUT, "invalid adjustment factor mode")
+        raw_factors = execution_config.get("adjustment_factors", [])
+        if not isinstance(raw_factors, list):
+            raise PortError(ErrorCode.INVALID_INPUT, "invalid frozen adjustment factors")
+        try:
+            factors = tuple(
+                AdjustmentFactor.model_validate_json(
+                    json.dumps(
+                        {key: value for key, value in item.items() if key != "content_version"}
+                    )
+                )
+                for item in raw_factors
+                if isinstance(item, dict)
+            )
+            if len(factors) != len(raw_factors):
+                raise ValueError
+        except ValueError:
+            raise PortError(ErrorCode.INVALID_INPUT, "invalid frozen adjustment factors") from None
+        if any(factor.scope_id != run.workspace_id for factor in factors):
+            raise PortError(ErrorCode.INVALID_INPUT, "adjustment factor scope mismatch")
         rights_policy = execution_config.get("rights_policy", "subscribe")
         if rights_policy not in {"subscribe", "skip"}:
             raise PortError(ErrorCode.INVALID_INPUT, "invalid frozen rights policy")
@@ -202,15 +224,18 @@ class MockEngineAdapter(TradingEnginePort):
             )
         if program is None:
             raise PortError(ErrorCode.UNSUPPORTED, "no strategy program is registered")
-        bars = self._load_bars(run, self._execution_model(execution_config.get("execution_model")))
+        execution_model = self._execution_model(execution_config.get("execution_model"))
+        bars = self._load_bars(run, execution_model)
+        if factor_mode == "vendor_adjusted":
+            bars = self._apply_adjustment_factors(bars, factors, run, execution_model)
         try:
             result = self._replay(
                 run,
                 manifest,
                 bars,
                 program,
-                self._execution_model(execution_config.get("execution_model")),
-                actions,
+                execution_model,
+                () if factor_mode == "vendor_adjusted" else actions,
                 universe,
                 rights_policy,
                 self.interrupt,
@@ -305,6 +330,54 @@ class MockEngineAdapter(TradingEnginePort):
                 ErrorCode.INVALID_INPUT, "dataset has no tradable bars in the run range"
             )
         return ordered
+
+    @staticmethod
+    def _apply_adjustment_factors(
+        bars: tuple[Bar, ...],
+        factors: tuple[AdjustmentFactor, ...],
+        run: BacktestRun,
+        execution: BacktestExecutionModel,
+    ) -> tuple[Bar, ...]:
+        """Scale execution prices by the frozen vendor factor series.
+
+        The series is expressed relative to the factor observed at the run start;
+        cash distributions are disabled by the caller to avoid double counting.
+        """
+        grouped: dict[str, list[AdjustmentFactor]] = {}
+        for factor in factors:
+            grouped.setdefault(factor.instrument_id, []).append(factor)
+        if not grouped:
+            raise PortError(ErrorCode.UNSUPPORTED, "vendor factors are unavailable")
+        zone = ZoneInfo(execution.timezone_name)
+        start_date = run.start.astimezone(zone).date()
+
+        def factor_at(values: list[AdjustmentFactor], moment: date) -> Decimal:
+            ordered = sorted(values, key=lambda item: item.observation_date)
+            eligible = [item for item in ordered if item.observation_date <= moment]
+            return (eligible[-1] if eligible else ordered[0]).factor
+
+        adjusted: list[Bar] = []
+        for bar in bars:
+            values = grouped.get(bar.instrument_id)
+            if not values:
+                adjusted.append(bar)
+                continue
+            local_date = bar.timestamp.astimezone(zone).date()
+            ratio = factor_at(values, local_date) / factor_at(values, start_date)
+            if ratio == 1:
+                adjusted.append(bar)
+                continue
+            adjusted.append(
+                bar.model_copy(
+                    update={
+                        "open": bar.open * ratio,
+                        "high": bar.high * ratio,
+                        "low": bar.low * ratio,
+                        "close": bar.close * ratio,
+                    }
+                )
+            )
+        return tuple(adjusted)
 
     @staticmethod
     def _aggregate_ticks(bars: tuple[Bar, ...], seconds: int) -> tuple[Bar, ...]:

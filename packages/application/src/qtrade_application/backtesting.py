@@ -376,12 +376,6 @@ class BacktestService:
         universe = self._universe(
             access, dataset.instrument_ids, request.start, request.end, request.universe_mode
         )
-        if request.adjustment_factor_mode == "vendor_adjusted":
-            raise PortError(
-                ErrorCode.UNSUPPORTED,
-                "vendor-adjusted price replay is not implemented; factors can only be "
-                "frozen and reconciled against the corporate-action ledger",
-            )
         actions = (
             self._corporate_actions.load(access, dataset.instrument_ids, request.start, request.end)
             if self._corporate_actions is not None
@@ -398,6 +392,14 @@ class BacktestService:
             ),
             dataset.instrument_ids,
         )
+        if request.adjustment_factor_mode == "vendor_adjusted":
+            covered = {item.instrument_id for item in factors}
+            missing_factors = sorted(set(dataset.instrument_ids) - covered)
+            if missing_factors:
+                raise PortError(
+                    ErrorCode.UNSUPPORTED,
+                    "vendor-adjusted replay needs factors for: " + ", ".join(missing_factors[:8]),
+                )
         resolved_parameters = self._strategies.validate_parameters(
             access, request.strategy_id, request.strategy_version, request.parameters
         )
@@ -428,8 +430,13 @@ class BacktestService:
                     }
                     for item in factors
                 ],
+                "adjustment_factor_mode": request.adjustment_factor_mode,
                 "adjustment_factor_status": (
-                    "frozen_reconciliation_only" if factors else "vendor_unavailable"
+                    "applied_to_execution_prices"
+                    if request.adjustment_factor_mode == "vendor_adjusted" and factors
+                    else "frozen_reconciliation_only"
+                    if factors
+                    else "vendor_unavailable"
                 ),
                 "universe": universe.model_dump(mode="json"),
                 "start": request.start.astimezone(UTC).isoformat().replace("+00:00", "Z"),

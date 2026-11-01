@@ -963,3 +963,55 @@ def test_tick_prints_aggregate_into_execution_bars():
     assert bars[0].volume == Decimal("200")
     assert bars[1].timestamp == base + timedelta(seconds=4)
     assert bars[2].granularity == "tick"
+
+
+def test_vendor_factor_series_scales_prices_relative_to_run_start():
+    from datetime import date
+
+    from qtrade_data_contracts.research import AdjustmentFactor
+
+    template = Bar.model_validate_json((FIXTURES / "Bar.json").read_text())
+    instrument = "stock:CN:SH:600519"
+    run = BacktestRun.model_validate_json((FIXTURES / "BacktestRun.json").read_text())
+    bars = tuple(
+        template.model_copy(
+            update={
+                "instrument_id": instrument,
+                "timestamp": template.timestamp + timedelta(days=index),
+                "open": Decimal("10"),
+                "high": Decimal("10"),
+                "low": Decimal("10"),
+                "close": Decimal("10"),
+            }
+        )
+        for index in range(3)
+    )
+
+    def factor(day: int, value: str) -> AdjustmentFactor:
+        return AdjustmentFactor.model_validate(
+            {
+                "schema_version": 2,
+                "scope_id": run.workspace_id,
+                "source": "fixture",
+                "instrument_id": instrument,
+                "collected_at": datetime(2026, 1, 1, tzinfo=UTC),
+                "mapping_version": "fixture.v1",
+                "observation_date": date(2026, 10, 1) + timedelta(days=day),
+                "adjustment": "backward",
+                "factor": value,
+                "base_date": date(2020, 1, 1),
+                "base_value": "1",
+                "algorithm_version": "fixture.v1",
+                "convention_evidence": "fixture",
+            }
+        )
+
+    adjusted = MockEngineAdapter._apply_adjustment_factors(
+        bars,
+        (factor(0, "1"), factor(1, "0.5")),
+        run,
+        BacktestExecutionModel(),
+    )
+    assert adjusted[0].close == Decimal("10")
+    assert adjusted[1].close == Decimal("5")
+    assert adjusted[2].close == Decimal("5")

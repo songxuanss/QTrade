@@ -617,7 +617,40 @@ def test_vendor_adjusted_price_mode_is_rejected_explicitly():
             ),
         )
     assert unsupported.value.code == ErrorCode.UNSUPPORTED
-    assert "vendor-adjusted" in str(unsupported.value)
+    assert "vendor-adjusted replay needs factors" in str(unsupported.value)
+
+
+def test_vendor_adjusted_mode_freezes_the_applied_mode():
+    from datetime import date
+
+    market = MockMarketData()
+    instrument = "stock:CN:SH:600519"
+    holder = MemoryFactors(())
+    service, access, strategy_id, dataset_id, _, _ = build_service(
+        market, adjustment_factors=holder, instrument=instrument
+    )
+    holder.records = (
+        factor_record(access.workspace.workspace_id, instrument, date(2026, 10, 1), "1"),
+    )
+    start = datetime(2026, 10, 1, tzinfo=UTC)
+    created = service.create(
+        access,
+        BacktestSubmission(
+            strategy_id,
+            1,
+            dataset_id,
+            start,
+            start + timedelta(hours=12),
+            Decimal("10000"),
+            "USD",
+            "cost.v1",
+            {},
+            adjustment_factor_mode="vendor_adjusted",
+        ),
+    )
+    config = json.loads(service.manifest(access, created.run.run_id).execution_config_json or "{}")
+    assert config["adjustment_factor_mode"] == "vendor_adjusted"
+    assert config["adjustment_factor_status"] == "applied_to_execution_prices"
 
 
 def test_adjustment_factors_are_frozen_and_disclosed():

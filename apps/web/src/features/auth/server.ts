@@ -517,6 +517,7 @@ export async function startBacktestWalkForward(input: {
   benchmarkId?: string;
   universeMode?: "dataset" | "membership";
   rightsPolicy?: "subscribe" | "skip";
+  adjustmentFactorMode?: "freeze" | "vendor_adjusted";
   parameterGrid?: Record<string, unknown[]> | null;
 }): Promise<{
   run: BacktestWalkForwardRunInfo | null;
@@ -561,6 +562,7 @@ export async function startBacktestWalkForward(input: {
           benchmark_id: input.benchmarkId,
           universe_mode: input.universeMode ?? "dataset",
           rights_policy: input.rightsPolicy ?? "subscribe",
+          adjustment_factor_mode: input.adjustmentFactorMode ?? "freeze",
           parameter_grid: input.parameterGrid ?? null,
           random_seed: 0,
         }),
@@ -1062,6 +1064,7 @@ export async function createBacktest(input: {
   benchmarkId?: string;
   universeMode?: "dataset" | "membership";
   rightsPolicy?: "subscribe" | "skip";
+  adjustmentFactorMode?: "freeze" | "vendor_adjusted";
 }): Promise<{ ok: boolean; runId?: string; error?: string }> {
   const session = await readSession();
   if (!session) return { ok: false, error: "登录已失效，请重新登录" };
@@ -1102,6 +1105,7 @@ export async function createBacktest(input: {
           benchmark_id: input.benchmarkId,
           universe_mode: input.universeMode ?? "dataset",
           rights_policy: input.rightsPolicy ?? "subscribe",
+          adjustment_factor_mode: input.adjustmentFactorMode ?? "freeze",
           random_seed: 0,
         }),
         signal: AbortSignal.timeout(20_000),
