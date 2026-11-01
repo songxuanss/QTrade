@@ -240,6 +240,42 @@
     },
     "verdict": "no rights terms; not a substitute for a licensed vendor and not usable for redistribution"
   },
+  "licensed_vendors": {
+    "wind": {
+      "checked_at": "2026-11-01",
+      "credentials_used": false,
+      "live_call_made": false,
+      "evidence_type": "vendor_site_public_procurement_notices_and_press",
+      "registration": {
+        "self_service_signup": false,
+        "entry": "trial_request_form_or_sales_contact",
+        "trial_form_url": "https://wx.wind.com.cn/junitedweb/ApplicationForTrial/ContactUsMobile/windContactUs.html?pType=1&lang=zh",
+        "sales_phone": ["+86 400-820-9463", "+86 021-20518200"],
+        "sales_email": "Service@wind.com.cn",
+        "contract": "commercial contract and invoice, usually via single-source procurement",
+        "account_binding": "desktop terminal",
+        "server_automation": "separate WDS or data-API licence required",
+        "trial": "time-limited trial via form or sales; no free tier, no public evaluation key"
+      },
+      "pricing": {
+        "base_terminal_list_price_cny_per_year": 39800,
+        "base_terminal_evidence": "21世纪经济报道 2026-01-29, industry standard price",
+        "typical_seat_with_addons_cny_per_year": [40000, 80000],
+        "full_institutional_package_cny_per_year": "above 100000",
+        "competitor_reference_cny_per_year": {"choice": 18000, "ifind": 14000},
+        "public_procurement_examples": [
+          {"buyer": "中国再保险", "announced": "2025-12-25", "content": "17 WFT + 6 EDB + L2", "total_cny": 751744},
+          {"buyer": "四川银行", "content": "2025-2026 Wind terminal", "budget_cny": 2172956, "tax": "incl."},
+          {"buyer": "深圳市委金融监管局", "content": "Wind terminal service, 1 year", "total_cny": 230000},
+          {"buyer": "上海市委党校", "content": "2026 Wind database", "total_cny": 76960}
+        ]
+      },
+      "gap_impact": {
+        "fixes": ["licensed 配股 terms", "L2 order-book depth", "official index membership and delisting intervals"],
+        "does_not_fix": "redistribution rights; must be negotiated in writing before productising"
+      }
+    }
+  },
   "cross_source_reconciliation": {
     "agree": ["600036 2013", "600036 2010", "000002 2000", "000002 1997"],
     "disagree": [

@@ -190,12 +190,59 @@ placeholder dates.
    bars for 600036 around the event are available from the current supplier
    (22 rows for 2013-08-20…09-18 verified).
 
-## 7. Recommendation
+## 7. Licensed vendor route — Wind registration and pricing
+
+Checked 2026-11-01 against Wind's own site, a 2026 press estimate and real
+public single-source procurement notices. **No Wind account, trial or call was
+made**: this section is commercial and contractual evidence, not a data sample.
+
+### 7.1 How an account is actually obtained
+
+| Step | Reality |
+| --- | --- |
+| Self-service signup | **Does not exist.** No public registration → pay → instant access flow. |
+| First contact | Trial-request form or a sales call. Form: `https://wx.wind.com.cn/junitedweb/ApplicationForTrial/ContactUsMobile/windContactUs.html?pType=1&lang=zh` |
+| Contacts | Sales/support `+86 400-820-9463` / `+86 021-20518200`, `Service@wind.com.cn`; media `PR@wind.com.cn` |
+| Contract | Commercial contract and invoice, normally a single-source (单一来源) public procurement in institutions; lead time is a procurement cycle, not minutes. |
+| Terminal binding | The account is bound to a desktop terminal. Data access from code goes through Client API (`WSS`/`WSET`/`WSD`/`WST` on top of the terminal). |
+| Server-side / automated use | Client API requires an interactive terminal session; unattended server pulls need a separate WDS / data-API licence negotiated with sales. This is the point that actually matters for QTrade. |
+| Trial | Time-limited trial via the form/sales; there is no free tier and no public evaluation key. |
+
+### 7.2 Price evidence
+
+| Evidence | Amount |
+| --- | --- |
+| Industry standard list price for one base terminal account per year (21世纪经济报道, 2026-01-29) | **39,800 CNY** |
+| 中再集团 2025 tender: 17 × WFT + 6 × EDB + L2 (announced 2025-12-25) | 751,744 CNY total → ~44,000–75,000 CNY per terminal-equivalent |
+| 四川银行 2025–2026 Wind procurement budget | 2,172,956 CNY incl. tax |
+| 深圳市委金融监管局 Wind terminal service, one year | 230,000 CNY |
+| 上海市委党校 2026 Wind database | 76,960 CNY |
+| Choice (东方财富) / iFinD (同花顺) reference points | ~18,000 / ~14,000 CNY per year |
+
+Reading: **a single base WFT account is ~40,000 CNY/year**, and buying the add-on
+modules that matter for quantitative work (EDB, AMS, L2 depth, API) commonly
+pushes one seat to **40,000–80,000 CNY/year**; a full institutional package goes
+well past 100,000 CNY/year. Price is negotiated, not published.
+
+### 7.3 What this does and does not fix
+
+- **Fixes:** licensed corporate-action terms including 配股, plus L2 depth and
+  official membership/delisting intervals — three gaps this project currently
+  declares as unconnected.
+- **Does not automatically fix:** redistribution. The contract must be checked
+  for the right to store, derive and re-display. Internal research, derived
+  factors and backtest reports are normally permitted; republishing raw vendor
+  values is normally not. Get this in writing before building on it.
+- **Cost/benefit:** the free Eastmoney + Sina route in §3/§6 covers internal
+  research at zero licence cost but cannot be productised. Wind removes that
+  blocker for roughly 40,000+ CNY/year plus a procurement cycle.
+
+## 8. Recommendation
 
 - For **research/internal use**, integrate Eastmoney as primary with Sina as a
   cross-check, behind an opt-in flag, following §6.
 - For **any redistribution or commercial display**, do not use these pages.
-  Buy a licensed corporate-action feed (Wind / Choice / iFinD) or use an
+  Buy a licensed corporate-action feed (Wind / Choice / iFinD, see §7) or use an
   authorised exchange/CNINFO disclosure feed, then connect it through the same
   `rights_terms` capability.
 
