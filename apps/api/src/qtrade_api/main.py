@@ -56,6 +56,7 @@ from qtrade_application.runtime_control import (
 )
 from qtrade_application.strategies import StrategyService
 from qtrade_application.strategy_lifecycle import StrategyLifecycleService
+from qtrade_application.strategy_qualification import BacktestRunQualification
 from qtrade_application.universe_memberships import UniverseMembershipService
 from qtrade_application.workspaces import WorkspaceService
 from qtrade_composition.backtest_queue import QueuedBacktestEngine
@@ -213,7 +214,12 @@ if service is not None:
         strategy_objects.ensure_bucket()
     strategy_store = PostgresStrategyStore(os.environ["DATABASE_URL"])
     strategies = StrategyService(strategy_store, strategy_objects)
-    strategy_lifecycle = StrategyLifecycleService(strategies, strategy_store)
+    backtest_runs = PostgresBacktestRunStore(os.environ["DATABASE_URL"])
+    strategy_lifecycle = StrategyLifecycleService(
+        strategies,
+        strategy_store,
+        BacktestRunQualification(strategy_store, backtest_runs),
+    )
     backtest_market_data = (
         TimescaleMarketData(os.environ["MARKET_DATABASE_URL"])
         if os.environ.get("MARKET_DATABASE_URL")
@@ -231,7 +237,7 @@ if service is not None:
         # API only freezes inputs and enqueues. The Worker owns source execution,
         # result publication, leases, retry and restart recovery.
         backtests = BacktestService(
-            PostgresBacktestRunStore(os.environ["DATABASE_URL"]),
+            backtest_runs,
             strategies,
             strategy_store,
             PostgresDatasetRepository(os.environ["DATABASE_URL"]),
