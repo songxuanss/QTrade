@@ -27,6 +27,7 @@
 | 策略版本 qualification | 真实 Worker + 持久化 Run | `test_strategy_qualification.py`，run `d6b60d0f-…` | `draft→validated→backtested`；`backtest_succeeded` 仅由精确版本的完成 Run 推导，调用方无法伪造 |
 | 选股数据集合成（API） | 真实快照 + 已发布单标的数据集 | dataset `4ad3c536-681b-57d3-b2f1-7fc224093106` | 上证央企 50 成员 → 按 4 周平均成交额取 20；4,840 根、`quality={valid:4840}` |
 | 选股数据集合成（UI） | 真实 UI + 持久化 | `ui-strategy-portfolio/ui-results.json` | 桌面/手机可见并提交；重复合成幂等返回同一 dataset；桌面/手机无横向溢出 |
+| 数据集质量页（UI） | 真实 UI | `ui-strategy-portfolio/dataset-ui-results.json` | 20 标的、1,280 原始批次、4,840 条记录、242/242 交易日；明确“研究准备程度有限”；桌面/手机无溢出 |
 | 多策略组合回测 | 真实 Worker，5 策略 + 基准全完成 | `strategy-portfolio-report.json` | 6 个 Run 全部 `completed`/`backtested`，有订单、成交、权益曲线与导出 |
 | 策略横向比对 | 真实 compare API | `strategy-portfolio-report.json` | `comparable=true`、`warnings=[]`；唯一输入差异为 `strategy_version_id` |
 | 对比页（桌面/手机） | 真实 UI | `compare-ui-results.json`、`desktop-07-compare.png`、`mobile-04-compare.png` | 6 条归一权益路径与指标差异表；显示“输入范围可直接比较”；无横向溢出 |

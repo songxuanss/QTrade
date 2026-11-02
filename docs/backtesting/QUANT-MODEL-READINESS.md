@@ -87,6 +87,7 @@
 - 冻结股票池：`A股-指数成分-沪市-上证央企` 快照 `bbe141c5-ed97-4224-b76e-efadcd553ec2`，50 个成员；50 只全部具备 53 周已发布单标的周度数据集。
 - 选股数据集合成：按最近 4 周平均成交额排序，取前 20 只有连续覆盖的成员；区间 `2025-10-30T16:00Z` 至 `2026-10-30T16:00Z`（北京时间 2025-10-31 至 2026-10-30）。
 - 数据集 `4ad3c536-681b-57d3-b2f1-7fc224093106`：20 只、242 根/只、合计 4,840 根，质量 `{valid: 4840}`，`raw_record_count=6120`。
+- 研究数据集页可直接看到该数据集的 20 个标的、1,280 个原始批次与区间；“查看质量报告”页显示 4,840 条标准行情记录、交易日覆盖 242/242，并明确研究准备程度为“基础行情不代表回测或交易已就绪”。
 - 合成规则会排除多标的合成数据集作为来源，并按快照/区间/选中标的生成确定性 identity；重复合成返回同一数据集，已验证幂等。
 - 未入选的 30 只没有进入数据集，因此本验收是“Top 20 流动性成员”而非全 50 只组合；披露写入了数据集只读摘要。
 
@@ -175,6 +176,10 @@ UI 与持久化：
 - `.tools/verification-local/review/ui-strategy-portfolio/desktop-07-compare.png`
 - `.tools/verification-local/review/ui-strategy-portfolio/mobile-04-compare.png`
 - `.tools/verification-local/review/ui-strategy-portfolio/compare-ui-results.json`
+- `.tools/verification-local/review/ui-strategy-portfolio/dataset-ui-results.json`
+- `.tools/verification-local/review/ui-strategy-portfolio/desktop-08-dataset-row.png`
+- `.tools/verification-local/review/ui-strategy-portfolio/desktop-09-dataset-quality.png`
+- `.tools/verification-local/review/ui-strategy-portfolio/mobile-05-dataset-quality.png`
 - `.tools/verification-local/review/portfolio-parameter-variation.json`
 - `.tools/verification-local/review/portfolio-selection-overlap.json`
 - `scripts/acceptance-strategy-catalog.py`、`scripts/verification-strategy-portfolio.py`、`scripts/verification-portfolio-rejections.py`
