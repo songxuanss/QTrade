@@ -191,6 +191,28 @@ def test_isolated_batch_program_executes_one_full_series(bar, response):
     assert "QTRADE_BATCH_SIGNALS_V1" in calls[-1][1]["code"]
 
 
+def test_isolated_batch_program_accepts_a_full_bar_budget_above_one_megabyte(bar, response):
+    from datetime import timedelta
+
+    calls = response[1]
+    response[0]["output"] = "QTRADE_BATCH_SIGNALS_V1 " + json.dumps(
+        [{"index": index, "signals": []} for index in range(5000)]
+    )
+    bars = tuple(
+        bar.model_copy(
+            update={
+                "timestamp": bar.timestamp + timedelta(minutes=index),
+                "instrument_id": f"MOCK:{index:04d}",
+            }
+        )
+        for index in range(5000)
+    )
+    program = IsolatedBatchStrategyProgram("/tmp/runner.sock", "source")
+    assert program.signals_for_bars(bars, {}) == ((),) * 5000
+    payload = calls[-1][1]["input"]
+    assert len(json.dumps(payload, separators=(",", ":")).encode()) > 1_000_000
+
+
 def test_isolated_batch_program_rejects_wrong_indexes_and_unknown_instruments(bar, response):
     values, _ = response
     values["output"] = "QTRADE_BATCH_SIGNALS_V1 " + json.dumps(

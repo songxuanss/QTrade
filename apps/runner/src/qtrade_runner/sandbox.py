@@ -19,8 +19,12 @@ from pathlib import Path
 from typing import BinaryIO, Literal
 
 MAX_CODE_BYTES = 1_000_000
-MAX_INPUT_BYTES = 1_000_000
-MAX_OUTPUT_BYTES = 64 * 1024
+# The batch harness sends one full multi-instrument bar series per call; keep
+# this aligned with the adapter bar budget rather than the single-bar path.
+MAX_INPUT_BYTES = 8 * 1024 * 1024
+# The batch harness returns one signal batch per input bar, so the ceiling
+# scales with the bar budget rather than a single evaluation.
+MAX_OUTPUT_BYTES = 1024 * 1024
 CPU_SECONDS = 2
 WALL_SECONDS = 5
 MEMORY_BYTES = 256 * 1024 * 1024
@@ -70,7 +74,7 @@ class StrategySandbox:
             raise ValueError("strategy source exceeds 1 MB")
         payload = json.dumps(input_data or {}, separators=(",", ":")).encode("utf-8")
         if len(payload) > MAX_INPUT_BYTES:
-            raise ValueError("strategy input exceeds 1 MB")
+            raise ValueError("strategy input exceeds 8 MB")
 
         uid, gid = self._job_identity()
         job = self._create_job(uid, gid, code_bytes)
@@ -118,7 +122,7 @@ class StrategySandbox:
             if collect_status == "timed_out":
                 return SandboxResult("timed_out", exit_code, "执行超过 5 秒时限", elapsed)
             if collect_status == "output_limit":
-                return SandboxResult("output_limit", exit_code, "输出超过 64 KiB 上限", elapsed)
+                return SandboxResult("output_limit", exit_code, "输出超过 1 MiB 上限", elapsed)
             if collect_status == "cpu_limit" or exit_code in {
                 -signal.SIGXCPU,
                 -signal.SIGKILL,

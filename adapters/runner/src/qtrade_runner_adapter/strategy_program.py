@@ -196,6 +196,9 @@ def _number(value: str) -> Decimal:
 
 
 MAX_BATCH_BARS = 5000
+# A 5000-bar multi-instrument series serialises to a few megabytes; the Runner
+# accepts the same ceiling so the bar budget, not the transport, is the limit.
+MAX_BATCH_INPUT_BYTES = 8_000_000
 _BATCH_MARKER = "QTRADE_BATCH_SIGNALS_V1 "
 _BATCH_HARNESS = r"""
 import json, sys, types, random
@@ -309,7 +312,7 @@ class IsolatedBatchStrategyProgram:
             encoded = json.dumps(payload, allow_nan=False, separators=(",", ":")).encode()
         except (ValueError, TypeError, RecursionError):
             raise PortError(ErrorCode.INVALID_INPUT, "invalid strategy parameters") from None
-        if len(encoded) > 1_000_000:
+        if len(encoded) > MAX_BATCH_INPUT_BYTES:
             raise PortError(ErrorCode.INVALID_INPUT, "strategy batch input exceeds Runner limit")
         carrier: dict[str, str] = {}
         TraceContextTextMapPropagator().inject(carrier)
@@ -332,7 +335,7 @@ class IsolatedBatchStrategyProgram:
         if not isinstance(result, dict) or result.get("status") != "succeeded":
             raise PortError(ErrorCode.REJECTED, "strategy execution failed")
         output = result.get("output")
-        if not isinstance(output, str) or len(output.encode()) > 65536:
+        if not isinstance(output, str) or len(output.encode()) > MAX_BATCH_INPUT_BYTES // 8:
             raise PortError(ErrorCode.UNAVAILABLE, "invalid strategy Runner result")
         markers = [
             line[len(_BATCH_MARKER) :]

@@ -27,9 +27,9 @@ def test_wall_clock_timeout_terminates_sleeping_strategy(sandbox):
 
 
 def test_output_limit_terminates_noisy_strategy(sandbox):
-    result = sandbox.execute("print('x' * 1_000_000)\n")
+    result = sandbox.execute("print('x' * 2_000_000)\n")
     assert result.status == "output_limit"
-    assert "64 KiB" in result.output
+    assert "1 MiB" in result.output
 
 
 def test_cpu_limit_terminates_busy_loop(sandbox):
