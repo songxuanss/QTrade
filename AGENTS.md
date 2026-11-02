@@ -2,6 +2,8 @@
 
 User requirement: testing must comprehensively cover the main business flows end to end.
 
+The non-negotiable constraints live in `CONSTITUTION.md`; `scripts/check_constitution.py` enforces the automated articles in CI. Behavior changes also need an `openspec/changes/` delta (mark pure refactors `[no-spec-change]`).
+
 - Before declaring a main feature ready, exercise its UI through the deployed API, real persistence, and required background workers. Verify the final business result after refresh, not only request acceptance or service health.
 - Keep a coverage matrix for login/permissions, strategy versions, data collection, backtest/report, alerts, and connected trading controls. Record which flows used real integrations, fixtures, or were blocked; passing fixtures do not establish live integration readiness.
 - Include rejection paths, role restrictions, persistence, and desktop/mobile UI checks for the changed flow. Never include credentials in logs, screenshots, test reports, or commits.

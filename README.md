@@ -37,6 +37,16 @@ cd apps/web && npm run check && npm run test:e2e && npm run test:auth
 认证使用 `../sso`，领域与 API 只依赖 Port；骨架不包含密码登录、外部 SDK
 或实盘执行。依赖安装和服务启动命令将在对应任务完成后补充。
 
+## 项目宪法
+
+[CONSTITUTION.md](CONSTITUTION.md) 固化不可协商的硬约束：规格先行、Ports & Adapters 边界、策略代码隔离执行、SSO 唯一身份、凭据管理、产物不可变、真实执行、未完成能力披露、实盘受控、时区口径与工具链锁定。OpenSpec change 只能在其范围内细化，不能违反；冲突时以宪法为准。
+
+```bash
+uv run --locked python scripts/check_constitution.py
+```
+
+CI 通过 `tests/test_constitution.py` 在 `pytest` 阶段执行该检查；`pull request` 上的 `--spec-diff` 门禁与接入方式见 [docs/testing/CONSTITUTION-GATE.md](docs/testing/CONSTITUTION-GATE.md)。纯重构需在提交信息标注 `[no-spec-change]`。
+
 ## OpenSpec 需求管理
 
 当前需求以 OpenSpec 为唯一变更入口：
@@ -51,6 +61,7 @@ openspec validate add-qtrade-phase1-mvp --strict
 
 | 文档 | 内容 |
 | --- | --- |
+| [CONSTITUTION.md](CONSTITUTION.md) | 不可协商的硬约束与对应的自动化/评审强制方式 |
 | [docs/01_PRODUCT_SCOPE.md](docs/01_PRODUCT_SCOPE.md) | 用户、场景、一期范围、必须补充的能力与一期不做事项 |
 | [docs/02_ARCHITECTURE.md](docs/02_ARCHITECTURE.md) | 推荐技术架构、开源项目选型、模块边界与数据流 |
 | [docs/03_ROADMAP.md](docs/03_ROADMAP.md) | Phase 0 到 Phase 5 的分阶段路线图与退出标准 |

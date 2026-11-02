@@ -2,6 +2,9 @@ schema: spec-driven
 
 context: |
   Write all OpenSpec artifacts in Chinese.
+  CONSTITUTION.md is the non-negotiable constraint set. Every change must comply
+  with it, and the proposal must name the articles (A1-A12) the change touches
+  and how it satisfies them.
   QTrade is a greenfield professional trading analysis, alerting, strategy,
   backtesting, paper-trading, and controlled live-trading platform.
   Authentication comes from the sibling ../sso project using OIDC
@@ -28,6 +31,7 @@ rules:
     - Stay below 1200 words.
     - Always include explicit non-goals and safety boundaries.
     - State unresolved material assumptions in a dedicated section.
+    - Name every CONSTITUTION.md article the change touches and how it is satisfied.
   specs:
     - Use requirement/scenario format exactly as instructed by the schema.
     - Make behavior externally observable and testable.
