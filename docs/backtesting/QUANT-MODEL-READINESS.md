@@ -153,7 +153,7 @@
 - 配股：`rights_policy` 冻结进 manifest；`subscribe` 按 `floor(持仓/基准股数×配股数)` 与可用现金取小认购，`skip` 保留现金；认购成交原因标记 `rights_subscription`。
 - 因子：发布的复权因子随 manifest 冻结（含 `content_version`），用于检查「因子变化是否都有对应公司行为」；无对应事件的变动、混合复权口径、越界标的都会拒绝运行。
 - `vendor_adjusted` 复权价回放已实现（见下方验收）；因子数据未接通时仍会拒绝，不静默替换成交价。
-- 真实价格验收（600519.SH 2025 日线，供应商配股数据未接通，事件为验收 fixture）：100 股买入后，2025-07-15 以 100 元/股认购 30 股，成交与订单原因正确，期末现金 `847430.1425`、持仓 130 股，与买入成本、费用和认购款精确对账；两条因子版本冻结在 manifest；人为加入未解释的因子变动被拒绝。
+- 真实价格验收（600519.SH 2025 日线，事件为受控 fixture）：100 股买入后，2025-07-15 以 100 元/股认购 30 股，成交与订单原因正确，期末现金 `847430.1425`、持仓 130 股，与买入成本、费用和认购款精确对账；两条因子版本冻结在 manifest；人为加入未解释的因子变动被拒绝。
 - 部署验收：Run `8e6fe483-6ef6-4582-8b4e-cc0fbc50cd8f` 以 `rights_policy=skip` 完成，manifest 与 CSV/HTML 均披露策略与因子状态。
 
 证据：
@@ -162,6 +162,28 @@
 - `.tools/verification-local/review/rights-factor-deployed.json`
 - `.tools/verification-local/review/design/backtest-rights-factor-1440.png`
 - `.tools/verification-local/review/design/backtest-rights-factor-390.png`
+
+### 公开页配股条款（真实双源，端到端）
+
+- 来源：东方财富主源 + 新浪交叉校验（`publicweb.corporate.rights` / `publicweb.rights.v1`），默认关闭、显式开启 `COLLECTOR_PUBLIC_RIGHTS_FEED` 后才出现在来源目录；仅限内部研究，不得再分发。
+- 校验规则：比例、配股价格、股权登记日、除权日、公告日任一不一致即失败；单边事件、占位日期（如 1900-01-01）、同一除权日多事件均拒绝发布。
+- 真实事件：`300176.SZ` 鸿特科技 2026 年配股，每 10 股配 4 股、3.36 元/股，公告 2026-08-10、登记 2026-08-12、除权 2026-08-21、上市 2026-09-02，缴款窗口 2026-08-13 至 2026-08-19。
+- 采集 Job `be55af30-9027-4562-8232-8e648c09c494`，单分区 `2026-08-10` 至 `2026-08-24`（北京时间）；Worker 导入数据集 `fd2f8bb3-d391-5b84-b7d9-953f5cc64ac6`（10 根日线，覆盖含停牌日）。
+- 研究发布 `95d60447-4d8e-5bc9-b11e-17380d690ee4`，`content_version=454c2501…`；质量门禁为 `warning`，只披露 `knowledge_unknown`（公开页无法证明历史可知时间）。配股没有现金支付，不虚构 `payment_unknown` 或单一支付日。
+- 策略 `d93f3ebf-991b-4cff-91db-2282db39628c` v1：先 `validated`，再用真实完成回测转为 `backtested`；qualification 从持久化 Run 推导，不再由调用方传 flag。
+- `subscribe` Run `d6b60d0f-ee85-4225-b635-938651682f98`：2026-08-20T16:00Z（北京时间 08-21 除权日）认购 4000 股 @ 3.36，期末现金 `933360.00`、持仓 14000 股。
+- `skip` Run `c3e1b6d1-d677-4927-9a66-0671f4219c71`：无 `rights_subscription` 订单，期末现金 `946800.00`、持仓 10000 股。
+- 冻结执行时区：日线 bar 以交易所午夜打戳（`2026-08-21T00:00+08:00`），回测默认 `timezone_name=Asia/Shanghai`；显式传 `UTC` 仍可覆盖，但会把交易日错位一天，已加回归测试防止回退。
+- 导出：CSV 保留 `rights_subscription` 机器原因与 `corporate_actions` 账本；可打印 HTML 显示「配股认购」与除权日；桌面和手机均通过「浏览公司行为版本」查看 4/10、3.36 元、登记/除权/上市日与质量警告，刷新后仍可见。
+
+证据：
+
+- `.tools/verification-local/review/rights-live-report.json`
+- `.tools/verification-local/review/rights-events-desktop.png`
+- `.tools/verification-local/review/rights-events-mobile.png`
+- `tests/test_backtesting.py::test_daily_execution_defaults_to_exchange_zone_and_keeps_explicit_choice`
+- `tests/test_mock_backtest_engine.py::test_exchange_midnight_bars_apply_rights_on_the_local_ex_date`
+- `tests/test_strategy_qualification.py`
 
 ### 订单类型与 TIF（真实运行）
 
@@ -319,7 +341,7 @@
   - 发布记录 3 条：2025-01-02 `0.94647177`、2025-06-26 `0.96339437`、2025-12-19 `0.98012766`，与真实除息日一致
   - 回测 Run `824f6854-5679-43a9-bc59-11302a209957` 以 `vendor_adjusted` 运行并完成，manifest 冻结 3 条因子及其内容版本
   - 独立复核：2025-06-29 原始收盘 `1409.52` × 因子比例 `1.0178796669` = `1434.72174812`，与权益曲线持仓隐含价完全一致；期末现金 `850505.165`（复权模式不计股息）与买入成本、费用精确对账
-- 限制：因子是价格比值的推导值，不是供应商原生因子字段；配股 feed 仍未接通。
+- 限制：因子是价格比值的推导值，不是供应商原生因子字段；配股 feed 已另行通过公开页双源接通（仅内部研究，见上）。
 
 证据：
 
@@ -341,8 +363,8 @@
 
 以下能力未完成，不能宣称“专业研究/实盘就绪”：
 
-- 复权因子已接通真实供应商；配股数据仍未接通。供应商只发布复权后的价格序列（f/b/fr/br），没有独立因子字段，因此因子由复权价与不复权价的比值推导，并按 0.5% 阈值只在事件日形成阶跃。
-- 配股条款供应商覆盖已核对（2026-11-01）：`hscp/jnfh` 只有分红/送股/转增字段，候选配股端点 `hscp/jnpg`、`hscp/pg`、`hscp/jnpz` 均返回 422；详见 `docs/data/SUPPLIER-RIGHTS-COVERAGE.md`。来源目录新增 `extension.rights_terms`（`not_connected`）显式披露该缺口。新浪/东方财富公开页可提供历史配股条款，但再分发需书面许可，且两源对 1993 年前记录存在日期冲突；接入条件、实测限额与“仅内部研究”结论见 `docs/data/RIGHTS-FEED-CONDITIONS.md`。
+- 复权因子与配股条款均已接通真实来源。复权因子由供应商前复权/不复权收盘价推导（供应商只发布复权后的价格序列，没有独立因子字段），并按 0.5% 阈值只在事件日形成阶跃。
+- 配股条款来源为东方财富公开接口 + 新浪公开页交叉校验，默认关闭、显式开启后可用于内部研究；比例、价格、登记日、除权日或公告日任一不一致即拒绝发布。公开源不可再分发，缴款日期只有窗口、历史可知时间未知，均已在 UI 与质量门禁中披露；Wind 等商业授权仍保留为后续升级路径，见 `docs/data/RIGHTS-FEED-CONDITIONS.md` 与 `docs/data/SUPPLIER-RIGHTS-COVERAGE.md`。
 - 供应商历史成员区间不可用；当前只能使用工作区定义或供应方区间，非官方区间仍可能低估幸存者偏差。
 - 逐笔数据（`granularity=tick`）可作为已发布数据集参与回测：按 `tick_aggregation_seconds` 聚合为执行 bar（OHLCV），策略在聚合 bar 上运行；撮合使用按执行窗口聚合的**逐笔价位量**（`depth_model=tick_price_levels`），成交价取符合委托条件的价位 VWAP，容量与锁价队列按价位成交量限制。无 L2 快照，价位量是逐笔成交的可观测深度代理。
 - 停牌与锁价已建模：停牌 bar（零成交量或数据源标记 suspect）会拒绝受影响订单并标记 `halted`；一字涨/跌停按前一收盘价的涨跌幅识别，买入在涨停锁死、卖出在跌停锁死时被拒绝，原因分别为 `limit_up` / `limit_down`；无法判定方向时标记 `locked`。逐笔数据已支持价位量深度，L2 快照仍未接入。
@@ -350,11 +372,11 @@
 - Walk-forward 支持冻结参数网格：每个窗口先在训练区间运行全部候选，按样本内收益选择（同收益取回撤更小、参数 JSON 更小者），再用选中参数执行验证区间；聚合只统计选中参数的样本外结果。
 - 回测任务使用持久队列 + 多 Worker 消费：`SKIP LOCKED` 原子认领、按尝试次数/创建时间排序、运行期间租约心跳续期；租约过期的运行先回到队列再被重新认领，超过重试次数才失败。
 - 已提供 CSV 与可打印 HTML（另存为 PDF）导出；未提供服务端直接生成 PDF 的接口。
-- 风险引擎未接入回测/Paper 订单路径，qualification 可被伪造。
+- 风险引擎尚未接入回测/Paper 订单路径；策略版本 qualification 的 `backtest_succeeded` 已改为从持久化完成 Run 与精确 `strategy_version_id` 推导，不再接受调用方 flag。Paper observe 计数仍未接入，进入批准/实盘前仍需补齐。
 
 ## 7. 下一步优先级
 
-1. 供应商配股/复权因子接入与官方历史成员区间。
+1. 官方历史成员区间、Wind 等商业配股授权与退市事件。
 2. L2 盘口深度、真实队列与逐笔成交概率。
 3. 多 Worker 公平调度、租约心跳和执行中断。
 4. 供应商历史成员区间接入与官方退市事件。

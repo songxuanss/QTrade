@@ -1,4 +1,4 @@
-# 回测与量化模型覆盖矩阵（2026-11-01）
+# 回测与量化模型覆盖矩阵（2026-11-02）
 
 | 流程 | 状态 | 证据 | 说明 |
 | --- | --- | --- | --- |
@@ -22,7 +22,9 @@
 | Walk-forward 执行 | 真实 Worker | batch `f6311814-a419-4e11-852e-2116f832f865` | 9 个窗口全部完成，聚合与各窗口报告对账 |
 | Walk-forward 参数寻优 | 真实 Worker | batch `ec634205-1fee-4aa1-923a-0da38863a4a1` | 每窗口 4 候选，样本内选择与验证结果独立复核 |
 | 报告导出 | 真实下载 | run `9c33a542-94c7-4879-9ab1-22ee9646947f` | CSV/可打印 HTML 与持久化报告一致；刷新后一致；未登录 401 |
-| 配股/复权因子 | 引擎真实价格 + fixture 事件 | `rights-factor-report.json` | 认购 30 股、现金对账；因子冻结核对；供应商无配股端点（见 `docs/data/SUPPLIER-RIGHTS-COVERAGE.md`）；公开源接入条件与仅内部研究限制见 `docs/data/RIGHTS-FEED-CONDITIONS.md` |
+| 配股/复权因子（fixture） | 引擎真实价格 + fixture 事件 | `rights-factor-report.json` | 认购 30 股、现金对账；因子冻结核对 |
+| 公开页配股条款（真实双源） | 真实采集 + 发布 + Worker 回测 + UI | publication `95d60447-4d8e-5bc9-b11e-17380d690ee4`，dataset `fd2f8bb3-d391-5b84-b7d9-953f5cc64ac6`，runs `d6b60d0f-ee85-4225-b635-938651682f98`（subscribe）/`c3e1b6d1-d677-4927-9a66-0671f4219c71`（skip） | 300176.SZ 2026 年 4 配 10 @ 3.36；除权日认购 4000 股、期末现金 `933360.00`；skip 保留 `946800.00`；CSV/HTML 与桌面/手机浏览一致；来源仅内部研究、不可再分发，Wind 未接入 |
+| 策略版本 qualification | 真实 Worker + 持久化 Run | `test_strategy_qualification.py`，run `d6b60d0f-…` | `draft→validated→backtested`；`backtest_succeeded` 仅由精确版本的完成 Run 推导，调用方无法伪造 |
 | 复权价回放 | 真实价格 + fixture 因子 | `vendor-adjusted-report.json` | 价格缩放 0.99；分配禁用，现金差额=股息 5163 |
 | 真实供应商复权因子 | 真实供应商采集 | publication `38b89f8c-…`，run `824f6854-…` | 3 条因子与真实除息日一致；价格按因子比例缩放；现金对账 |
 | 订单类型/TIF | 真实 Worker | run `6232fa7e-e93a-4efc-ad0f-6e4599577c4b` | 止损入场、限价离场、day/FOK 撤销；现金对账 |
@@ -31,7 +33,6 @@
 | 全量 pytest | 全绿 | `full-pytest.txt` | 修复 bounded HTTP 子进程启动根因后 0 失败（详见 `docs/testing/BOUNDED-HTTP-FIX.md`） |
 | 多 Worker/租约 | 真实双 Worker | `lease-fairness.json` | 并行运行 attempts=1、心跳续租、SIGKILL 后重新入队完成 |
 | 协作式取消 | 真实双 Worker | `cooperative-cancel.json` | 运行中取消在块间中止，无结果对象，另一运行正常完成 |
-| 导出 HTML/PDF/CSV | 未实现 | — | 报告只能页面查看 |
 | 持久化 Worker 回测队列 | 已实现 | `backtest_run.lease_*`, Worker consumer | REST 重启后 queued 运行恢复 |
 
 ## 当前验证结果
@@ -45,7 +46,7 @@
 ## 判定
 
 - 真实量化模型 → 真实数据集 → 真实 Runner → 持久化结果 → UI 报告/对比链路已打通。
-- 这证明“能实际运行模型并产出可复核回测”，不等于“专业 A 股全语义回测就绪”；官方历史成员区间、供应商因子数据和微观成交仍缺失。
+- 这证明“能实际运行模型并产出可复核回测”，不等于“专业 A 股全语义回测就绪”；官方历史成员区间、Wind 等商业授权、L2 盘口与微观成交仍缺失。
 - Fixture 仅覆盖受控取消/进度接口；真实 queued → running → completed、重启恢复和取消均使用 PostgreSQL + Worker + Runner。
 
 ## 复核命令
