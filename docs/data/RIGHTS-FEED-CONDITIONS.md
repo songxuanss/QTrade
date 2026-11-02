@@ -194,12 +194,12 @@ source catalog keeps the `extension.rights_terms` gap, and `fetch` refuses with
    no native event id, pre-1993 dates unreliable.
 8. **Acceptance.** Real 2026 event `300176.SZ` (10 配 4 @ 3.36, record
    2026-08-12, ex 2026-08-21, listing 2026-09-02) end-to-end: collector job
-   `ca3a9396-d673-46dd-8fc3-b93b4e7e17f9` imported dataset
-   `1c01ccbf-7406-535b-ae7a-cc0c3963ad26`, publication
-   `66c18260-bbe2-50a2-b4db-0f61bf664b09`; `subscribe` run
-   `223224f8-7830-4f15-b60d-f61efd466190` bought 4000 shares @ 3.36 on the
+   `be55af30-9027-4562-8232-8e648c09c494` imported dataset
+   `fd2f8bb3-d391-5b84-b7d9-953f5cc64ac6`, publication
+   `95d60447-4d8e-5bc9-b11e-17380d690ee4`; `subscribe` run
+   `d6b60d0f-ee85-4225-b635-938651682f98` bought 4000 shares @ 3.36 on the
    ex-date with cash `933360.00`; `skip` run
-   `549ecb33-bede-431c-91ff-6814cc70892e` kept cash `946800.00`. CSV/HTML
+   `c3e1b6d1-d677-4927-9a66-0671f4219c71` kept cash `946800.00`. CSV/HTML
    export and desktop/mobile UI browsing reconcile with the persisted report.
    The original 600036 2013 plan was blocked because the current supplier
    calendar returns no 2013 sessions; it remains a source-coverage limit, not
