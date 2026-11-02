@@ -37,6 +37,3 @@ test-results/
 # Editor and OS metadata
 .DS_Store
 Thumbs.db
-
-# Local agent cache
-.opencode/
