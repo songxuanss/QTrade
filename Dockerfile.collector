@@ -7,7 +7,7 @@ COPY adapters/data_mairui /build/mairui
 COPY adapters/data_files /build/files
 COPY adapters/data_http /build/http
 COPY apps/collector /build/collector
-RUN --mount=type=cache,target=/root/.cache/pip pip install /build/contracts /build/core /build/postgres /build/mairui /build/files /build/http /build/collector \
+RUN pip install --no-cache-dir /build/contracts /build/core /build/postgres /build/mairui /build/files /build/http /build/collector \
     && useradd --uid 10001 --create-home collector \
     && mkdir -p /data/archives && chown collector:collector /data/archives \
     && rm -rf /build

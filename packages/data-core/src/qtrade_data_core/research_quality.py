@@ -145,7 +145,9 @@ def evaluate(
                     block=True,
                     record=record,
                 )
-            if record.payment_date is None:
+            if record.cash is not None and record.payment_date is None:
+                # Rights subscriptions and split/consolidation terms distribute no
+                # cash, so a missing payment date is not a cash-accounting gap.
                 issue("payment_unknown", "现金支付日未知，不能用于完整现金核算。", record=record)
         else:
             day = record.observation_date

@@ -1,0 +1,23 @@
+# Keep build contexts to source that Dockerfiles actually copy.
+.git
+.gitignore
+.venv
+.tools
+.opencode
+apps/web
+node_modules
+**/node_modules
+**/__pycache__
+**/*.pyc
+.pytest_cache
+.mypy_cache
+.ruff_cache
+dist
+build
+docs
+tests
+scripts
+infra
+*.log
+.env
+.env.*

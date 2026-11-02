@@ -162,7 +162,15 @@ placeholders exist. Publishing a rights event therefore requires two-source
 agreement on ratio, price, record date and ex-date, and rejection of
 placeholder dates.
 
-## 6. Integration conditions (if we proceed)
+## 6. Integration conditions (implemented 2026-11-01)
+
+Status: **implemented as an opt-in adapter** in
+`adapters/data_http/src/qtrade_data_http/rights.py`
+(`source=publicweb.corporate.rights`, `mapping_version=publicweb.rights.v1`),
+registered by the collector under `COLLECTOR_PUBLIC_RIGHTS_FEED=true`. The
+default stays off: with the flag unset the capability is unconfigured, the
+source catalog keeps the `extension.rights_terms` gap, and `fetch` refuses with
+`unauthorized`. Tests: `tests/test_public_rights_terms.py`.
 
 1. **Opt-in, not default.** Enable with an explicit environment flag and a
    recorded acknowledgement that the source is a public page, not a licensed
@@ -184,11 +192,18 @@ placeholder dates.
 7. **Disclosure.** Capability limitations, source profile, report and export
    must say: public page, internal research only, no redistribution, no SLA,
    no native event id, pre-1993 dates unreliable.
-8. **Acceptance.** 600036 2013-09-05 (10 配 1.74 @ 9.29, record 08-27)
-   end-to-end: publish terms, freeze them into a backtest manifest, run
-   `subscribe` and `skip`, and reconcile cash and shares. Daily unadjusted
-   bars for 600036 around the event are available from the current supplier
-   (22 rows for 2013-08-20…09-18 verified).
+8. **Acceptance.** Real 2026 event `300176.SZ` (10 配 4 @ 3.36, record
+   2026-08-12, ex 2026-08-21, listing 2026-09-02) end-to-end: collector job
+   `ca3a9396-d673-46dd-8fc3-b93b4e7e17f9` imported dataset
+   `1c01ccbf-7406-535b-ae7a-cc0c3963ad26`, publication
+   `66c18260-bbe2-50a2-b4db-0f61bf664b09`; `subscribe` run
+   `223224f8-7830-4f15-b60d-f61efd466190` bought 4000 shares @ 3.36 on the
+   ex-date with cash `933360.00`; `skip` run
+   `549ecb33-bede-431c-91ff-6814cc70892e` kept cash `946800.00`. CSV/HTML
+   export and desktop/mobile UI browsing reconcile with the persisted report.
+   The original 600036 2013 plan was blocked because the current supplier
+   calendar returns no 2013 sessions; it remains a source-coverage limit, not
+   a reason to fabricate bars.
 
 ## 7. Licensed vendor route — Wind registration and pricing
 
@@ -239,13 +254,17 @@ well past 100,000 CNY/year. Price is negotiated, not published.
 
 ## 8. Recommendation
 
-- For **research/internal use**, integrate Eastmoney as primary with Sina as a
-  cross-check, behind an opt-in flag, following §6.
+- **Decided 2026-11-01: internal-research-only route accepted.** Eastmoney is
+  the primary source with Sina as the confirming source, behind
+  `COLLECTOR_PUBLIC_RIGHTS_FEED`, following §6. Every event requires both
+  sources to agree on announcement, record and ex dates, ratio and price.
 - For **any redistribution or commercial display**, do not use these pages.
   Buy a licensed corporate-action feed (Wind / Choice / iFinD, see §7) or use an
   authorised exchange/CNINFO disclosure feed, then connect it through the same
   `rights_terms` capability.
 
-Until the user accepts the internal-research-only constraint, the supplier
-gap stays declared: rights acceptance remains on a fixture, and this document
-does not claim a connected live feed.
+The internal-research-only constraint is therefore accepted **and enforced in
+product**: the adapter rejects one-sided or disagreeing events, the capability
+lists the no-redistribution limit, and the source profile, report and exports
+repeat it. Rights acceptance no longer depends on a fixture, but this document
+does not claim a licensed feed, an SLA, or redistribution rights.

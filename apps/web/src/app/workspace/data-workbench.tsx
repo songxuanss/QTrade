@@ -197,7 +197,7 @@ export function DataWorkbench({
                   },
                   {
                     key: "events",
-                    title: "分红与送转",
+                    title: "分红、送转与配股",
                     content: distributionPanel,
                   },
                 ]}

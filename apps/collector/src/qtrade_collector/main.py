@@ -55,6 +55,8 @@ from qtrade_data_core.usage_execution import UsageGate, usage_scope
 from qtrade_data_files.archive import FileCollectionArchive
 from qtrade_data_files.research import FileResearchArchive
 from qtrade_data_http.client import RemoteDataAuthorizer, StaticScopeAuthorizer
+from qtrade_data_http.rights import PublicWebRightsTerms
+from qtrade_data_http.rights import source_profile as public_rights_profile
 from qtrade_data_mairui.collection import MaiRuiCollection
 from qtrade_data_mairui.research import (
     MaiRuiAdjustmentFactors,
@@ -342,12 +344,17 @@ def create_app() -> FastAPI:
         Path(config.get("COLLECTOR_ARCHIVE_ROOT", "/data/archives"))
     )
     research_repository = PostgresResearchReplays(config["DATA_COLLECTION_DATABASE_URL"])
-    research_providers = (
+    public_rights_enabled = config.get("COLLECTOR_PUBLIC_RIGHTS_FEED", "false")
+    if public_rights_enabled not in {"true", "false"}:
+        raise ValueError("invalid COLLECTOR_PUBLIC_RIGHTS_FEED")
+    public_rights = PublicWebRightsTerms(configured=public_rights_enabled == "true")
+    research_providers: tuple[Any, ...] = (
         MaiRuiFinancial(provider, "balance"),
         MaiRuiFinancial(provider, "income"),
         MaiRuiFinancial(provider, "cashflow"),
         MaiRuiDistributions(provider),
         MaiRuiAdjustmentFactors(provider),
+        public_rights,
     )
     app.state.research_service = ResearchService(
         auth,
@@ -495,8 +502,15 @@ def create_app() -> FastAPI:
         # Editorial evidence is read independently from immutable plan objects.
         # Local configuration cannot establish live permission or completeness.
         response.headers["Cache-Control"] = "no-store"
+        catalog_profiles = mairui_source_profiles(
+            provider, rights_connected=public_rights.configured
+        )
+        if public_rights.configured:
+            # The connected feed replaces the extension placeholder rather than
+            # claiming both a gap and a working adapter for the same kind.
+            catalog_profiles = (*catalog_profiles, public_rights_profile(configured=True))
         return SourceProfileCatalog(
-            schema_version=1, scope_id=identity[1], profiles=mairui_source_profiles(provider)
+            schema_version=1, scope_id=identity[1], profiles=catalog_profiles
         )
 
     @app.get("/v1/factors")

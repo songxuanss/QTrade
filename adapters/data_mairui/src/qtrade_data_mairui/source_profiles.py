@@ -41,7 +41,9 @@ def fact(
     )
 
 
-def profiles(provider: MaiRuiCollection) -> tuple[SourceProfile, ...]:
+def profiles(
+    provider: MaiRuiCollection, *, rights_connected: bool = False
+) -> tuple[SourceProfile, ...]:
     """Use local adapter configuration only; never probe permission on page load."""
     registered = [*provider.datasets()]
     research = [
@@ -184,6 +186,9 @@ def profiles(provider: MaiRuiCollection) -> tuple[SourceProfile, ...]:
         ),
     )
     for kind, name, condition in extensions:
+        if kind == "rights_terms" and rights_connected:
+            # Supplied by the opt-in public-page adapter, not by this supplier.
+            continue
         result.append(
             SourceProfile(
                 source="extension." + kind,

@@ -25,6 +25,7 @@ import type {
 
 type Statement = {
   instrument_id: string;
+  action?: string;
   announcement_date: string | null;
   ex_date: string | null;
   record_date: string | null;
@@ -35,6 +36,9 @@ type Statement = {
   cash_currency: string | null;
   bonus_shares: string | null;
   transfer_shares: string | null;
+  rights_shares: string | null;
+  rights_price: string | null;
+  terms_evidence: string;
   source_event_id: string;
   status: string;
 };
@@ -182,7 +186,7 @@ export function DistributionCollectionPanel({
       <div className="data-section-heading">
         <div>
           <p className="eyebrow">RESEARCH DATA</p>
-          <h2 id="distribution-title">分红送转采集</h2>
+          <h2 id="distribution-title">分红、送转与配股采集</h2>
         </div>
         <button
           className="button button-secondary"
@@ -193,7 +197,7 @@ export function DistributionCollectionPanel({
         </button>
       </div>
       <p className="page-description">
-        按公告日采集现金分红、送股和转增，保留原始事件版本。现金支付日及历史可知时间未知，不代表完整持仓现金账本。
+        按公告日采集现金分红、送股、转增或配股条款，保留原始事件版本。现金支付日及历史可知时间未知，不代表完整持仓现金账本。公开页配股来源仅限内部研究，不得再分发。
       </p>
       {!available && (
         <p role="status">
@@ -381,17 +385,25 @@ export function DistributionCollectionPanel({
             {quality === "warning" ? "通过，附语义警告" : "通过"}
           </p>
           <p>
-            现金为每十股税前人民币，送股与转增同为每十股口径。未知日期不作推断，不作为完整事件回测就绪数据。
+            现金为每十股税前人民币，送股、转增与配股同为每十股口径。未知日期不作推断，不作为完整事件回测就绪数据。配股条款来自公开页并对东财/新浪双源校验，仅限内部研究，不得导出再分发。
           </p>
           {records.map((record, i) => (
             <details key={`${record.announcement_date}-${i}`}>
               <summary>
+                {record.action === "rights" ? "配股条款 · " : ""}
                 {instrumentNames[record.instrument_id] ?? "名称未核验"} ·{" "}
                 {record.instrument_id} · 公告日 {record.announcement_date} ·
                 除权 {record.ex_date ?? "未知"}
               </summary>
               <div style={{ overflowX: "auto", maxWidth: "100%" }}>
-                <table style={{ minWidth: 680 }}>
+                <table
+                  style={{ width: "100%", minWidth: 680, tableLayout: "fixed" }}
+                >
+                  <colgroup>
+                    <col style={{ width: "24%" }} />
+                    <col style={{ width: "56%" }} />
+                    <col style={{ width: "20%" }} />
+                  </colgroup>
                   <caption>供应商公司行为原值</caption>
                   <thead>
                     <tr>
@@ -403,21 +415,41 @@ export function DistributionCollectionPanel({
                   <tbody>
                     {[
                       [
-                        "税前现金 / 每十股",
-                        record.cash === null
-                          ? "未知"
-                          : `${record.cash} ${record.cash_currency ?? "未知币种"}`,
+                        "事件类型",
+                        record.action === "rights" ? "配股" : "分红送转",
                       ],
-                      ["送股 / 每十股", record.bonus_shares ?? "未知"],
-                      ["转增 / 每十股", record.transfer_shares ?? "未知"],
+                      ...(record.action === "rights"
+                        ? [
+                            [
+                              "配股比例 / 每十股",
+                              record.rights_shares ?? "未知",
+                            ],
+                            [
+                              "配股价格 / 每股",
+                              record.rights_price === null
+                                ? "未知"
+                                : `${record.rights_price} 元`,
+                            ],
+                          ]
+                        : [
+                            [
+                              "税前现金 / 每十股",
+                              record.cash === null
+                                ? "未知"
+                                : `${record.cash} ${record.cash_currency ?? "未知币种"}`,
+                            ],
+                            ["送股 / 每十股", record.bonus_shares ?? "未知"],
+                            ["转增 / 每十股", record.transfer_shares ?? "未知"],
+                          ]),
                       ["股权登记日", record.record_date ?? "未知"],
                       ["除权除息日", record.ex_date ?? "未知"],
-                      ["红股上市日", record.listing_date ?? "未知"],
+                      ["上市日", record.listing_date ?? "未知"],
                       ["现金支付日", record.payment_date ?? "未知，不推断"],
+                      ["条款证据", record.terms_evidence],
                     ].map(([label, value]) => (
                       <tr key={label}>
                         <td>{label}</td>
-                        <td>{value}</td>
+                        <td style={{ overflowWrap: "anywhere" }}>{value}</td>
                         <td>供应商有限事件语义</td>
                       </tr>
                     ))}

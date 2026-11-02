@@ -26,6 +26,7 @@ docker compose --env-file .env.collector -f compose.collector.yaml -f compose.co
 | COLLECTOR_DB_PASSWORD | 独立 DB 密码，只在采集部署 |
 | MAIRUI_LICENCE | 仅采集端供应商证书 |
 | COLLECTOR_MAIRUI_PRO_ENABLED | 启用能力，不证明供应商已经授权 |
+| COLLECTOR_PUBLIC_RIGHTS_FEED | 默认 false；启用公开页配股条款（东财+新浪双源校验），仅限内部研究、不可再分发 |
 | COLLECTOR_AUTHORIZER_URL | 回查 QTrade /internal/data/authorize |
 | COLLECTOR_ALLOW_HTTP | 本地明文回查时显式 true，远程默认 HTTPS |
 | COLLECTOR_SCOPE_GRANTS_JSON | 无回查时显式 actor:scope→read/manage，默认拒绝 |

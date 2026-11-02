@@ -108,3 +108,10 @@ def test_collector_service_identity_read_revocation_no_provider_calls(tmp_path, 
     assert all(r["state"] != "configured" for r in response.json()["profiles"])
     app.state.collection_service.auth.grants.clear()
     assert client.get("/v1/source-profiles", headers=headers).status_code == 403
+
+
+def test_connected_public_rights_feed_replaces_the_extension_gap(tmp_path):
+    provider = MaiRuiCollection(None, cache=tmp_path)
+    connected = profiles(provider, rights_connected=True)
+    assert not [row for row in connected if row.source == "extension.rights_terms"]
+    assert len(connected) == len(profiles(provider)) - 1
