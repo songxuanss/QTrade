@@ -78,6 +78,82 @@
 - `.tools/verification-local/review/design/strategy-backtest-ux.json`
 - `.tools/verification-local/review/design/backtest-compare-selected-1440.png`
 
+### 多策略选股与组合回测（真实 Top 5 + 等权基准）
+
+本节回答“策略是否可灵活定制、数据是否支撑选股、回测结果是否与行业共识一致”。
+
+选股与数据：
+
+- 冻结股票池：`A股-指数成分-沪市-上证央企` 快照 `bbe141c5-ed97-4224-b76e-efadcd553ec2`，50 个成员；50 只全部具备 53 周已发布单标的周度数据集。
+- 选股数据集合成：按最近 4 周平均成交额排序，取前 20 只有连续覆盖的成员；区间 `2025-10-30T16:00Z` 至 `2026-10-30T16:00Z`（北京时间 2025-10-31 至 2026-10-30）。
+- 数据集 `4ad3c536-681b-57d3-b2f1-7fc224093106`：20 只、242 根/只、合计 4,840 根，质量 `{valid: 4840}`，`raw_record_count=6120`。
+- 合成规则会排除多标的合成数据集作为来源，并按快照/区间/选中标的生成确定性 identity；重复合成返回同一数据集，已验证幂等。
+- 未入选的 30 只没有进入数据集，因此本验收是“Top 20 流动性成员”而非全 50 只组合；披露写入了数据集只读摘要。
+
+策略（均通过静态校验，参数可在 UI/API 调整后重新冻结版本）：
+
+| 策略 | 经济含义 | 参数 | 版本 |
+| --- | --- | --- | --- |
+| 中期动量 60-5 | 60 日收益，跳过最近 5 日 | `lookback=60, skip=5` | `b4512295-…` v4 |
+| 短期反转 5 日 | 买入 5 日跌幅最大的 5 只 | `lookback=5` | `c10274c9-…` v4 |
+| 低波动 60 日 | 60 日已实现波动率最低的 5 只 | `lookback=60` | `bf2ca7e6-…` v4 |
+| 趋势 20/60 | 20 日均线高于 60 日，按乖离率排序 | `fast=20, slow=60` | `2ccb920a-…` v4 |
+| 风险调整动量 60-5 | 60 日动量 / 同期波动率 | `lookback=60, skip=5` | `bf02b4a7-…` v4 |
+| 等权 20 只基准 | 一次买入全池并持有 | — | `2e38c4de-…` v4 |
+
+统一执行输入：初始资金 1,000,000 CNY、`cost.v1`、`Asia/Shanghai`、未复权价 + 公司行为账本、配股 `skip`、整手 100、手续费 3bps（最低 5 元）、卖出印花税 5bps、滑点 5bps、T+1、涨跌停 10%、年化 252。
+
+真实运行（全部 `completed`，并转为 `backtested`）：
+
+| 策略 | Run | 总收益 | 年化波动 | 最大回撤 | Sharpe | 胜率 | 换手 | 订单/成交 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 中期动量 | `71f016b4-f77f-4df9-92e0-e3d67844f887` | +0.40% | 16.36% | 17.00% | 0.11 | 44.4% | 6.03 | 41/41 |
+| 短期反转 | `8863b32a-7624-425a-b1ee-2c2e44706f8b` | -24.48% | 16.62% | 25.27% | -1.67 | 36.4% | 13.73 | 93/93 |
+| 低波动 | `fb912719-bb7f-418f-9dc6-e86b42d3b94f` | +6.55% | 9.12% | 6.93% | 0.77 | 71.4% | 2.88 | 19/19 |
+| 趋势 20/60 | `c7f7c0cd-f351-495b-a456-3b2970c40e26` | -19.77% | 19.17% | 21.92% | -1.10 | 28.6% | 6.84 | 51/47 |
+| 风险调整动量 | `f942e768-1b5b-4775-922c-183a0b6184de` | +7.87% | 16.92% | 14.98% | 0.55 | 52.4% | 6.96 | 47/47 |
+| 等权基准 | `a607b8c3-0acf-44ce-b4f0-29fa711c8b22` | +7.17% | 12.46% | 8.80% | 0.64 | — | 0.88 | 20/20 |
+
+横向比对与行业共识核对：
+
+- `backtests/compare` 返回 `comparable=true`、`warnings=[]`，唯一输入差异为 `strategy_version_id`，说明数据、区间、成本、执行与参数口径一致。
+- 低波动策略的波动率（9.12%）和最大回撤（6.93%）在 5 个主动策略中最低，符合低波动异象的行业共识。
+- 短期反转的换手最高（13.73×），且在高流动性大盘蓝筹池中亏损最大；这与“反转因子在小盘/高换手样本更有效、蓝筹池中交易成本侵蚀收益”的共识一致。
+- 趋势与反转在 2025-10 至 2026-10 的震荡蓝筹年份为负收益，等权基准为正；动量仅微正。结果方向可解释，不宣称样本外可直接复制。
+- 等权基准的换手仅 0.88×，作为被动对照合理。
+
+限制：
+
+- 数据集只有 242 根/只，无法构造 12-1 动量（需要约 252 根），因此使用 60-5 作为中期动量代理；不能把结果直接等同于经典 12-1 组合。
+- 池为冻结的上证央企快照，成员按流动性取 20 只；成分区间不是交易所官方历史，存在幸存者偏差披露。
+- 无 L2 盘口与真实冲击数据，`impact_bps=0` 的运行是 bar 级近似。
+- 低波动正收益、反转负收益是单一年度单一样本的结果，只能证明链路、口径与方向解释，不构成未来收益承诺。
+
+UI 与持久化：
+
+- 桌面 1440×1000 与手机 390×844 均完成真实 SSO 登录、合成面板提交、回测页选择数据集/策略、报告与导出浏览；无页面级横向溢出，控制台无错误。
+- 从 UI 新建的动量 v4 回测 Run `fbc031e3-cba3-47ad-8324-2cd8cddf0e13` 使用 1,000,000 初始资金，结果与 API 验收 Run `71f016b4-…` 完全一致（+0.40%、41 订单/41 成交），刷新后报告仍可读取。
+- 下载按钮真实产出 CSV 39,104 字节、HTML 29,478 字节；CSV 首行为 `# QTrade backtest export · 71f016b4-…`。
+
+拒绝路径（真实部署）：
+
+- 用仅 2 个成员的股票池合成 20 只 → 400。
+- 用 50 个成员、目标 50 只合成 → 400（50×242=12,100 根，超过 Runner 5,000 根预算）。
+- 新建并 `validated` 一个没有完成回测的版本，直接转 `backtested` → 403，qualification 必须由精确版本的完成 Run 推导。
+- 将成员角色临时降为 `viewer`：合成数据集 → 403；提交回测 → 403；随后恢复 `admin`。角色变更在 `finally` 中还原，数据库最终为 `admin`。
+
+证据：
+
+- `.tools/verification-local/review/strategy-portfolio-report.json`
+- `.tools/verification-local/review/portfolio-rejections.json`
+- `.tools/verification-local/review/ui-strategy-portfolio/ui-results.json`
+- `.tools/verification-local/review/ui-strategy-portfolio/desktop-03-composition-done.png`
+- `.tools/verification-local/review/ui-strategy-portfolio/desktop-04b-ui-run-report.png`
+- `.tools/verification-local/review/ui-strategy-portfolio/mobile-03-report.png`
+- `.tools/verification-local/review/ui-strategy-portfolio/qtrade-backtest-71f016b4-20251030.csv`
+- `.tools/verification-local/review/ui-strategy-portfolio/qtrade-backtest-71f016b4-20251030.html`
+- `scripts/acceptance-strategy-catalog.py`、`scripts/verification-strategy-portfolio.py`、`scripts/verification-portfolio-rejections.py`
+
 ### 公司行为样本（600519.SH，2025 全年，买入并持有 100 股）
 
 - 数据集 `6a3a7642-d970-5402-ab44-69e8e7eb08c8`，`600519.SH` 日线

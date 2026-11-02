@@ -25,6 +25,19 @@
 | 配股/复权因子（fixture） | 引擎真实价格 + fixture 事件 | `rights-factor-report.json` | 认购 30 股、现金对账；因子冻结核对 |
 | 公开页配股条款（真实双源） | 真实采集 + 发布 + Worker 回测 + UI | publication `95d60447-4d8e-5bc9-b11e-17380d690ee4`，dataset `fd2f8bb3-d391-5b84-b7d9-953f5cc64ac6`，runs `d6b60d0f-ee85-4225-b635-938651682f98`（subscribe）/`c3e1b6d1-d677-4927-9a66-0671f4219c71`（skip） | 300176.SZ 2026 年 4 配 10 @ 3.36；除权日认购 4000 股、期末现金 `933360.00`；skip 保留 `946800.00`；CSV/HTML 与桌面/手机浏览一致；来源仅内部研究、不可再分发，Wind 未接入 |
 | 策略版本 qualification | 真实 Worker + 持久化 Run | `test_strategy_qualification.py`，run `d6b60d0f-…` | `draft→validated→backtested`；`backtest_succeeded` 仅由精确版本的完成 Run 推导，调用方无法伪造 |
+| 选股数据集合成（API） | 真实快照 + 已发布单标的数据集 | dataset `4ad3c536-681b-57d3-b2f1-7fc224093106` | 上证央企 50 成员 → 按 4 周平均成交额取 20；4,840 根、`quality={valid:4840}` |
+| 选股数据集合成（UI） | 真实 UI + 持久化 | `ui-strategy-portfolio/ui-results.json` | 桌面/手机可见并提交；重复合成幂等返回同一 dataset；桌面/手机无横向溢出 |
+| 多策略组合回测 | 真实 Worker，5 策略 + 基准全完成 | `strategy-portfolio-report.json` | 6 个 Run 全部 `completed`/`backtested`，有订单、成交、权益曲线与导出 |
+| 策略横向比对 | 真实 compare API | `strategy-portfolio-report.json` | `comparable=true`、`warnings=[]`；唯一输入差异为 `strategy_version_id` |
+| 低波动/反转行业共识核对 | 真实结果 | 同上 | 低波波动率/回撤最低；反转换手最高；蓝筹震荡年份反转/趋势为负、基准为正 |
+| UI 新建回测（桌面） | 真实 UI → Worker | Run `fbc031e3-cba3-47ad-8324-2cd8cddf0e13` | v4 动量、1,000,000 初始资金；指标与 API Run `71f016b4-…` 完全一致 |
+| 报告导出（桌面真实下载） | 真实下载 | `ui-strategy-portfolio/qtrade-backtest-71f016b4-20251030.csv/html` | CSV 39,104 字节、HTML 29,478 字节；刷新后报告不变 |
+| 组合结果（手机） | 真实 UI | `mobile-01-composition.png`、`mobile-03-report.png` | 合成面板与报告可读，无页面级横向溢出 |
+| 覆盖不足拒绝 | 真实 API | `portfolio-rejections.json` | 2 成员池取 20 → 400 |
+| 5000 根预算拒绝 | 真实 API | `portfolio-rejections.json` | 50 成员 × 242 根 = 12,100 → 400 |
+| 未完成 Run 转 backtested | 真实 API | `portfolio-rejections.json` | 无完成 Run → 403；qualification 不可伪造 |
+| 非管理员合成/回测 | 真实 API（临时 viewer） | `portfolio-rejections.json` | 合成 → 403、回测 → 403；`finally` 恢复 admin |
+| Runner 批量预算 | 单元回归 + 真实运行 | `test_isolated_strategy_program.py`、`test_strategy_runner.py` | 8 MB 输入、1 MiB 输出与 5,000 bar 批量上限配套 |
 | 复权价回放 | 真实价格 + fixture 因子 | `vendor-adjusted-report.json` | 价格缩放 0.99；分配禁用，现金差额=股息 5163 |
 | 真实供应商复权因子 | 真实供应商采集 | publication `38b89f8c-…`，run `824f6854-…` | 3 条因子与真实除息日一致；价格按因子比例缩放；现金对账 |
 | 订单类型/TIF | 真实 Worker | run `6232fa7e-e93a-4efc-ad0f-6e4599577c4b` | 止损入场、限价离场、day/FOK 撤销；现金对账 |
@@ -37,11 +50,12 @@
 
 ## 当前验证结果
 
-- Python 聚焦测试：58 passed（backtesting、metrics、mock engine、isolated runner、execution、replay、quality）。
-- Web ESLint / Prettier / TypeScript / Vitest：69 passed。
-- Auth Playwright：10 passed + protected workspace 单测 1 passed；截图基线已更新。
-- OpenSpec：`complete-quant-model-backtest` 与 `complete-professional-data-workbench` strict 校验通过。
-- 真实回测：12 fills / 243 equity points / 2.07% total return / 0.55% max drawdown。
+- 组合验收：20 只 × 242 根 = 4,840 根真实数据集；6 个策略全部完成并转 `backtested`；compare `comparable=true`。
+- 组合指标：低波 +6.55%（MDD 6.93%、波动 9.12%、Sharpe 0.77）；风险调整动量 +7.87%；等权基准 +7.17%；动量 +0.40%；趋势 -19.77%；反转 -24.48%。
+- 真实导出：CSV 39,104 字节、HTML 29,478 字节，内容与持久化报告一致。
+- 拒绝路径：覆盖不足 400、预算超限 400、未完成 Run 转 `backtested` 403、viewer 合成/回测 403，全部实测。
+- Web ESLint / TypeScript / build 通过；Playwright 桌面 1440×1000 与手机 390×844 无控制台错误。
+- 早期单标的回测（601288.SH）：12 fills / 243 equity points / 2.07% total return / 0.55% max drawdown。
 
 ## 判定
 
