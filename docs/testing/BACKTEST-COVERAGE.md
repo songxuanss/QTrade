@@ -29,6 +29,9 @@
 | 选股数据集合成（UI） | 真实 UI + 持久化 | `ui-strategy-portfolio/ui-results.json` | 桌面/手机可见并提交；重复合成幂等返回同一 dataset；桌面/手机无横向溢出 |
 | 多策略组合回测 | 真实 Worker，5 策略 + 基准全完成 | `strategy-portfolio-report.json` | 6 个 Run 全部 `completed`/`backtested`，有订单、成交、权益曲线与导出 |
 | 策略横向比对 | 真实 compare API | `strategy-portfolio-report.json` | `comparable=true`、`warnings=[]`；唯一输入差异为 `strategy_version_id` |
+| 对比页（桌面/手机） | 真实 UI | `compare-ui-results.json`、`desktop-07-compare.png`、`mobile-04-compare.png` | 6 条归一权益路径与指标差异表；显示“输入范围可直接比较”；无横向溢出 |
+| 参数灵活定制 | 真实 Worker | `portfolio-parameter-variation.json` | 同版本改 `lookback=40/top_n=3/rebalance=10`：-14.38%、MDD 28.32%、换手 10.58× |
+| 同参数可复现 | 真实 Worker | 同上 | 两次运行权益曲线 SHA-256 相同、全部指标逐项相同 |
 | 低波动/反转行业共识核对 | 真实结果 | 同上 | 低波波动率/回撤最低；反转换手最高；蓝筹震荡年份反转/趋势为负、基准为正 |
 | UI 新建回测（桌面） | 真实 UI → Worker | Run `fbc031e3-cba3-47ad-8324-2cd8cddf0e13` | v4 动量、1,000,000 初始资金；指标与 API Run `71f016b4-…` 完全一致 |
 | 报告导出（桌面真实下载） | 真实下载 | `ui-strategy-portfolio/qtrade-backtest-71f016b4-20251030.csv/html` | CSV 39,104 字节、HTML 29,478 字节；刷新后报告不变 |

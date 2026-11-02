@@ -122,6 +122,13 @@
 - 趋势与反转在 2025-10 至 2026-10 的震荡蓝筹年份为负收益，等权基准为正；动量仅微正。结果方向可解释，不宣称样本外可直接复制。
 - 等权基准的换手仅 0.88×，作为被动对照合理。
 
+参数灵活性与确定性（同一策略版本、不同参数）：
+
+- 同一动量 v4 改为 `lookback=40, skip=5, top_n=3, position_value=280000, rebalance_every=10, lot_size=100`。
+- Run `4fd6606a-120e-45c0-85d1-7187e3134531`：总收益 -14.38%、最大回撤 28.32%、Sharpe -0.45、换手 10.58×、39 订单/39 成交；与默认参数的 +0.40% 形成明确差异，证明参数确实进入执行而不是只渲染表单。
+- 用完全相同的输入再运行一次 `3127f50f-4278-470e-bff8-3e3ab99211c0`：权益曲线 SHA-256 同为 `7607a846994f…`，全部指标逐项相同，证明同版本同参数可复现。
+- 对比页 `backtests/compare` 在桌面与手机渲染 6 条权益路径和指标差异表，显示“输入范围可直接比较”、唯一差异 `strategy_version_id`，无横向溢出。
+
 限制：
 
 - 数据集只有 242 根/只，无法构造 12-1 动量（需要约 252 根），因此使用 60-5 作为中期动量代理；不能把结果直接等同于经典 12-1 组合。
@@ -152,6 +159,10 @@ UI 与持久化：
 - `.tools/verification-local/review/ui-strategy-portfolio/mobile-03-report.png`
 - `.tools/verification-local/review/ui-strategy-portfolio/qtrade-backtest-71f016b4-20251030.csv`
 - `.tools/verification-local/review/ui-strategy-portfolio/qtrade-backtest-71f016b4-20251030.html`
+- `.tools/verification-local/review/ui-strategy-portfolio/desktop-07-compare.png`
+- `.tools/verification-local/review/ui-strategy-portfolio/mobile-04-compare.png`
+- `.tools/verification-local/review/ui-strategy-portfolio/compare-ui-results.json`
+- `.tools/verification-local/review/portfolio-parameter-variation.json`
 - `scripts/acceptance-strategy-catalog.py`、`scripts/verification-strategy-portfolio.py`、`scripts/verification-portfolio-rejections.py`
 
 ### 公司行为样本（600519.SH，2025 全年，买入并持有 100 股）
