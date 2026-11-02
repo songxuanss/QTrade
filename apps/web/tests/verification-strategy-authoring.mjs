@@ -49,8 +49,10 @@ try {
   const templatePanel = page.getByRole("region", { name: "策略模板" });
   await expect(templatePanel).toBeVisible();
   const cards = templatePanel.locator(".strategy-template-card");
-  await expect(cards).toHaveCount(5);
-  step("模板面板可见", { count: 5 });
+  await expect(cards).toHaveCount(15);
+  const groups = await templatePanel.locator(".strategy-template-group h3").allInnerTexts();
+  assert.ok(groups.length >= 4, `template groups missing: ${groups}`);
+  step("模板面板可见", { count: 15, groups });
 
   const stamp = new Date().toISOString().slice(11, 19);
   const strategyName = `模板验收 · 横截面动量 ${stamp}`;
@@ -110,6 +112,36 @@ try {
     timeout: 10000,
   });
   step("悬停显示下单方法签名");
+
+  const library = JSON.parse(
+    readFileSync("src/features/strategies/templates.json", "utf8"),
+  );
+  const checked = [];
+  for (const template of library) {
+    await templatePanel
+      .getByRole("button", { name: template.name })
+      .click();
+    const applied = await page.evaluate(
+      () => window.monaco?.editor.getModels()[0]?.getValue() ?? "",
+    );
+    assert.equal(
+      applied,
+      template.code,
+      `template ${template.id} code was not applied verbatim`,
+    );
+    const expectedRows = Object.keys(template.schema.properties).length;
+    await expect(page.locator(".strategy-schema-row")).toHaveCount(expectedRows);
+    await page.getByRole("button", { name: "静态校验", exact: true }).click();
+    await expect(page.getByRole("status")).toContainText("静态校验通过", {
+      timeout: 15000,
+    });
+    checked.push(template.id);
+  }
+  assert.equal(checked.length, library.length);
+  step("全部模板逐一应用并通过服务端静态校验", { checked });
+
+  await templatePanel.getByRole("button", { name: "横截面动量" }).click();
+  await expect(page.locator(".strategy-schema-row")).toHaveCount(5);
 
   const topNRow = page
     .locator(".strategy-schema-row")
@@ -245,7 +277,7 @@ try {
     .getByRole("region", { name: "策略模板" })
     .getByRole("button", { name: /双均线交叉/ })
     .click();
-  await expect(page.locator(".strategy-schema-row")).toHaveCount(3);
+  await expect(page.locator(".strategy-schema-row")).toHaveCount(4);
   await overflow("mobile-form");
   await page.screenshot({
     path: `${directory}/mobile-schema-form.png`,

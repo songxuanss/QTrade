@@ -3607,6 +3607,28 @@ main {
   font-size: 10px;
   line-height: 1.7;
 }
+.strategy-template-groups {
+  display: grid;
+  gap: 12px;
+}
+.strategy-template-group h3 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 7px;
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.strategy-template-group h3 small {
+  padding: 1px 5px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  color: #6f8f86;
+  font: 8px var(--font-mono);
+}
 .strategy-template-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));

@@ -31,7 +31,7 @@ import {
   type ParameterSchema,
 } from "./schema-editor";
 import { registerStrategyLanguageSupport } from "./strategy-language";
-import { STRATEGY_TEMPLATES, findTemplate } from "./templates";
+import { STRATEGY_TEMPLATES, STRATEGY_TEMPLATE_GROUPS, findTemplate } from "./templates";
 
 loader.config({ paths: { vs: "/monaco/vs" } });
 
@@ -473,18 +473,32 @@ export function StrategyWorkbench({
               <p className="strategy-template-hint">
                 模板只填充源码与参数 schema；保存后仍冻结为不可变版本，通过静态校验和参数校验才能回测。
               </p>
-              <div className="strategy-template-grid">
-                {STRATEGY_TEMPLATES.map((template) => (
-                  <button
-                    key={template.id}
-                    type="button"
-                    className="strategy-template-card"
-                    onClick={() => applyTemplate(template.id)}
+              <div className="strategy-template-groups">
+                {STRATEGY_TEMPLATE_GROUPS.map((group) => (
+                  <section
+                    className="strategy-template-group"
+                    key={group.category}
+                    aria-label={`${group.category}类模板`}
                   >
-                    <strong>{template.name}</strong>
-                    <span>{template.summary}</span>
-                    <small>{template.tags.join(" · ")}</small>
-                  </button>
+                    <h3>
+                      {group.category}
+                      <small>{group.templates.length}</small>
+                    </h3>
+                    <div className="strategy-template-grid">
+                      {group.templates.map((template) => (
+                        <button
+                          key={template.id}
+                          type="button"
+                          className="strategy-template-card"
+                          onClick={() => applyTemplate(template.id)}
+                        >
+                          <strong>{template.name}</strong>
+                          <span>{template.summary}</span>
+                          <small>{template.tags.join(" · ")}</small>
+                        </button>
+                      ))}
+                    </div>
+                  </section>
                 ))}
               </div>
             </section>

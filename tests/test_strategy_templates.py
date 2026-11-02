@@ -1,15 +1,28 @@
+import importlib.util
 import json
 from pathlib import Path
 
 from qtrade_application.strategy_validation import validate_strategy_source
 from qtrade_domain.strategies import canonical_parameter_schema
 
-TEMPLATES = Path(__file__).resolve().parents[1] / "apps/web/src/features/strategies/templates.json"
+ROOT = Path(__file__).resolve().parents[1]
+TEMPLATES = ROOT / "apps/web/src/features/strategies/templates.json"
+GENERATOR = ROOT / "scripts/generate-strategy-templates.py"
 REQUIRED_IDS = {
     "sma-cross",
+    "ts-momentum",
+    "donchian-breakout",
+    "macd-trend",
+    "atr-chandelier",
+    "high-window-momentum",
     "rsi-reversal",
+    "bollinger-reversion",
+    "rsi-trend-filter",
     "momentum-rank",
+    "dual-momentum",
+    "vol-target-momentum",
     "low-volatility",
+    "cross-sectional-reversal",
     "equal-weight",
 }
 
@@ -18,12 +31,22 @@ def load_templates() -> list[dict[str, object]]:
     return json.loads(TEMPLATES.read_text(encoding="utf-8"))
 
 
+def load_generator():
+    spec = importlib.util.spec_from_file_location("strategy_template_generator", GENERATOR)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 def test_templates_cover_expected_strategy_kinds():
     items = load_templates()
-    assert len(items) >= 5
     ids = [str(item["id"]) for item in items]
     assert len(ids) == len(set(ids))
+    assert len(items) >= 15
     assert REQUIRED_IDS <= set(ids)
+    categories = {str(item["category"]) for item in items}
+    assert {"趋势", "反转", "横截面", "基准"} <= categories
 
 
 def test_templates_have_required_metadata():
@@ -31,6 +54,7 @@ def test_templates_have_required_metadata():
         for key in (
             "id",
             "name",
+            "category",
             "summary",
             "default_name",
             "default_description",
@@ -64,3 +88,8 @@ def test_template_parameters_are_referenced_by_source():
         properties = schema.get("properties", {})
         for name in properties:
             assert f'"{name}"' in str(item["code"]), (item["id"], name)
+
+
+def test_templates_file_matches_generator():
+    module = load_generator()
+    assert TEMPLATES.read_text(encoding="utf-8") == module.render()
