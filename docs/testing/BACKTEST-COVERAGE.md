@@ -36,7 +36,11 @@
 | 策略选股差异 | 真实成交回报 | `portfolio-selection-overlap.json` | 低波与动量期末持仓重合 0 只、反转 1 只、趋势/风险调整各 3 只；等权覆盖 20 只 |
 | 同参数可复现 | 真实 Worker | 同上 | 两次运行权益曲线 SHA-256 相同、全部指标逐项相同 |
 | 低波动/反转行业共识核对 | 真实结果 | 同上 | 低波波动率/回撤最低；反转换手最高；蓝筹震荡年份反转/趋势为负、基准为正 |
-| UI 新建回测（桌面） | 真实 UI → Worker | Run `fbc031e3-cba3-47ad-8324-2cd8cddf0e13` | v4 动量、1,000,000 初始资金；指标与 API Run `71f016b4-…` 完全一致 |
+| UI 新建回测（桌面） | 真实 UI → Worker | Run `fbc031e3-cba3-47ad-8324-2cd8cddf0e13`（v4）与 `052a681d-9453-46a7-a689-6102d3b8f7ec`（v5） | 1,000,000 初始资金；v5 运行 1.234s 完成，期末权益 `1004021.4749`、41 订单/41 成交，与 API Run `e30bb30e-…` 完全一致 |
+| 批量数据集读取 | 单元回归 + 真实 PG | `test_mock_backtest_engine.py`、`performance-optimization.json` | 单查询读取 4,840 根耗时 0.38–0.46s；不可用时回退并发逐标的读取 |
+| Worker 批量信号分块 | 单元回归 + 真实 Runner | `performance-optimization.json` | 4,840 根由 5 次 Runner 调用降为 1 次，0.298s；取消仍在块间生效 |
+| 策略版本批量列表 | 单元回归 + 真实 API | `test_strategy_versions.py`、`performance-optimization.json` | `include_versions=true` 一次返回 77 个策略及版本，0.13s；Web 不再逐策略请求 |
+| 性能复测 | 真实 Worker + UI | `performance-optimization.json` | 单回测 0.95–1.39s（原 3.84–5.01s）；回测页 0.49–1.15s（原 2.58s）；指标与优化前逐项一致 |
 | 报告导出（桌面真实下载） | 真实下载 | `ui-strategy-portfolio/qtrade-backtest-71f016b4-20251030.csv/html` | CSV 39,104 字节、HTML 29,478 字节；刷新后报告不变 |
 | 组合结果（手机） | 真实 UI | `mobile-01-composition.png`、`mobile-03-report.png` | 合成面板与报告可读，无页面级横向溢出 |
 | 覆盖不足拒绝 | 真实 API | `portfolio-rejections.json` | 2 成员池取 20 → 400 |
@@ -49,7 +53,8 @@
 | 订单类型/TIF | 真实 Worker | run `6232fa7e-e93a-4efc-ad0f-6e4599577c4b` | 止损入场、限价离场、day/FOK 撤销；现金对账 |
 | 停牌/涨跌停锁价 | 真实数据 | run `659bf772-…`、`5b417815-…` | 停牌拒绝卖出并保留持仓；跌停锁价允许买入 |
 | 市场冲击/队列 | 真实数据 | run `aa7ac7e7-…`、`ec552671-…` | 平方根冲击改变成交价并现金对账；锁价队列比例限制成交 |
-| 全量 pytest | 全绿 | `full-pytest.txt` | 修复 bounded HTTP 子进程启动根因后 0 失败（详见 `docs/testing/BOUNDED-HTTP-FIX.md`） |
+| 全量 pytest | 全绿 | `full-pytest.txt` | 2026-11-02 性能复测：1687 collected，1389 passed、298 skipped（集成环境依赖）、0 failed；详见 `docs/testing/BOUNDED-HTTP-FIX.md` |
+| 前端回归 | 全绿 | `npm run lint/typecheck/build/test` | 2026-11-02 性能复测：ESLint、tsc、生产构建通过；Vitest 72 passed |
 | 多 Worker/租约 | 真实双 Worker | `lease-fairness.json` | 并行运行 attempts=1、心跳续租、SIGKILL 后重新入队完成 |
 | 协作式取消 | 真实双 Worker | `cooperative-cancel.json` | 运行中取消在块间中止，无结果对象，另一运行正常完成 |
 | 持久化 Worker 回测队列 | 已实现 | `backtest_run.lease_*`, Worker consumer | REST 重启后 queued 运行恢复 |
@@ -59,6 +64,7 @@
 - 组合验收：20 只 × 242 根 = 4,840 根真实数据集；6 个策略全部完成并转 `backtested`；compare `comparable=true`。
 - 组合指标：低波 +6.55%（MDD 6.93%、波动 9.12%、Sharpe 0.77）；风险调整动量 +7.87%；等权基准 +7.17%；动量 +0.40%；趋势 -19.77%；反转 -24.48%。
 - 真实导出：CSV 39,104 字节、HTML 29,478 字节，内容与持久化报告一致。
+- 性能复测：同一 6 策略/数据集/参数，单回测 0.95–1.39s（原 3.84–5.01s），指标逐项不变；回测列表页 0.49–1.15s（原 2.58s）。
 - 拒绝路径：覆盖不足 400、预算超限 400、未完成 Run 转 `backtested` 403、viewer 合成/回测 403，全部实测。
 - Web ESLint / TypeScript / build 通过；Playwright 桌面 1440×1000 与手机 390×844 无控制台错误。
 - 早期单标的回测（601288.SH）：12 fills / 243 equity points / 2.07% total return / 0.55% max drawdown。

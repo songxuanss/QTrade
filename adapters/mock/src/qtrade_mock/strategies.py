@@ -78,6 +78,16 @@ class MockStrategyStore:
         with self._lock:
             return tuple(self._versions.get((workspace_id, strategy_id), ()))
 
+    def versions_for(
+        self, workspace_id: UUID, strategy_ids: tuple[UUID, ...]
+    ) -> tuple[StrategyVersion, ...]:
+        with self._lock:
+            return tuple(
+                version
+                for strategy_id in strategy_ids
+                for version in self._versions.get((workspace_id, strategy_id), ())
+            )
+
     def append_version(
         self,
         workspace_id: UUID,

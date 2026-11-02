@@ -203,6 +203,12 @@ class StrategyPort(Protocol):
 
     def versions(self, workspace_id: UUID, strategy_id: UUID) -> tuple[StrategyVersion, ...]: ...
 
+    def versions_for(
+        self, workspace_id: UUID, strategy_ids: tuple[UUID, ...]
+    ) -> tuple[StrategyVersion, ...]:
+        """Return every version of the listed strategies for one workspace."""
+        ...
+
     def append_version(
         self,
         workspace_id: UUID,

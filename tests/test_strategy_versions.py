@@ -86,3 +86,36 @@ def test_strategy_write_permission_schema_validation_and_workspace_scope():
     with pytest.raises(PortError) as missing:
         service.get(_access(Role.ADMIN), strategy.strategy_id)
     assert missing.value.code == ErrorCode.NOT_FOUND
+
+
+def test_list_with_versions_batches_version_lookups_per_workspace():
+    access = _access(Role.ANALYST)
+    store = MockStrategyStore()
+    service = StrategyService(store, MockObjectStore())
+    first, _ = service.create(access, name="Momentum", code="pass", parameter_schema_json=_schema())
+    service.revise(access, first.strategy_id, code="pass", parameter_schema_json=_schema(200))
+    second, _ = service.create(
+        access, name="Reversal", code="pass", parameter_schema_json=_schema()
+    )
+
+    calls: list[tuple] = []
+    original = store.versions_for
+
+    def counting(workspace_id, strategy_ids):
+        calls.append((workspace_id, tuple(strategy_ids)))
+        return original(workspace_id, strategy_ids)
+
+    store.versions_for = counting  # type: ignore[method-assign]
+    listed = service.list_with_versions(access, 200)
+    store.versions_for = original  # type: ignore[method-assign]
+
+    assert len(calls) == 1
+    assert set(calls[0][1]) == {first.strategy_id, second.strategy_id}
+    grouped = {strategy.strategy_id: versions for strategy, versions in listed}
+    assert [version.version for version in grouped[first.strategy_id]] == [1, 2]
+    assert [version.version for version in grouped[second.strategy_id]] == [1]
+    assert all(
+        version.strategy_id == strategy.strategy_id
+        for strategy, versions in listed
+        for version in versions
+    )

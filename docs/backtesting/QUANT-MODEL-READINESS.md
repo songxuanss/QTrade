@@ -95,16 +95,16 @@
 
 | 策略 | 经济含义 | 参数 | 版本 |
 | --- | --- | --- | --- |
-| 中期动量 60-5 | 60 日收益，跳过最近 5 日 | `lookback=60, skip=5` | `b4512295-…` v4 |
-| 短期反转 5 日 | 买入 5 日跌幅最大的 5 只 | `lookback=5` | `c10274c9-…` v4 |
-| 低波动 60 日 | 60 日已实现波动率最低的 5 只 | `lookback=60` | `bf2ca7e6-…` v4 |
-| 趋势 20/60 | 20 日均线高于 60 日，按乖离率排序 | `fast=20, slow=60` | `2ccb920a-…` v4 |
-| 风险调整动量 60-5 | 60 日动量 / 同期波动率 | `lookback=60, skip=5` | `bf02b4a7-…` v4 |
-| 等权 20 只基准 | 一次买入全池并持有 | — | `2e38c4de-…` v4 |
+| 中期动量 60-5 | 60 日收益，跳过最近 5 日 | `lookback=60, skip=5` | `b4512295-…` v5 |
+| 短期反转 5 日 | 买入 5 日跌幅最大的 5 只 | `lookback=5` | `c10274c9-…` v5 |
+| 低波动 60 日 | 60 日已实现波动率最低的 5 只 | `lookback=60` | `bf2ca7e6-…` v5 |
+| 趋势 20/60 | 20 日均线高于 60 日，按乖离率排序 | `fast=20, slow=60` | `2ccb920a-…` v5 |
+| 风险调整动量 60-5 | 60 日动量 / 同期波动率 | `lookback=60, skip=5` | `bf02b4a7-…` v5 |
+| 等权 20 只基准 | 一次买入全池并持有 | — | `2e38c4de-…` v5 |
 
 统一执行输入：初始资金 1,000,000 CNY、`cost.v1`、`Asia/Shanghai`、未复权价 + 公司行为账本、配股 `skip`、整手 100、手续费 3bps（最低 5 元）、卖出印花税 5bps、滑点 5bps、T+1、涨跌停 10%、年化 252。
 
-真实运行（全部 `completed`，并转为 `backtested`）：
+真实运行（v4 首次验收，全部 `completed` 并转为 `backtested`；v5 性能复测见下节）：
 
 | 策略 | Run | 总收益 | 年化波动 | 最大回撤 | Sharpe | 胜率 | 换手 | 订单/成交 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -145,6 +145,39 @@
 - 同一变体已从部署 UI 完成：在回测页选择动量 v4 后，参数表单从等权 schema 切换为动量的 6 个字段（回看交易日、跳过最近交易日、持仓数量、单标的计划金额、再平衡间隔、整手股数）；填入相同参数提交后生成 Run `0e8e5680-09ad-45ff-93f5-d69324cf29ce`，报告显示 -14.38%、最大回撤 28.32%、Sharpe -0.45，与 API 变体完全一致。
 - 该 UI Run 的冻结 manifest 中 `parameters_json` 为 `{"lookback":40,"lot_size":100,"position_value":280000,"rebalance_every":10,"skip":5,"top_n":3}`，并记录 `parameters_sha256=a729e0b7…`，证明表单参数真实进入运行输入，而非仅在前端展示。
 
+### 性能优化复测（策略 v5，2026-11-02）
+
+在不改变数据、执行口径和指标计算的前提下，针对可观测热点做了四项优化，并用同一 20×242 数据集复测：
+
+- **数据集读取**：`TimescaleMarketData.bars_for_dataset` 用一次有序查询读取整个数据集（预算内），失败或超预算时回退到每标的独立分页读取，并用最多 8 个线程并发。20 只标的的读取从串行 2.112s 降到 0.38–0.46s。
+- **策略信号分块**：默认分块从 1,000 根提升到 5,000 根。批量输入 4,840 根时，Runner 调用从 5 次（2.064s）降到 1 次（0.298s），同时避免前缀重放的 O(n²) 开销。
+- **Worker 轮询**：持久队列轮询默认 0.5s → 0.2s，并支持 `QTRADE_BACKTEST_POLL_SECONDS` 覆盖。
+- **策略版本批量读取**：`GET /strategies?include_versions=true` 一次返回策略及其全部版本，替代 Web 端每个策略一次版本请求；当前工作区 77 个策略时，一次请求约 0.13s / 103,838 字节，而逐策略请求约 77 × 0.08s。
+
+端到端效果（同一 6 个策略、同一数据集、同一参数）：
+
+| 指标 | 优化前 | 优化后 |
+| --- | --- | --- |
+| 单个回测 `queued → completed` | 3.84–5.01s | 0.95–1.39s |
+| `/workspace/backtests` 服务端渲染 | 2.58s | 0.49–1.15s |
+| `/workspace/backtests/{run_id}` | 2.79s | 0.57–0.65s |
+| 6 个策略验收脚本总耗时 | — | 74s（含策略修订、合成、6 次回测、导出与 compare） |
+
+复测 Run（均 `completed` / `backtested`，订单、成交、权益曲线与导出完整）：
+
+| 策略 | Run | 总收益 | 最大回撤 | Sharpe | 换手 | 订单/成交 |
+| --- | --- | --- | --- | --- | --- | --- |
+| 中期动量 | `e30bb30e-90c1-4504-9129-ecd5431a24b9` | +0.40% | 17.00% | 0.11 | 6.03 | 41/41 |
+| 短期反转 | `c7a0e144-20db-4ff6-916d-879575567332` | -24.48% | 25.27% | -1.67 | 13.73 | 93/93 |
+| 低波动 | `a78dfb5f-7203-4799-9068-bee764f4e395` | +6.55% | 6.93% | 0.77 | 2.88 | 19/19 |
+| 趋势 20/60 | `4a8acd4d-9fcf-4c98-8f49-a6b1fb805a79` | -19.77% | 21.92% | -1.10 | 6.84 | 51/47 |
+| 风险调整动量 | `9ee22db8-f86e-4a07-8a34-603c21fe8293` | +7.87% | 14.98% | 0.55 | 6.96 | 47/47 |
+| 等权基准 | `50c659dc-5d45-4bfe-a401-0ff26fb2f419` | +7.17% | 8.80% | 0.64 | 0.88 | 20/20 |
+
+指标与优化前逐项一致，`compare` 仍为 `comparable=true`、`warnings=[]`。从部署 UI 新建的动量回测 Run `052a681d-9453-46a7-a689-6102d3b8f7ec` 在 1.234s 内完成，期末权益 `1004021.4749`、41 订单/41 成交，与 API Run `e30bb30e-…` 完全一致；桌面/手机报告、刷新与 CSV/HTML 下载均正常。
+
+证据：`.tools/verification-local/review/performance-optimization.json`、`.tools/verification-local/review/strategy-portfolio-report.json`、`.tools/verification-local/review/ui-strategy-portfolio/ui-results.json`。
+
 限制：
 
 - 数据集只有 242 根/只，无法构造 12-1 动量（需要约 252 根），因此使用 60-5 作为中期动量代理；不能把结果直接等同于经典 12-1 组合。
@@ -184,6 +217,9 @@ UI 与持久化：
 - `.tools/verification-local/review/ui-strategy-portfolio/mobile-05-dataset-quality.png`
 - `.tools/verification-local/review/portfolio-parameter-variation.json`
 - `.tools/verification-local/review/portfolio-selection-overlap.json`
+- `.tools/verification-local/review/performance-optimization.json`
+- `.tools/verification-local/review/ui-strategy-portfolio/qtrade-backtest-e30bb30e-20251030.csv`
+- `.tools/verification-local/review/ui-strategy-portfolio/qtrade-backtest-e30bb30e-20251030.html`
 - `scripts/acceptance-strategy-catalog.py`、`scripts/verification-strategy-portfolio.py`、`scripts/verification-portfolio-rejections.py`
 
 ### 公司行为样本（600519.SH，2025 全年，买入并持有 100 股）

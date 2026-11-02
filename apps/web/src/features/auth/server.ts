@@ -934,7 +934,7 @@ export async function workspaceBacktests(): Promise<{
         redirect: "error",
         headers,
       }),
-      fetch(`${root}/strategies?limit=200`, {
+      fetch(`${root}/strategies?limit=200&include_versions=true`, {
         cache: "no-store",
         redirect: "error",
         headers,
@@ -964,6 +964,19 @@ export async function workspaceBacktests(): Promise<{
     const withVersions = await Promise.all(
       strategies.map(async (strategy: WorkspaceStrategy) => {
         if (strategy.archived) return strategy;
+        // The list endpoint returns versions inline in one batch; fall back to
+        // the per-strategy route only when that batch payload is unusable.
+        if (
+          Array.isArray(strategy.strategy_versions) &&
+          strategy.strategy_versions.every(
+            (version) =>
+              version &&
+              Number.isInteger(version.version) &&
+              typeof version.strategy_version_id === "string" &&
+              typeof version.parameter_schema === "object",
+          )
+        )
+          return strategy;
         try {
           const response = await fetch(
             `${root}/strategies/${strategy.strategy_id}/versions`,

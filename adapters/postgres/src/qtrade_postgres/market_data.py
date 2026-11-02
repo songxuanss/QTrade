@@ -115,6 +115,45 @@ class TimescaleMarketData(PostgresStore):
             raise PortError(ErrorCode.NOT_FOUND, "dataset bars not found")
         return tuple((str(row[0]), str(row[1])) for row in rows)
 
+    def bars_for_dataset(
+        self,
+        workspace_id: UUID,
+        dataset_id: UUID,
+        start: datetime,
+        end: datetime,
+        *,
+        limit: int = 10_000,
+    ) -> tuple[Bar, ...] | None:
+        """Load one dataset's whole series in a single round trip when it fits.
+
+        The replay engine caps a run at a few thousand bars, so one ordered query
+        is cheaper than one connection per instrument stream. Larger tick
+        datasets return ``None`` and fall back to paginated per-stream reads.
+        """
+        if type(limit) is not int or not 1 <= limit <= 100_000:
+            raise PortError(ErrorCode.INVALID_INPUT, "invalid bar limit")
+        with self._connection() as conn:
+            if (
+                conn.execute(
+                    "SELECT 1 FROM market_dataset_snapshot WHERE workspace_id=%s AND dataset_id=%s",
+                    (workspace_id, dataset_id),
+                ).fetchone()
+                is None
+            ):
+                raise PortError(ErrorCode.NOT_FOUND, "dataset unavailable")
+            rows = conn.execute(
+                """SELECT payload FROM market_bar WHERE workspace_id=%s AND dataset_id=%s
+                AND timestamp>=%s AND timestamp<%s
+                ORDER BY timestamp,instrument_id,granularity LIMIT %s""",
+                (workspace_id, dataset_id, start, end, limit + 1),
+            ).fetchall()
+        if len(rows) > limit:
+            return None
+        try:
+            return tuple(Bar.model_validate_json(json.dumps(row[0])) for row in rows)
+        except (ValueError, TypeError):
+            raise PortError(ErrorCode.UNAVAILABLE, "invalid stored bar") from None
+
     def query_bars(self, query: BarQuery) -> BarPage:
         position = after(query)
         with self._connection() as conn:

@@ -1180,3 +1180,84 @@ def test_exchange_midnight_bars_apply_rights_on_the_local_ex_date():
     assert len(subscriptions) == 1
     assert subscriptions[0]["filled_at"] == third.timestamp.isoformat()
     assert subscriptions[0]["filled_quantity"] == "30"
+
+
+def _load_bars_dataset():
+    workspace_id, dataset_id = uuid4(), uuid4()
+    template = Bar.model_validate_json((FIXTURES / "Bar.json").read_text())
+    run = BacktestRun.model_validate_json((FIXTURES / "BacktestRun.json").read_text()).model_copy(
+        update={"workspace_id": workspace_id, "dataset_id": dataset_id}
+    )
+    bars = tuple(
+        template.model_copy(
+            update={
+                "workspace_id": workspace_id,
+                "dataset_id": dataset_id,
+                "instrument_id": instrument,
+                "timestamp": template.timestamp + timedelta(minutes=index),
+            }
+        )
+        for instrument in ("MOCK:ABC", "MOCK:DEF")
+        for index in range(3)
+    )
+    return workspace_id, dataset_id, run, bars
+
+
+def test_load_bars_uses_one_bulk_dataset_read_when_the_adapter_supports_it():
+    workspace_id, dataset_id, run, bars = _load_bars_dataset()
+
+    class BulkMarket(MockMarketData):
+        def __init__(self) -> None:
+            super().__init__()
+            self.bulk_calls = 0
+            self.query_calls = 0
+
+        def bars_for_dataset(self, workspace_id, dataset_id, start, end, *, limit: int = 10_000):
+            self.bulk_calls += 1
+            return tuple(
+                bar
+                for bar in self._datasets[(workspace_id, dataset_id)]
+                if start <= bar.timestamp < end
+            )
+
+        def query_bars(self, query):
+            self.query_calls += 1
+            return super().query_bars(query)
+
+    market = BulkMarket()
+    market.write_bars(workspace_id, dataset_id, tuple(reversed(bars)))
+    engine = MockEngineAdapter(market, MockObjectStore(), {})
+
+    loaded, depth = engine._load_bars(run)
+
+    assert market.bulk_calls == 1
+    assert market.query_calls == 0
+    assert loaded == tuple(sorted(bars, key=lambda bar: (bar.timestamp, bar.instrument_id)))
+    assert depth == {}
+
+
+def test_load_bars_falls_back_to_independent_per_stream_reads():
+    workspace_id, dataset_id, run, bars = _load_bars_dataset()
+
+    class PagedMarket(MockMarketData):
+        def __init__(self) -> None:
+            super().__init__()
+            self.queries: list[tuple[str, str | None]] = []
+
+        def bars_for_dataset(self, workspace_id, dataset_id, start, end, *, limit: int = 10_000):
+            return None
+
+        def query_bars(self, query):
+            self.queries.append((query.instrument_id, query.cursor))
+            return super().query_bars(query)
+
+    market = PagedMarket()
+    market.write_bars(workspace_id, dataset_id, tuple(reversed(bars)))
+    engine = MockEngineAdapter(market, MockObjectStore(), {})
+
+    loaded, depth = engine._load_bars(run)
+
+    assert {instrument for instrument, _ in market.queries} == {"MOCK:ABC", "MOCK:DEF"}
+    assert all(cursor is None for _, cursor in market.queries)
+    assert loaded == tuple(sorted(bars, key=lambda bar: (bar.timestamp, bar.instrument_id)))
+    assert depth == {}

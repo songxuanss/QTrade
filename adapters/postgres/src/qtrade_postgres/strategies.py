@@ -158,6 +158,25 @@ class PostgresStrategyStore(PostgresStore):
             ).fetchall()
         return tuple(self._version(row) for row in rows)
 
+    def versions_for(
+        self, workspace_id: UUID, strategy_ids: tuple[UUID, ...]
+    ) -> tuple[StrategyVersion, ...]:
+        if not strategy_ids:
+            return ()
+        if len(strategy_ids) > 200:
+            raise PortError(ErrorCode.INVALID_INPUT, "invalid strategy selection")
+        with self._connection() as conn:
+            rows = conn.execute(
+                column_query(
+                    "SELECT {} FROM strategy_version WHERE "
+                    "workspace_id=%s AND strategy_id = ANY(%s) "
+                    "ORDER BY strategy_id,version",
+                    self._version_columns(),
+                ),
+                (workspace_id, list(strategy_ids)),
+            ).fetchall()
+        return tuple(self._version(row) for row in rows)
+
     def version_by_id(
         self, workspace_id: UUID, strategy_version_id: UUID
     ) -> StrategyVersion | None:

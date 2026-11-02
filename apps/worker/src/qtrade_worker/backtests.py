@@ -27,9 +27,9 @@ from qtrade_runner_adapter.strategy_program import IsolatedBatchStrategyProgram
 
 logger = logging.getLogger(__name__)
 LEASE_SECONDS = int(os.environ.get("QTRADE_BACKTEST_LEASE_SECONDS", "300"))
-SIGNAL_CHUNK = int(os.environ.get("QTRADE_BACKTEST_SIGNAL_CHUNK", "1000"))
+SIGNAL_CHUNK = int(os.environ.get("QTRADE_BACKTEST_SIGNAL_CHUNK", "5000"))
 MAX_ATTEMPTS = int(os.environ.get("QTRADE_BACKTEST_MAX_ATTEMPTS", "3"))
-POLL_SECONDS = 0.5
+POLL_SECONDS = float(os.environ.get("QTRADE_BACKTEST_POLL_SECONDS", "0.2"))
 
 
 def _objects() -> S3ObjectStore:

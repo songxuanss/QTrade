@@ -80,8 +80,14 @@ def strategy_router(
     def list_strategies(
         access: Annotated[WorkspaceAccess, Depends(security.workspace(Permission.READ))],
         limit: Annotated[int, Query(ge=1, le=200)] = 100,
+        include_versions: Annotated[bool, Query()] = False,
     ) -> list[dict[str, object]]:
         try:
+            if include_versions:
+                return [
+                    {**_strategy(item), "strategy_versions": [_version(v) for v in versions]}
+                    for item, versions in configured().list_with_versions(access, limit)
+                ]
             return [_strategy(item) for item in configured().list(access, limit)]
         except PortError as error:
             raise public_error(error) from None

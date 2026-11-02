@@ -43,6 +43,19 @@ class StrategyService:
             raise PortError(ErrorCode.NOT_FOUND, "strategy unavailable")
         return strategy
 
+    def list_with_versions(
+        self, access: WorkspaceAccess, limit: int = 100
+    ) -> tuple[tuple[Strategy, tuple[StrategyVersion, ...]], ...]:
+        """List strategies and their versions in two reads instead of one per strategy."""
+        access.require(Permission.READ)
+        workspace_id = access.workspace.workspace_id
+        strategies = self._strategies.list(workspace_id, limit)
+        active = tuple(item.strategy_id for item in strategies if not item.archived)
+        grouped: dict[UUID, list[StrategyVersion]] = {}
+        for version in self._strategies.versions_for(workspace_id, active):
+            grouped.setdefault(version.strategy_id, []).append(version)
+        return tuple((item, tuple(grouped.get(item.strategy_id, ()))) for item in strategies)
+
     def versions(self, access: WorkspaceAccess, strategy_id: UUID) -> tuple[StrategyVersion, ...]:
         self.get(access, strategy_id)
         result = self._strategies.versions(access.workspace.workspace_id, strategy_id)

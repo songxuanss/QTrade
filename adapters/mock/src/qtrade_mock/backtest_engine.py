@@ -3,6 +3,7 @@
 import hashlib
 import json
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, replace
 from datetime import UTC, date, datetime
 from decimal import Decimal
@@ -115,7 +116,7 @@ ProgramResolver = Callable[[UUID, UUID, str, int], MockStrategyProgram | BatchSt
 class MockEngineAdapter(TradingEnginePort):
     """Replay immutable bars in timestamp order and convert fills to canonical JSON."""
 
-    _SIGNAL_CHUNK = 1000
+    _SIGNAL_CHUNK = 5000
 
     def __init__(
         self,
@@ -123,7 +124,7 @@ class MockEngineAdapter(TradingEnginePort):
         objects: ObjectStorePort,
         programs: dict[str, MockStrategyProgram | BatchStrategyProgram],
         resolver: ProgramResolver | None = None,
-        signal_chunk_bars: int = 1000,
+        signal_chunk_bars: int = 5000,
     ) -> None:
         self._market = market
         self._objects = objects
@@ -294,33 +295,52 @@ class MockEngineAdapter(TradingEnginePort):
     def _load_bars(
         self, run: BacktestRun, execution: BacktestExecutionModel | None = None
     ) -> tuple[tuple[Bar, ...], dict[tuple[str, datetime], dict[Decimal, Decimal]]]:
-        # Query one deterministic page stream per instrument. The dataset and bars
-        # are immutable, so a stable sort creates a stable event order across adapters.
+        # One ordered dataset read is cheaper than one connection per stream and
+        # keeps the sort deterministic. Adapters may expose that bulk read; when
+        # they do not (or the series overflows its budget), fall back to
+        # concurrent per-instrument pages, which are independent queries.
         from qtrade_domain.ports import BarQuery
 
-        instruments = self._market_instruments(run.workspace_id, run.dataset_id)
-        collected: list[Bar] = []
-        for instrument, granularity in instruments:
-            cursor: str | None = None
-            while True:
-                page = self._market.query_bars(
-                    BarQuery(
-                        run.workspace_id,
-                        run.dataset_id,
-                        instrument,
-                        granularity,
-                        run.start,
-                        run.end,
-                        limit=10000,
-                        cursor=cursor,
+        collected: list[Bar]
+        bulk = getattr(self._market, "bars_for_dataset", None)
+        loaded: tuple[Bar, ...] | None = None
+        if callable(bulk):
+            loaded = bulk(run.workspace_id, run.dataset_id, run.start, run.end)
+        if loaded is not None:
+            collected = [bar for bar in loaded if bar.quality in {"valid", "suspect"}]
+        else:
+            instruments = self._market_instruments(run.workspace_id, run.dataset_id)
+
+            def stream(item: tuple[str, str]) -> list[Bar]:
+                instrument, granularity = item
+                bars: list[Bar] = []
+                cursor: str | None = None
+                while True:
+                    page = self._market.query_bars(
+                        BarQuery(
+                            run.workspace_id,
+                            run.dataset_id,
+                            instrument,
+                            granularity,
+                            run.start,
+                            run.end,
+                            limit=10000,
+                            cursor=cursor,
+                        )
                     )
-                )
-                # Suspended bars are kept so pending orders can be rejected
-                # explicitly; they are never used for strategy evaluation.
-                collected.extend(bar for bar in page.bars if bar.quality in {"valid", "suspect"})
-                if page.next_cursor is None:
-                    break
-                cursor = page.next_cursor
+                    # Suspended bars are kept so pending orders can be rejected
+                    # explicitly; they are never used for strategy evaluation.
+                    bars.extend(bar for bar in page.bars if bar.quality in {"valid", "suspect"})
+                    if page.next_cursor is None:
+                        break
+                    cursor = page.next_cursor
+                return bars
+
+            if len(instruments) > 1:
+                with ThreadPoolExecutor(max_workers=min(8, len(instruments))) as pool:
+                    collected = [bar for bars in pool.map(stream, instruments) for bar in bars]
+            else:
+                collected = [bar for item in instruments for bar in stream(item)]
         ordered = tuple(sorted(collected, key=lambda bar: (bar.timestamp, bar.instrument_id)))
         depth: dict[tuple[str, datetime], dict[Decimal, Decimal]] = {}
         if ordered and ordered[0].granularity == "tick":
