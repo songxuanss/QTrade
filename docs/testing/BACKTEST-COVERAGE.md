@@ -32,6 +32,7 @@
 | 策略横向比对 | 真实 compare API | `strategy-portfolio-report.json` | `comparable=true`、`warnings=[]`；唯一输入差异为 `strategy_version_id` |
 | 对比页（桌面/手机） | 真实 UI | `compare-ui-results.json`、`desktop-07-compare.png`、`mobile-04-compare.png` | 6 条归一权益路径与指标差异表；显示“输入范围可直接比较”；无横向溢出 |
 | 参数灵活定制 | 真实 Worker | `portfolio-parameter-variation.json` | 同版本改 `lookback=40/top_n=3/rebalance=10`：-14.38%、MDD 28.32%、换手 10.58× |
+| 参数定制（UI） | 真实 UI → Worker | `ui-param-run-results.json`，Run `0e8e5680-…` | 选 v4 后表单切换为 6 个动量字段；提交结果与 API 变体一致；manifest `parameters_json` 与 SHA-256 一致 |
 | 策略选股差异 | 真实成交回报 | `portfolio-selection-overlap.json` | 低波与动量期末持仓重合 0 只、反转 1 只、趋势/风险调整各 3 只；等权覆盖 20 只 |
 | 同参数可复现 | 真实 Worker | 同上 | 两次运行权益曲线 SHA-256 相同、全部指标逐项相同 |
 | 低波动/反转行业共识核对 | 真实结果 | 同上 | 低波波动率/回撤最低；反转换手最高；蓝筹震荡年份反转/趋势为负、基准为正 |
