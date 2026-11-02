@@ -122,6 +122,19 @@
 - 趋势与反转在 2025-10 至 2026-10 的震荡蓝筹年份为负收益，等权基准为正；动量仅微正。结果方向可解释，不宣称样本外可直接复制。
 - 等权基准的换手仅 0.88×，作为被动对照合理。
 
+选股结果确实不同（按成交回报还原期末持仓）：
+
+| 策略 | 期末持仓 | 全期交易过的标的 | 与动量期末持仓重合 |
+| --- | --- | --- | --- |
+| 中期动量 | 5 | 15 | 5（自身） |
+| 短期反转 | 5 | 19 | 1 |
+| 低波动 | 5 | 10 | 0 |
+| 趋势 20/60 | 5 | 16 | 3 |
+| 风险调整动量 | 5 | 17 | 3 |
+| 等权基准 | 20 | 20 | 5 |
+
+低波动与动量的期末持仓完全不重合、反转为 1 只，说明各策略的排序与选股并非同一组标的的装饰性差异；等权基准覆盖全部 20 只，符合其定义。
+
 参数灵活性与确定性（同一策略版本、不同参数）：
 
 - 同一动量 v4 改为 `lookback=40, skip=5, top_n=3, position_value=280000, rebalance_every=10, lot_size=100`。
@@ -163,6 +176,7 @@ UI 与持久化：
 - `.tools/verification-local/review/ui-strategy-portfolio/mobile-04-compare.png`
 - `.tools/verification-local/review/ui-strategy-portfolio/compare-ui-results.json`
 - `.tools/verification-local/review/portfolio-parameter-variation.json`
+- `.tools/verification-local/review/portfolio-selection-overlap.json`
 - `scripts/acceptance-strategy-catalog.py`、`scripts/verification-strategy-portfolio.py`、`scripts/verification-portfolio-rejections.py`
 
 ### 公司行为样本（600519.SH，2025 全年，买入并持有 100 股）
