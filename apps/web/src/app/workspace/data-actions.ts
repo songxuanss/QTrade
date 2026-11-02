@@ -1,6 +1,7 @@
 "use server";
 
 import { publishResearchDataset } from "../../features/data/research-server";
+import { composePoolDataset } from "../../features/data/composition-server";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import {
@@ -86,6 +87,42 @@ export async function publishResearchAction(form: FormData) {
     "assets",
     "research",
   );
+}
+
+export async function composePoolDatasetAction(form: FormData) {
+  const first = String(form.get("start_date") ?? "");
+  const last = String(form.get("end_date") ?? "");
+  const start = Date.parse(`${first}T00:00:00+08:00`);
+  const end = Date.parse(`${last}T00:00:00+08:00`) + 86400_000;
+  const selectionSize = Number(form.get("selection_size"));
+  if (
+    !/^\d{4}-\d{2}-\d{2}$/.test(first) ||
+    !/^\d{4}-\d{2}-\d{2}$/.test(last) ||
+    !Number.isFinite(start) ||
+    !Number.isFinite(end) ||
+    start >= end ||
+    !Number.isInteger(selectionSize) ||
+    selectionSize < 1 ||
+    selectionSize > 50
+  )
+    return finish("composition_rejected", "assets", "research");
+  const result = await composePoolDataset({
+    snapshot_id: String(form.get("snapshot_id") ?? ""),
+    start: new Date(start).toISOString(),
+    end: new Date(end).toISOString(),
+    selection_size: selectionSize,
+  });
+  if ("error" in result)
+    return finish(
+      result.error === "rejected"
+        ? "composition_rejected"
+        : "composition_unavailable",
+      "assets",
+      "research",
+    );
+  return finish("composition_saved", "assets", "research", {
+    composed_dataset: result.result.dataset.dataset_id,
+  });
 }
 
 export async function createHistoryTaskAction(form: FormData) {

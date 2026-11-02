@@ -41,6 +41,7 @@ from qtrade_application.backtesting import BacktestEngineIdentity, BacktestServi
 from qtrade_application.calendars import CalendarService
 from qtrade_application.capabilities import CapabilityRegistry
 from qtrade_application.data_management import DataManagementService
+from qtrade_application.dataset_composition import DatasetCompositionService
 from qtrade_application.identity import IdentityService
 from qtrade_application.instruments import InstrumentService
 from qtrade_application.kill_switch import KillSwitchService
@@ -334,6 +335,14 @@ app.include_router(
         else None,
         PostgresDatasetRepository(os.environ["DATABASE_URL"]) if service is not None else None,
         research_replay_from_env()
+        if service is not None and os.environ.get("MARKET_DATABASE_URL")
+        else None,
+        DatasetCompositionService(
+            PostgresDatasetRepository(os.environ["DATABASE_URL"]),
+            research_replay_from_env(),
+            TimescaleMarketData(os.environ["MARKET_DATABASE_URL"]),
+            universe_catalog_from_env(workspaces),
+        )
         if service is not None and os.environ.get("MARKET_DATABASE_URL")
         else None,
     )

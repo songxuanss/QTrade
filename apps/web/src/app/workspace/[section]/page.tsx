@@ -13,6 +13,7 @@ import {
   workspaceInstrumentNames,
 } from "../../../features/data/collector-server";
 import { UniversePanel } from "../../../features/data/universe-panel";
+import { CompositionPanel } from "../../../features/data/composition-panel";
 import {
   workspaceUniverseCatalog,
   workspaceUniverseSnapshot,
@@ -129,6 +130,7 @@ export default async function WorkspaceSection({
     download_start?: string;
     download_end?: string;
     data_view?: string;
+    composed_dataset?: string;
     collect_view?: string;
     research_view?: string;
     asset_view?: string;
@@ -309,6 +311,14 @@ export default async function WorkspaceSection({
           </Suspense>
         }
         research={research}
+        compositionPanel={
+          <CompositionPanel
+            snapshots={recent}
+            canManage={identity.workspace?.role === "admin"}
+            result={query.result}
+            composedDataset={query.composed_dataset}
+          />
+        }
         sourceOptions={data?.sourceOptions ?? []}
         qualityReport={quality}
         showQuality={Boolean(query.quality_dataset)}

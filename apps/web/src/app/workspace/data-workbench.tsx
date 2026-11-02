@@ -78,6 +78,7 @@ export function DataWorkbench({
   healthPanel,
   usagePanel,
   sourceProfilePanel,
+  compositionPanel,
   initialView = "collect",
   initialResearchView = "financial",
   initialAssetView = "research",
@@ -92,6 +93,7 @@ export function DataWorkbench({
   healthPanel?: ReactNode;
   usagePanel?: ReactNode;
   sourceProfilePanel?: ReactNode;
+  compositionPanel?: ReactNode;
   initialView?: string;
   initialResearchView?: string;
   initialAssetView?: string;
@@ -268,6 +270,7 @@ export function DataWorkbench({
                               result={result}
                             />
                           )}
+                          {compositionPanel}
                         </>
                       ),
                     },

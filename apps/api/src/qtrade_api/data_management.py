@@ -11,6 +11,10 @@ from pydantic import BaseModel, ConfigDict, Field
 from qtrade_api.audit_context import request_context
 from qtrade_api.security import ApiSecurity, public_error
 from qtrade_application.data_management import DataManagementService
+from qtrade_application.dataset_composition import (
+    CompositionRequest,
+    DatasetCompositionService,
+)
 from qtrade_application.datasets import DatasetReplayService
 from qtrade_application.research_data import ResearchDataService
 from qtrade_domain.audit_port import AuditDetails, AuditRecord, AuditStorePort, contextualize
@@ -33,6 +37,19 @@ class CollectionBody(BaseModel):
     mode: Literal["check", "all", "missing"] = "check"
 
 
+class ComposeDatasetBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    snapshot_id: UUID
+    start: datetime
+    end: datetime
+    selection_size: int = Field(default=20, ge=1, le=50)
+    granularity: Literal["1d"] = "1d"
+    transformation_version: str = Field(
+        default="mairui.unadjusted-bars.v1", min_length=1, max_length=256
+    )
+
+
 def data_management_router(
     service: DataManagementService | None,
     security: ApiSecurity,
@@ -40,6 +57,7 @@ def data_management_router(
     research: ResearchDataService | None = None,
     datasets: DatasetRepositoryPort | None = None,
     replay: DatasetReplayService | None = None,
+    composition: DatasetCompositionService | None = None,
 ) -> APIRouter:
     router = APIRouter(prefix="/api/v1/workspaces/{workspace_id}/data", tags=["data-management"])
 
@@ -75,6 +93,45 @@ def data_management_router(
             return replay.quality_report(access, dataset_id)
         except PortError as error:
             raise public_error(error) from None
+
+    @router.post("/datasets/compose", status_code=201)
+    def compose_dataset(
+        body: ComposeDatasetBody,
+        access: Annotated[
+            WorkspaceAccess,
+            Depends(security.workspace(Permission.DATA_MANAGE, mutate=True)),
+        ],
+    ) -> dict[str, object]:
+        if composition is None:
+            raise HTTPException(503, "dataset composition unavailable")
+        try:
+            result = composition.compose(
+                access,
+                CompositionRequest(
+                    access.workspace.workspace_id,
+                    body.snapshot_id,
+                    body.start,
+                    body.end,
+                    selection_size=body.selection_size,
+                    granularity=body.granularity,
+                    transformation_version=body.transformation_version,
+                ),
+            )
+        except PortError as error:
+            raise public_error(error) from None
+        return {
+            "dataset": result.dataset.metadata.model_dump(mode="json"),
+            "snapshot_id": str(result.snapshot_id),
+            "selected": [
+                {
+                    "instrument_id": item.instrument_id,
+                    "average_value": item.average_value,
+                    "weeks": item.weeks,
+                }
+                for item in result.selected
+            ],
+            "excluded": list(result.excluded),
+        }
 
     @router.post("/tasks/{task_id}/dataset", status_code=201)
     def publish_research(
