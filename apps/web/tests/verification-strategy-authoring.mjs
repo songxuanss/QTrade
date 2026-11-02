@@ -49,10 +49,13 @@ try {
   const templatePanel = page.getByRole("region", { name: "策略模板" });
   await expect(templatePanel).toBeVisible();
   const cards = templatePanel.locator(".strategy-template-card");
-  await expect(cards).toHaveCount(15);
+  await expect(cards).toHaveCount(21);
   const groups = await templatePanel.locator(".strategy-template-group h3").allInnerTexts();
-  assert.ok(groups.length >= 4, `template groups missing: ${groups}`);
-  step("模板面板可见", { count: 15, groups });
+  assert.ok(groups.length >= 5, `template groups missing: ${groups}`);
+  await expect(
+    templatePanel.getByText("论坛实战派", { exact: false }),
+  ).toBeVisible();
+  step("模板面板可见", { count: 21, groups });
 
   const stamp = new Date().toISOString().slice(11, 19);
   const strategyName = `模板验收 · 横截面动量 ${stamp}`;

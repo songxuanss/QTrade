@@ -31,6 +31,11 @@ export const STRATEGY_TEMPLATE_GROUPS: StrategyTemplateGroup[] =
     return groups;
   }, []);
 
+export const STRATEGY_CATEGORY_NOTES: Record<string, string> = {
+  扫地僧:
+    "论坛实战派：规则来自公开社区讨论，逻辑朴素、换手较高，未经严谨学术检验；默认参数只为让流程跑通，不代表策略有效。",
+};
+
 export function findTemplate(id: string): StrategyTemplate | undefined {
   return STRATEGY_TEMPLATES.find((template) => template.id === id);
 }

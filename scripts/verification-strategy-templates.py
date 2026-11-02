@@ -9,6 +9,7 @@ records orders, fills and equity. No fixture prices or synthetic returns.
 
 from __future__ import annotations
 
+import argparse
 import importlib.util
 import json
 import sys
@@ -36,10 +37,23 @@ def load_module(name: str, path: Path) -> Any:
 
 
 def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--only",
+        default="",
+        help="comma separated template ids; defaults to the whole library",
+    )
+    arguments = parser.parse_args()
     portfolio = load_module(
         "portfolio_acceptance", ROOT / "scripts/verification-strategy-portfolio.py"
     )
     templates = json.loads(TEMPLATES.read_text(encoding="utf-8"))
+    if arguments.only.strip():
+        wanted = {item.strip() for item in arguments.only.split(",") if item.strip()}
+        unknown = wanted - {str(item["id"]) for item in templates}
+        if unknown:
+            raise SystemExit(f"unknown template ids: {sorted(unknown)}")
+        templates = [item for item in templates if item["id"] in wanted]
     client = httpx.Client(follow_redirects=False, timeout=300)
     session = portfolio.login(client)
     api = portfolio.Api(client, session)

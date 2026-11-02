@@ -31,7 +31,7 @@ import {
   type ParameterSchema,
 } from "./schema-editor";
 import { registerStrategyLanguageSupport } from "./strategy-language";
-import { STRATEGY_TEMPLATES, STRATEGY_TEMPLATE_GROUPS, findTemplate } from "./templates";
+import { STRATEGY_TEMPLATES, STRATEGY_TEMPLATE_GROUPS, STRATEGY_CATEGORY_NOTES, findTemplate } from "./templates";
 
 loader.config({ paths: { vs: "/monaco/vs" } });
 
@@ -484,6 +484,11 @@ export function StrategyWorkbench({
                       {group.category}
                       <small>{group.templates.length}</small>
                     </h3>
+                    {STRATEGY_CATEGORY_NOTES[group.category] ? (
+                      <p className="strategy-template-note">
+                        {STRATEGY_CATEGORY_NOTES[group.category]}
+                      </p>
+                    ) : null}
                     <div className="strategy-template-grid">
                       {group.templates.map((template) => (
                         <button

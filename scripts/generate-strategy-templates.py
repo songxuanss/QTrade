@@ -957,6 +957,412 @@ class VolTargetMomentum(Strategy):
 '''
 
 
+DRAGON = '''from qtrade import Strategy
+
+
+class DragonPullback(Strategy):
+    """龙回头：前期强势股缩量回踩均线时低吸，反弹、破位或超时离场。"""
+
+    def on_start(self):
+        self.run_window = int(self.parameters.get("run_window", 20))
+        self.run_gain = float(self.parameters.get("run_gain", 0.25))
+        self.pullback_min = float(self.parameters.get("pullback_min", 0.03))
+        self.pullback_max = float(self.parameters.get("pullback_max", 0.12))
+        self.volume_ratio = float(self.parameters.get("volume_ratio", 0.8))
+        self.support_window = int(self.parameters.get("support_window", 10))
+        self.take_profit = float(self.parameters.get("take_profit", 0.08))
+        self.max_hold = int(self.parameters.get("max_hold", 10))
+        self.position_value = float(self.parameters.get("position_value", 50000))
+        self.lot = int(self.parameters.get("lot_size", 100))
+        if self.run_window < 5 or self.support_window < 3:
+            raise ValueError("windows must be at least 5 and 3")
+        if self.run_gain <= 0 or self.pullback_min <= 0:
+            raise ValueError("run gain and pullback must be positive")
+        if self.pullback_min >= self.pullback_max:
+            raise ValueError("pullback minimum must be below maximum")
+        if self.volume_ratio <= 0 or self.take_profit <= 0 or self.max_hold < 1:
+            raise ValueError("invalid volume or exit settings")
+        if self.position_value <= 0 or self.lot < 1:
+            raise ValueError("position value and lot must be positive")
+        self.closes = {}
+        self.highs = {}
+        self.volumes = {}
+        self.quantity = {}
+        self.entry = {}
+        self.held_days = {}
+
+    def on_bar(self, bar):
+        instrument = bar.instrument_id
+        closes = self.closes.setdefault(instrument, [])
+        highs = self.highs.setdefault(instrument, [])
+        volumes = self.volumes.setdefault(instrument, [])
+        close = float(bar.close)
+        high = float(bar.high)
+        volume = float(bar.volume)
+        held = self.quantity.get(instrument, 0)
+        if held > 0:
+            self.held_days[instrument] = self.held_days.get(instrument, 0) + 1
+            if len(closes) >= self.support_window:
+                support = sum(closes[-self.support_window:]) / self.support_window
+            else:
+                support = close
+            target = self.entry.get(instrument, close) * (1.0 + self.take_profit)
+            if close < support or close >= target:
+                self.sell(held, instrument_id=instrument)
+                self.quantity[instrument] = 0
+                self.entry.pop(instrument, None)
+                self.held_days[instrument] = 0
+            elif self.held_days[instrument] >= self.max_hold:
+                self.sell(held, instrument_id=instrument)
+                self.quantity[instrument] = 0
+                self.entry.pop(instrument, None)
+                self.held_days[instrument] = 0
+        elif len(closes) > self.run_window and len(volumes) > 5:
+            run_low = min(closes[-self.run_window - 1:-1])
+            run_high = max(highs[-self.run_window:])
+            gain = closes[-1] / run_low - 1.0
+            pullback = close / run_high - 1.0 if run_high > 0 else 0.0
+            average_volume = sum(volumes[-6:-1]) / 5.0
+            shrunk = average_volume > 0 and volume <= self.volume_ratio * average_volume
+            support = sum(closes[-self.support_window:]) / self.support_window
+            if (
+                gain >= self.run_gain
+                and -self.pullback_max <= pullback <= -self.pullback_min
+                and shrunk
+                and close >= support
+            ):
+                size = int(self.position_value / close / self.lot) * self.lot
+                if size > 0:
+                    self.buy(size, instrument_id=instrument)
+                    self.quantity[instrument] = size
+                    self.entry[instrument] = close
+                    self.held_days[instrument] = 0
+        closes.append(close)
+        highs.append(high)
+        volumes.append(volume)
+'''
+
+VOLUME_SURGE = '''from qtrade import Strategy
+
+
+class VolumePriceSurge(Strategy):
+    """量价齐升：放量突破近期高点且均线向上时跟进，跌破短均线离场。"""
+
+    def on_start(self):
+        self.trend_window = int(self.parameters.get("trend_window", 20))
+        self.breakout_window = int(self.parameters.get("breakout_window", 10))
+        self.volume_window = int(self.parameters.get("volume_window", 20))
+        self.volume_ratio = float(self.parameters.get("volume_ratio", 1.8))
+        self.exit_window = int(self.parameters.get("exit_window", 10))
+        self.max_hold = int(self.parameters.get("max_hold", 20))
+        self.position_value = float(self.parameters.get("position_value", 50000))
+        self.lot = int(self.parameters.get("lot_size", 100))
+        if self.trend_window < 3 or self.breakout_window < 2 or self.volume_window < 2:
+            raise ValueError("windows must be at least 3, 2 and 2")
+        if self.volume_ratio <= 0 or self.exit_window < 2 or self.max_hold < 1:
+            raise ValueError("invalid volume or exit settings")
+        if self.position_value <= 0 or self.lot < 1:
+            raise ValueError("position value and lot must be positive")
+        self.closes = {}
+        self.volumes = {}
+        self.quantity = {}
+        self.held_days = {}
+
+    def on_bar(self, bar):
+        instrument = bar.instrument_id
+        closes = self.closes.setdefault(instrument, [])
+        volumes = self.volumes.setdefault(instrument, [])
+        close = float(bar.close)
+        volume = float(bar.volume)
+        held = self.quantity.get(instrument, 0)
+        if held > 0:
+            self.held_days[instrument] = self.held_days.get(instrument, 0) + 1
+            if len(closes) >= self.exit_window:
+                exit_line = sum(closes[-self.exit_window:]) / self.exit_window
+            else:
+                exit_line = close
+            if close < exit_line or self.held_days[instrument] >= self.max_hold:
+                self.sell(held, instrument_id=instrument)
+                self.quantity[instrument] = 0
+                self.held_days[instrument] = 0
+        elif len(closes) >= self.trend_window + 1:
+            trend = sum(closes[-self.trend_window:]) / self.trend_window
+            trend_previous = sum(closes[-self.trend_window - 1:-1]) / self.trend_window
+            prior_high = max(closes[-self.breakout_window - 1:-1])
+            average_volume = sum(
+                volumes[-self.volume_window - 1:-1]
+            ) / self.volume_window
+            if (
+                close > trend
+                and trend > trend_previous
+                and close > prior_high
+                and average_volume > 0
+                and volume >= self.volume_ratio * average_volume
+            ):
+                size = int(self.position_value / close / self.lot) * self.lot
+                if size > 0:
+                    self.buy(size, instrument_id=instrument)
+                    self.quantity[instrument] = size
+                    self.held_days[instrument] = 0
+        closes.append(close)
+        volumes.append(volume)
+'''
+
+SQUEEZE = '''from qtrade import Strategy
+
+
+class MovingAverageSqueeze(Strategy):
+    """均线粘合突破：短中长均线收窄后放量突破前高入场，跌破慢线离场。"""
+
+    def on_start(self):
+        self.fast = int(self.parameters.get("fast", 5))
+        self.mid = int(self.parameters.get("mid", 10))
+        self.slow = int(self.parameters.get("slow", 20))
+        self.squeeze_ratio = float(self.parameters.get("squeeze_ratio", 0.02))
+        self.squeeze_days = int(self.parameters.get("squeeze_days", 3))
+        self.breakout_window = int(self.parameters.get("breakout_window", 20))
+        self.position_value = float(self.parameters.get("position_value", 50000))
+        self.lot = int(self.parameters.get("lot_size", 100))
+        if self.fast < 2 or self.fast >= self.mid or self.mid >= self.slow:
+            raise ValueError("moving average windows must increase")
+        if self.squeeze_ratio <= 0 or self.squeeze_days < 1:
+            raise ValueError("invalid squeeze settings")
+        if self.breakout_window < 5:
+            raise ValueError("breakout window must be at least 5")
+        if self.position_value <= 0 or self.lot < 1:
+            raise ValueError("position value and lot must be positive")
+        self.closes = {}
+        self.squeeze_count = {}
+        self.quantity = {}
+
+    def on_bar(self, bar):
+        instrument = bar.instrument_id
+        closes = self.closes.setdefault(instrument, [])
+        closes.append(float(bar.close))
+        if len(closes) < self.slow:
+            return
+        close = closes[-1]
+        fast_line = sum(closes[-self.fast:]) / self.fast
+        mid_line = sum(closes[-self.mid:]) / self.mid
+        slow_line = sum(closes[-self.slow:]) / self.slow
+        low_line = min(fast_line, mid_line, slow_line)
+        high_line = max(fast_line, mid_line, slow_line)
+        band = (high_line - low_line) / slow_line if slow_line > 0 else 1.0
+        if band <= self.squeeze_ratio:
+            self.squeeze_count[instrument] = self.squeeze_count.get(instrument, 0) + 1
+        else:
+            self.squeeze_count[instrument] = 0
+        held = self.quantity.get(instrument, 0)
+        if held > 0:
+            if close < slow_line:
+                self.sell(held, instrument_id=instrument)
+                self.quantity[instrument] = 0
+            return
+        if len(closes) <= self.breakout_window:
+            return
+        prior_high = max(closes[-self.breakout_window - 1:-1])
+        if self.squeeze_count.get(instrument, 0) >= self.squeeze_days and close > prior_high:
+            size = int(self.position_value / close / self.lot) * self.lot
+            if size > 0:
+                self.buy(size, instrument_id=instrument)
+                self.quantity[instrument] = size
+'''
+
+GAP = '''from qtrade import Strategy
+
+
+class GapHold(Strategy):
+    """跳空不补：放量跳空高开且收阳后跟随，回补缺口或触及止损离场。"""
+
+    def on_start(self):
+        self.gap_min = float(self.parameters.get("gap_min", 0.02))
+        self.volume_ratio = float(self.parameters.get("volume_ratio", 1.3))
+        self.volume_window = int(self.parameters.get("volume_window", 10))
+        self.stop_ratio = float(self.parameters.get("stop_ratio", 0.06))
+        self.take_profit = float(self.parameters.get("take_profit", 0.15))
+        self.max_hold = int(self.parameters.get("max_hold", 10))
+        self.position_value = float(self.parameters.get("position_value", 50000))
+        self.lot = int(self.parameters.get("lot_size", 100))
+        if self.gap_min <= 0 or self.volume_ratio <= 0 or self.volume_window < 2:
+            raise ValueError("invalid gap or volume settings")
+        if self.stop_ratio <= 0 or self.stop_ratio >= 1:
+            raise ValueError("stop ratio must be inside (0, 1)")
+        if self.take_profit <= 0 or self.max_hold < 1:
+            raise ValueError("invalid profit target or holding limit")
+        if self.position_value <= 0 or self.lot < 1:
+            raise ValueError("position value and lot must be positive")
+        self.previous = {}
+        self.volumes = {}
+        self.quantity = {}
+        self.entry = {}
+        self.gap_floor = {}
+        self.held_days = {}
+
+    def on_bar(self, bar):
+        instrument = bar.instrument_id
+        volumes = self.volumes.setdefault(instrument, [])
+        close = float(bar.close)
+        open_price = float(bar.open)
+        volume = float(bar.volume)
+        previous = self.previous.get(instrument)
+        held = self.quantity.get(instrument, 0)
+        if held > 0:
+            self.held_days[instrument] = self.held_days.get(instrument, 0) + 1
+            entry = self.entry.get(instrument, close)
+            floor = self.gap_floor.get(instrument, close)
+            if (
+                close < floor
+                or close <= entry * (1.0 - self.stop_ratio)
+                or close >= entry * (1.0 + self.take_profit)
+                or self.held_days[instrument] >= self.max_hold
+            ):
+                self.sell(held, instrument_id=instrument)
+                self.quantity[instrument] = 0
+                self.entry.pop(instrument, None)
+                self.gap_floor.pop(instrument, None)
+                self.held_days[instrument] = 0
+        elif previous is not None and len(volumes) >= self.volume_window:
+            average_volume = sum(volumes[-self.volume_window:]) / self.volume_window
+            gapped = previous > 0 and open_price >= previous * (1.0 + self.gap_min)
+            if (
+                gapped
+                and close > open_price
+                and average_volume > 0
+                and volume >= self.volume_ratio * average_volume
+            ):
+                size = int(self.position_value / close / self.lot) * self.lot
+                if size > 0:
+                    self.buy(size, instrument_id=instrument)
+                    self.quantity[instrument] = size
+                    self.entry[instrument] = close
+                    self.gap_floor[instrument] = previous
+                    self.held_days[instrument] = 0
+        volumes.append(volume)
+        self.previous[instrument] = close
+'''
+
+GRID = '''from qtrade import Strategy
+
+
+class GridReversion(Strategy):
+    """网格低吸：每跌一格买入、每涨一格卖出一份，适合宽幅震荡的标的。"""
+
+    def on_start(self):
+        self.grid_step = float(self.parameters.get("grid_step", 0.05))
+        self.max_levels = int(self.parameters.get("max_levels", 3))
+        self.position_value = float(self.parameters.get("position_value", 15000))
+        self.lot = int(self.parameters.get("lot_size", 100))
+        if self.grid_step <= 0 or self.grid_step >= 0.5:
+            raise ValueError("grid step must be inside (0, 0.5)")
+        if self.max_levels < 1 or self.max_levels > 20:
+            raise ValueError("max levels must be between 1 and 20")
+        if self.position_value <= 0 or self.lot < 1:
+            raise ValueError("position value and lot must be positive")
+        self.reference = {}
+        self.levels = {}
+        self.quantity = {}
+
+    def on_bar(self, bar):
+        instrument = bar.instrument_id
+        close = float(bar.close)
+        reference = self.reference.get(instrument)
+        if reference is None:
+            self.reference[instrument] = close
+            self.levels[instrument] = []
+            self.quantity[instrument] = 0
+            return
+        levels = self.levels[instrument]
+        size = int(self.position_value / close / self.lot) * self.lot
+        if (
+            len(levels) < self.max_levels
+            and size > 0
+            and close <= reference * (1.0 - self.grid_step)
+        ):
+            self.buy(size, instrument_id=instrument)
+            levels.append(size)
+            self.quantity[instrument] = self.quantity.get(instrument, 0) + size
+            self.reference[instrument] = close
+        elif levels and close >= reference * (1.0 + self.grid_step):
+            sold = levels.pop()
+            self.sell(sold, instrument_id=instrument)
+            self.quantity[instrument] = self.quantity.get(instrument, 0) - sold
+            self.reference[instrument] = close
+'''
+
+KDJ = '''from qtrade import Strategy
+
+
+class KdjCross(Strategy):
+    """KDJ 金叉：低位金叉买入、高位死叉卖出，论坛最常见的短线择时规则之一。"""
+
+    def on_start(self):
+        self.period = int(self.parameters.get("period", 9))
+        self.k_smooth = int(self.parameters.get("k_smooth", 3))
+        self.d_smooth = int(self.parameters.get("d_smooth", 3))
+        self.oversold = float(self.parameters.get("oversold", 30))
+        self.overbought = float(self.parameters.get("overbought", 70))
+        self.position_value = float(self.parameters.get("position_value", 50000))
+        self.lot = int(self.parameters.get("lot_size", 100))
+        if self.period < 2 or self.k_smooth < 1 or self.d_smooth < 1:
+            raise ValueError("invalid kdj windows")
+        if self.oversold <= 0 or self.overbought >= 100:
+            raise ValueError("thresholds must be inside 0-100")
+        if self.oversold >= self.overbought:
+            raise ValueError("oversold must be below overbought")
+        if self.position_value <= 0 or self.lot < 1:
+            raise ValueError("position value and lot must be positive")
+        self.highs = {}
+        self.lows = {}
+        self.closes = {}
+        self.k = {}
+        self.d = {}
+        self.quantity = {}
+
+    def on_bar(self, bar):
+        instrument = bar.instrument_id
+        highs = self.highs.setdefault(instrument, [])
+        lows = self.lows.setdefault(instrument, [])
+        closes = self.closes.setdefault(instrument, [])
+        close = float(bar.close)
+        highs.append(float(bar.high))
+        lows.append(float(bar.low))
+        closes.append(close)
+        if len(closes) < self.period:
+            return
+        lowest = min(lows[-self.period:])
+        highest = max(highs[-self.period:])
+        if highest == lowest:
+            rsv = 50.0
+        else:
+            rsv = (close - lowest) / (highest - lowest) * 100.0
+        previous_k = self.k.get(instrument, 50.0)
+        previous_d = self.d.get(instrument, 50.0)
+        current_k = previous_k + (rsv - previous_k) / self.k_smooth
+        current_d = previous_d + (current_k - previous_d) / self.d_smooth
+        self.k[instrument] = current_k
+        self.d[instrument] = current_d
+        held = self.quantity.get(instrument, 0)
+        if (
+            held == 0
+            and previous_k <= previous_d
+            and current_k > current_d
+            and current_k < self.oversold
+        ):
+            size = int(self.position_value / close / self.lot) * self.lot
+            if size > 0:
+                self.buy(size, instrument_id=instrument)
+                self.quantity[instrument] = size
+        elif (
+            held > 0
+            and previous_k >= previous_d
+            and current_k < current_d
+            and current_k > self.overbought
+        ):
+            self.sell(held, instrument_id=instrument)
+            self.quantity[instrument] = 0
+'''
+
+
 def schema(properties: dict[str, dict[str, object]]) -> dict[str, object]:
     return {
         "type": "object",
@@ -1250,6 +1656,135 @@ def build_templates() -> list[dict[str, object]]:
                     "top_n": integer("持仓数量", 3, 1, 50),
                     "rebalance_every": integer("调仓间隔（交易日）", 5, 1, 60),
                     "position_value": number("单只目标金额", 150000, 1000, 100000000),
+                    "lot_size": integer("整手股数", 100, 1, 1000),
+                }
+            ),
+        },
+        {
+            "id": "dragon-pullback",
+            "name": "龙回头",
+            "category": "扫地僧",
+            "summary": "前期强势股缩量回踩均线时低吸，反弹或破位离场，论坛流传最广的短线战法之一。",
+            "tags": ["实战", "回调", "缩量"],
+            "default_name": "龙回头",
+            "default_description": "20 日内涨幅超过 25% 后，缩量回踩 3%–12% 且不破 10 日线时买入。",
+            "code": DRAGON,
+            "schema": schema(
+                {
+                    "run_window": integer("强势区间天数", 20, 5, 120),
+                    "run_gain": number("强势涨幅门槛", 0.25, 0.05, 1),
+                    "pullback_min": number("最小回调幅度", 0.03, 0.01, 0.2),
+                    "pullback_max": number("最大回调幅度", 0.12, 0.05, 0.4),
+                    "volume_ratio": number("缩量比例", 0.8, 0.1, 1.5),
+                    "support_window": integer("支撑均线天数", 10, 3, 60),
+                    "take_profit": number("止盈比例", 0.08, 0.01, 0.5),
+                    "max_hold": integer("最长持有天数", 10, 1, 60),
+                    "position_value": number("单只目标金额", 50000, 1000, 100000000),
+                    "lot_size": integer("整手股数", 100, 1, 1000),
+                }
+            ),
+        },
+        {
+            "id": "volume-price-surge",
+            "name": "量价齐升",
+            "category": "扫地僧",
+            "summary": "放量突破近期高点且均线向上时跟进，跌破短均线离场，量价配合的经典实战规则。",
+            "tags": ["实战", "放量", "突破"],
+            "default_name": "量价齐升",
+            "default_description": "成交量达到 20 日均量 1.8 倍并突破 10 日高点时买入。",
+            "code": VOLUME_SURGE,
+            "schema": schema(
+                {
+                    "trend_window": integer("趋势均线天数", 20, 3, 120),
+                    "breakout_window": integer("突破回看天数", 10, 2, 120),
+                    "volume_window": integer("均量窗口", 20, 2, 120),
+                    "volume_ratio": number("放量倍数", 1.8, 1, 10),
+                    "exit_window": integer("离场均线天数", 10, 2, 60),
+                    "max_hold": integer("最长持有天数", 20, 1, 120),
+                    "position_value": number("单只目标金额", 50000, 1000, 100000000),
+                    "lot_size": integer("整手股数", 100, 1, 1000),
+                }
+            ),
+        },
+        {
+            "id": "ma-squeeze-breakout",
+            "name": "均线粘合突破",
+            "category": "扫地僧",
+            "summary": "短中长均线收窄代表分歧收敛，随后放量突破前高视为方向选择，跌破慢线离场。",
+            "tags": ["实战", "粘合", "突破"],
+            "default_name": "均线粘合突破",
+            "default_description": "5/10/20 日均线带宽低于 2% 持续 3 天后，突破 20 日高点买入。",
+            "code": SQUEEZE,
+            "schema": schema(
+                {
+                    "fast": integer("快线天数", 5, 2, 30),
+                    "mid": integer("中线天数", 10, 3, 60),
+                    "slow": integer("慢线天数", 20, 5, 120),
+                    "squeeze_ratio": number("粘合带宽比例", 0.02, 0.005, 0.1),
+                    "squeeze_days": integer("粘合持续天数", 3, 1, 20),
+                    "breakout_window": integer("突破回看天数", 20, 5, 120),
+                    "position_value": number("单只目标金额", 50000, 1000, 100000000),
+                    "lot_size": integer("整手股数", 100, 1, 1000),
+                }
+            ),
+        },
+        {
+            "id": "gap-hold",
+            "name": "跳空不补",
+            "category": "扫地僧",
+            "summary": "放量跳空高开且收阳说明资金抢筹，缺口未回补前持有，回补或止损离场。",
+            "tags": ["实战", "缺口", "动量"],
+            "default_name": "跳空不补",
+            "default_description": "高开 2% 且放量收阳时买入，回补缺口或持有 10 日离场。",
+            "code": GAP,
+            "schema": schema(
+                {
+                    "gap_min": number("最小跳空幅度", 0.02, 0.005, 0.2),
+                    "volume_ratio": number("放量倍数", 1.3, 1, 10),
+                    "volume_window": integer("均量窗口", 10, 2, 60),
+                    "stop_ratio": number("止损比例", 0.06, 0.01, 0.3),
+                    "take_profit": number("止盈比例", 0.15, 0.02, 1),
+                    "max_hold": integer("最长持有天数", 10, 1, 60),
+                    "position_value": number("单只目标金额", 50000, 1000, 100000000),
+                    "lot_size": integer("整手股数", 100, 1, 1000),
+                }
+            ),
+        },
+        {
+            "id": "grid-reversion",
+            "name": "网格低吸",
+            "category": "扫地僧",
+            "summary": "每跌一格买入、每涨一格卖出一份，用纪律代替预测的震荡实战法。",
+            "tags": ["实战", "网格", "震荡"],
+            "default_name": "网格低吸",
+            "default_description": "每下跌 5% 买入一份、每上涨 5% 卖出一份，最多持有 3 层。",
+            "code": GRID,
+            "schema": schema(
+                {
+                    "grid_step": number("网格间距", 0.05, 0.01, 0.2),
+                    "max_levels": integer("最大层数", 3, 1, 20),
+                    "position_value": number("每格金额", 15000, 1000, 100000000),
+                    "lot_size": integer("整手股数", 100, 1, 1000),
+                }
+            ),
+        },
+        {
+            "id": "kdj-cross",
+            "name": "KDJ 金叉",
+            "category": "扫地僧",
+            "summary": "低位金叉买入、高位死叉卖出，A 股论坛最常见的短线择时指标，换手较高。",
+            "tags": ["实战", "KDJ", "择时"],
+            "default_name": "KDJ 金叉",
+            "default_description": "KDJ(9,3,3) 在 30 以下金叉买入、70 以上死叉卖出。",
+            "code": KDJ,
+            "schema": schema(
+                {
+                    "period": integer("RSV 周期", 9, 2, 60),
+                    "k_smooth": integer("K 平滑", 3, 1, 10),
+                    "d_smooth": integer("D 平滑", 3, 1, 10),
+                    "oversold": number("超卖阈值", 30, 5, 50),
+                    "overbought": number("超买阈值", 70, 50, 95),
+                    "position_value": number("单只目标金额", 50000, 1000, 100000000),
                     "lot_size": integer("整手股数", 100, 1, 1000),
                 }
             ),

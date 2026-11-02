@@ -3629,6 +3629,16 @@ main {
   color: #6f8f86;
   font: 8px var(--font-mono);
 }
+.strategy-template-note {
+  margin: 0 0 8px;
+  padding: 6px 8px;
+  border-left: 2px solid #8a7040;
+  border-radius: 0 4px 4px 0;
+  background: rgba(138, 112, 64, 0.08);
+  color: #a8926a;
+  font-size: 10px;
+  line-height: 1.6;
+}
 .strategy-template-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));

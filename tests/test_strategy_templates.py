@@ -23,6 +23,12 @@ REQUIRED_IDS = {
     "vol-target-momentum",
     "low-volatility",
     "cross-sectional-reversal",
+    "dragon-pullback",
+    "volume-price-surge",
+    "ma-squeeze-breakout",
+    "gap-hold",
+    "grid-reversion",
+    "kdj-cross",
     "equal-weight",
 }
 
@@ -43,10 +49,10 @@ def test_templates_cover_expected_strategy_kinds():
     items = load_templates()
     ids = [str(item["id"]) for item in items]
     assert len(ids) == len(set(ids))
-    assert len(items) >= 15
+    assert len(items) >= 21
     assert REQUIRED_IDS <= set(ids)
     categories = {str(item["category"]) for item in items}
-    assert {"趋势", "反转", "横截面", "基准"} <= categories
+    assert {"趋势", "反转", "横截面", "扫地僧", "基准"} <= categories
 
 
 def test_templates_have_required_metadata():
