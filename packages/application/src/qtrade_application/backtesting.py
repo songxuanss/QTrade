@@ -405,7 +405,13 @@ class BacktestService:
         )
         now = datetime.now(UTC)
         run_id = uuid4()
-        execution_model = BacktestExecutionModel.from_config(request.execution_model)
+        # Daily bars arrive stamped at exchange midnight Asia/Shanghai (e.g.
+        # 2026-08-21T00:00+08:00). Reading the trading date in UTC would move
+        # every session one day back, so ex-dates and their corporate actions
+        # would apply a day late. The frozen default keeps that date intact.
+        execution_settings = dict(request.execution_model or {})
+        execution_settings.setdefault("timezone_name", "Asia/Shanghai")
+        execution_model = BacktestExecutionModel.from_config(execution_settings)
         execution_config = json.dumps(
             {
                 "benchmark_id": request.benchmark_id,

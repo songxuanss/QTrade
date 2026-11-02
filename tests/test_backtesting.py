@@ -216,3 +216,88 @@ def test_submission_freezes_manifest_before_engine_and_syncs_immutable_result():
     crash = crash_service.create(access, replace(request, random_seed=11))
     assert crash.run.status == "failed"
     assert crash.run.error_code == ErrorCode.UNAVAILABLE.value
+
+
+def _frozen_timezone(execution_model):
+    actor, workspace_id = uuid4(), uuid4()
+    workspace = Workspace(workspace_id, "Research", "team", actor, False, False, datetime.now(UTC))
+    access = WorkspaceAccess(workspace, actor, Role.ADMIN)
+    now = datetime.now(UTC)
+    strategy_id, version_id, dataset_id = uuid4(), uuid4(), uuid4()
+    source = "def signal(close):\n    return close[-1]\n"
+    version = StrategyVersion(
+        schema_version=1,
+        workspace_id=workspace_id,
+        strategy_id=strategy_id,
+        strategy_version_id=version_id,
+        version=1,
+        created_by=actor,
+        created_at=now,
+        code_object_key=f"strategies/{strategy_id}/v1.py",
+        code_sha256=sha256(source.encode()).hexdigest(),
+        parameter_schema_json='{"type":"object","properties":{},"required":[]}',
+        dependencies_sha256=sha256(b"{}").hexdigest(),
+    )
+    strategy = Strategy(strategy_id, workspace_id, "Momentum", "", actor, now, now, 1)
+    strategy_store = MockStrategyStore()
+    strategy_store.create(strategy, version)
+    strategy_store.transition(
+        StrategyVersionState.DRAFT,
+        StrategyVersionLifecycle(
+            workspace_id, strategy_id, version_id, 1, StrategyVersionState.VALIDATED, now
+        ),
+        StrategyStateTransition(
+            uuid4(),
+            workspace_id,
+            strategy_id,
+            version_id,
+            1,
+            StrategyVersionState.DRAFT,
+            StrategyVersionState.VALIDATED,
+            actor,
+            now,
+        ),
+    )
+    metadata = load(MarketDataset).model_copy(
+        update={"workspace_id": workspace_id, "dataset_id": dataset_id, "created_at": now}
+    )
+    datasets = MockDatasetRepository()
+    datasets.put(actor, PublishedDataset(metadata, "b" * 64, None, "c" * 64))
+    objects = MockObjectStore()
+    service = BacktestService(
+        MockBacktestRunStore(),
+        StrategyService(strategy_store, objects),
+        strategy_store,
+        datasets,
+        ManifestService(objects),
+        MockTradingEngine(),
+        objects,
+        BacktestEngineIdentity("mock", "1", "1", "sha256:" + "a" * 64),
+    )
+    queued = service.create(
+        access,
+        BacktestSubmission(
+            strategy_id,
+            1,
+            dataset_id,
+            metadata.start,
+            metadata.end,
+            Decimal("10000"),
+            "CNY",
+            "cost.v1",
+            {},
+            execution_model=execution_model,
+        ),
+    )
+    manifest = ManifestService(objects).get(workspace_id, queued.run.run_id)
+    return json.loads(manifest.execution_config_json)["execution_model"]["timezone_name"]
+
+
+def test_daily_execution_defaults_to_exchange_zone_and_keeps_explicit_choice():
+    # Daily bars are stamped at exchange midnight Asia/Shanghai. A UTC default
+    # would read every trading date one day early and apply ex-date corporate
+    # actions one bar late.
+    assert _frozen_timezone(None) == "Asia/Shanghai"
+    assert _frozen_timezone({}) == "Asia/Shanghai"
+    assert _frozen_timezone({"lot_size": 100}) == "Asia/Shanghai"
+    assert _frozen_timezone({"timezone_name": "UTC"}) == "UTC"

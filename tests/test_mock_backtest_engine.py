@@ -1113,3 +1113,70 @@ def test_depth_model_prices_fills_from_price_levels_and_caps_queue():
     )
     assert queued["fills"][0]["filled_quantity"] == "50"
     assert queued["fills"][0]["price"] == "10.00"
+
+
+def test_exchange_midnight_bars_apply_rights_on_the_local_ex_date():
+    from zoneinfo import ZoneInfo
+
+    from qtrade_data_contracts.research import CorporateAction
+
+    bar = Bar.model_validate_json((FIXTURES / "Bar.json").read_text())
+    run = BacktestRun.model_validate_json((FIXTURES / "BacktestRun.json").read_text())
+    manifest = ArtifactManifest.model_validate_json(
+        (FIXTURES / "ArtifactManifest.json").read_text()
+    )
+    instrument = "stock:CN:SH:600519"
+    zone = ZoneInfo("Asia/Shanghai")
+    first = bar.model_copy(
+        update={
+            "instrument_id": instrument,
+            "timestamp": datetime(2026, 8, 19, tzinfo=zone),
+            "open": Decimal("10"),
+            "close": Decimal("10"),
+        }
+    )
+    second = first.model_copy(update={"timestamp": datetime(2026, 8, 20, tzinfo=zone)})
+    third = first.model_copy(
+        update={
+            "timestamp": datetime(2026, 8, 21, tzinfo=zone),
+            "open": Decimal("9"),
+            "close": Decimal("9"),
+        }
+    )
+    fourth = first.model_copy(update={"timestamp": datetime(2026, 8, 24, tzinfo=zone)})
+    action = CorporateAction.model_validate(
+        {
+            "schema_version": 2,
+            "scope_id": run.workspace_id,
+            "source": "fixture",
+            "instrument_id": instrument,
+            "collected_at": datetime(2026, 1, 1, tzinfo=UTC),
+            "mapping_version": "fixture.v1",
+            "source_event_id": "rights-local-date",
+            "action": "rights",
+            "announcement_date": date(2026, 8, 10),
+            "record_date": date(2026, 8, 19),
+            "ex_date": date(2026, 8, 21),
+            "status": "implemented",
+            "basis_shares": Decimal("10"),
+            "rights_shares": Decimal("3"),
+            "rights_price": Decimal("5"),
+            "terms_evidence": "fixture",
+        }
+    )
+    result = MockEngineAdapter._replay(
+        run,
+        manifest,
+        (first, second, third, fourth),
+        BuyHundredOnce(),
+        BacktestExecutionModel(lot_size=100, timezone_name="Asia/Shanghai"),
+        (action,),
+        rights_policy="subscribe",
+    )
+
+    subscriptions = [
+        order for order in result["orders"] if order.get("reason") == "rights_subscription"
+    ]
+    assert len(subscriptions) == 1
+    assert subscriptions[0]["filled_at"] == third.timestamp.isoformat()
+    assert subscriptions[0]["filled_quantity"] == "30"

@@ -249,11 +249,13 @@ export function BacktestWorkbench({
         settlement_days: Number(settlementDays),
         max_volume_fraction: participation,
         latency_bars: 1,
+        // Daily bars are stamped at exchange midnight Asia/Shanghai; the
+        // trading date (and any ex-date corporate action) must use that zone.
+        timezone_name: "Asia/Shanghai",
         ...(intraday
           ? {
               session_open: "09:30:00",
               session_close: "15:00:00",
-              timezone_name: "Asia/Shanghai",
               session_breaks: [["11:30:00", "13:00:00"]],
             }
           : {}),
