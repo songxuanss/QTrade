@@ -1,10 +1,11 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { loader } from "@monaco-editor/react";
+import { loader, type Monaco } from "@monaco-editor/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { editor } from "monaco-editor";
 import type {
   StrategyLifecycleInfo,
   StrategyVersionInfo,
@@ -16,6 +17,21 @@ import {
   validateStrategyParameters,
   markStrategyVersionValidated,
 } from "../../app/workspace/strategy-actions";
+import {
+  addParameter,
+  parseSchema,
+  removeParameter,
+  renameParameter,
+  schemaProperties,
+  serializeSchema,
+  setRequired,
+  updateRule,
+  validateSchema,
+  type ParameterRule,
+  type ParameterSchema,
+} from "./schema-editor";
+import { registerStrategyLanguageSupport } from "./strategy-language";
+import { STRATEGY_TEMPLATES, findTemplate } from "./templates";
 
 loader.config({ paths: { vs: "/monaco/vs" } });
 
@@ -63,43 +79,6 @@ const DEFAULT_SCHEMA = `{
   "required": [],
   "additionalProperties": false
 }`;
-
-type ParameterRule = {
-  type?: string;
-  default?: unknown;
-  minimum?: number;
-  maximum?: number;
-  minLength?: number;
-  maxLength?: number;
-  enum?: unknown[];
-};
-
-function parseSchema(source: string): Record<string, unknown> | null {
-  try {
-    const value = JSON.parse(source) as unknown;
-    return value && typeof value === "object" && !Array.isArray(value)
-      ? (value as Record<string, unknown>)
-      : null;
-  } catch {
-    return null;
-  }
-}
-
-function schemaProperties(schema: Record<string, unknown> | null) {
-  const properties = schema?.properties;
-  if (
-    !properties ||
-    typeof properties !== "object" ||
-    Array.isArray(properties)
-  )
-    return [] as [string, ParameterRule][];
-  return Object.entries(properties).filter(
-    (entry): entry is [string, ParameterRule] =>
-      Boolean(entry[1]) &&
-      typeof entry[1] === "object" &&
-      !Array.isArray(entry[1]),
-  );
-}
 
 export function StrategyWorkbench({
   strategies,
@@ -149,8 +128,42 @@ export function StrategyWorkbench({
   const [staticDiagnostics, setStaticDiagnostics] = useState<
     { code: string; message: string; line: number | null }[]
   >([]);
+  const [schemaMode, setSchemaMode] = useState<"form" | "json">("form");
+  const [newParameterName, setNewParameterName] = useState("");
+  const [schemaMessage, setSchemaMessage] = useState("");
+  const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
+  const monacoRef = useRef<Monaco | null>(null);
   const schema = useMemo(() => parseSchema(schemaText), [schemaText]);
+  const schemaProblem = useMemo(
+    () => (schema ? validateSchema(schema) : "参数 schema 必须是有效 JSON 对象。"),
+    [schema],
+  );
   const properties = useMemo(() => schemaProperties(schema), [schema]);
+
+  useEffect(() => {
+    const editorInstance = editorRef.current;
+    const monaco = monacoRef.current;
+    if (!editorInstance || !monaco) return;
+    const model = editorInstance.getModel();
+    if (!model) return;
+    monaco.editor.setModelMarkers(
+      model,
+      "qtrade-static",
+      staticDiagnostics.map((diagnostic) => {
+        const line = Math.max(1, diagnostic.line ?? 1);
+        const lastLine = model.getLineCount();
+        const target = Math.min(line, lastLine);
+        return {
+          severity: monaco.MarkerSeverity.Error,
+          message: `${diagnostic.code}: ${diagnostic.message}`,
+          startLineNumber: target,
+          startColumn: 1,
+          endLineNumber: target,
+          endColumn: model.getLineMaxColumn(target),
+        };
+      }),
+    );
+  }, [staticDiagnostics]);
   const serverValidated = [
     "validated",
     "backtested",
@@ -170,13 +183,75 @@ export function StrategyWorkbench({
       versions.at(-1))
     : undefined;
 
+  function applyTemplate(templateId: string) {
+    const template = findTemplate(templateId);
+    if (!template || !canEdit) return;
+    setCode(template.code);
+    setSchemaText(serializeSchema(template.schema as ParameterSchema));
+    if (!name.trim()) setName(template.default_name);
+    if (!description.trim()) setDescription(template.default_description);
+    setValidated(false);
+    setStaticPassed(null);
+    setStaticDiagnostics([]);
+    setSchemaMessage("");
+    setNotice(
+      `已载入模板「${template.name}」。保存后会冻结为新的不可变版本。`,
+    );
+  }
+
+  function editSchema(next: ParameterSchema, message = "") {
+    setSchemaText(serializeSchema(next));
+    setValidated(false);
+    setSchemaMessage(message);
+  }
+
+  function addNewParameter() {
+    if (!schema) return;
+    const outcome = addParameter(schema, newParameterName);
+    if (!outcome.ok) {
+      setSchemaMessage(outcome.error);
+      return;
+    }
+    editSchema(outcome.schema);
+    setNewParameterName("");
+  }
+
+  function renameField(from: string, raw: string) {
+    if (!schema) return;
+    const outcome = renameParameter(schema, from, raw);
+    if (!outcome.ok) {
+      setSchemaMessage(outcome.error);
+      return;
+    }
+    editSchema(
+      outcome.schema,
+      "参数名已修改；请同步修改代码中的 parameters.get 键名。",
+    );
+  }
+
+  function parseDefaultValue(type: string, raw: string): unknown {
+    if (raw === "") return undefined;
+    if (type === "boolean") return raw === "true";
+    if (type === "integer" || type === "number") {
+      const value = Number(raw);
+      return Number.isFinite(value) ? value : raw;
+    }
+    return raw;
+  }
+
+  function defaultText(rule: ParameterRule): string {
+    if (rule.default === undefined) return "";
+    if (typeof rule.default === "boolean") return rule.default ? "true" : "false";
+    return String(rule.default);
+  }
+
   async function save() {
     setErrorMessage("");
     setNotice("");
     if (!canEdit) return;
-    if (!schema) {
+    if (!schema || schemaProblem) {
       setErrorMessage(
-        "参数 schema 必须是有效 JSON 对象。请检查括号、引号和逗号。",
+        schemaProblem ?? "参数 schema 必须是有效 JSON 对象。请检查括号、引号和逗号。",
       );
       return;
     }
@@ -383,6 +458,37 @@ export function StrategyWorkbench({
           {error && <p className="strategy-library-error">策略列表加载失败</p>}
         </aside>
         <section className="strategy-workspace-main">
+          {!selected && canEdit && (
+            <section
+              className="panel strategy-template-panel"
+              aria-label="策略模板"
+            >
+              <div className="strategy-subheading">
+                <div>
+                  <p className="eyebrow">START HERE</p>
+                  <h2>从模板开始</h2>
+                </div>
+                <span>{STRATEGY_TEMPLATES.length} 个模板</span>
+              </div>
+              <p className="strategy-template-hint">
+                模板只填充源码与参数 schema；保存后仍冻结为不可变版本，通过静态校验和参数校验才能回测。
+              </p>
+              <div className="strategy-template-grid">
+                {STRATEGY_TEMPLATES.map((template) => (
+                  <button
+                    key={template.id}
+                    type="button"
+                    className="strategy-template-card"
+                    onClick={() => applyTemplate(template.id)}
+                  >
+                    <strong>{template.name}</strong>
+                    <span>{template.summary}</span>
+                    <small>{template.tags.join(" · ")}</small>
+                  </button>
+                ))}
+              </div>
+            </section>
+          )}
           <section className="panel strategy-editor-panel">
             <div className="strategy-panel-heading">
               <div>
@@ -437,7 +543,12 @@ export function StrategyWorkbench({
                   setStaticPassed(null);
                   setStaticDiagnostics([]);
                 }}
+                onMount={(editorInstance, monaco) => {
+                  editorRef.current = editorInstance;
+                  monacoRef.current = monaco;
+                }}
                 beforeMount={(monaco) => {
+                  registerStrategyLanguageSupport(monaco);
                   monaco.editor.defineTheme("qtrade-dark", {
                     base: "vs-dark",
                     inherit: true,
@@ -525,19 +636,232 @@ export function StrategyWorkbench({
                   <p className="eyebrow">PARAMETERS</p>
                   <h2>参数 schema</h2>
                 </div>
-                <span>JSON</span>
+                <div
+                  className="strategy-schema-mode"
+                  role="group"
+                  aria-label="参数 schema 编辑方式"
+                >
+                  <button
+                    type="button"
+                    className={schemaMode === "form" ? "active" : ""}
+                    aria-pressed={schemaMode === "form"}
+                    onClick={() => setSchemaMode("form")}
+                  >
+                    表单
+                  </button>
+                  <button
+                    type="button"
+                    className={schemaMode === "json" ? "active" : ""}
+                    aria-pressed={schemaMode === "json"}
+                    onClick={() => setSchemaMode("json")}
+                  >
+                    JSON
+                  </button>
+                </div>
               </div>
-              <textarea
-                aria-label="参数 schema JSON"
-                className="strategy-json-editor"
-                value={schemaText}
-                onChange={(event) => {
-                  setSchemaText(event.target.value);
-                  setValidated(false);
-                }}
-                readOnly={!canEdit || Boolean(selected?.archived)}
-                spellCheck={false}
-              />
+              {schemaMode === "json" ? (
+                <textarea
+                  aria-label="参数 schema JSON"
+                  className="strategy-json-editor"
+                  value={schemaText}
+                  onChange={(event) => {
+                    setSchemaText(event.target.value);
+                    setValidated(false);
+                    setSchemaMessage("");
+                  }}
+                  readOnly={!canEdit || Boolean(selected?.archived)}
+                  spellCheck={false}
+                />
+              ) : schema ? (
+                <div className="strategy-schema-form">
+                  <div className="strategy-schema-rows">
+                    {properties.length ? (
+                      properties.map(([field, rule]) => (
+                        <div className="strategy-schema-row" key={field}>
+                          <label>
+                            <span>参数名</span>
+                            <input
+                              key={`${field}-name`}
+                              defaultValue={field}
+                              disabled={!canEdit || Boolean(selected?.archived)}
+                              onBlur={(event) =>
+                                renameField(field, event.target.value)
+                              }
+                            />
+                          </label>
+                          <label>
+                            <span>类型</span>
+                            <select
+                              value={rule.type ?? "number"}
+                              disabled={!canEdit || Boolean(selected?.archived)}
+                              onChange={(event) =>
+                                editSchema(
+                                  updateRule(schema, field, {
+                                    type: event.target.value,
+                                  }),
+                                )
+                              }
+                            >
+                              <option value="integer">整数</option>
+                              <option value="number">数值</option>
+                              <option value="string">文本</option>
+                              <option value="boolean">布尔</option>
+                            </select>
+                          </label>
+                          <label>
+                            <span>默认值</span>
+                            {rule.type === "boolean" ? (
+                              <select
+                                value={defaultText(rule) || "false"}
+                                disabled={
+                                  !canEdit || Boolean(selected?.archived)
+                                }
+                                onChange={(event) =>
+                                  editSchema(
+                                    updateRule(schema, field, {
+                                      default: event.target.value === "true",
+                                    }),
+                                  )
+                                }
+                              >
+                                <option value="true">true</option>
+                                <option value="false">false</option>
+                              </select>
+                            ) : (
+                              <input
+                                value={defaultText(rule)}
+                                disabled={
+                                  !canEdit || Boolean(selected?.archived)
+                                }
+                                onChange={(event) =>
+                                  editSchema(
+                                    updateRule(schema, field, {
+                                      default: parseDefaultValue(
+                                        rule.type ?? "number",
+                                        event.target.value,
+                                      ),
+                                    }),
+                                  )
+                                }
+                              />
+                            )}
+                          </label>
+                          {(rule.type === "integer" ||
+                            rule.type === "number" ||
+                            !rule.type) && (
+                            <>
+                              <label>
+                                <span>最小值</span>
+                                <input
+                                  type="number"
+                                  value={rule.minimum ?? ""}
+                                  disabled={
+                                    !canEdit || Boolean(selected?.archived)
+                                  }
+                                  onChange={(event) =>
+                                    editSchema(
+                                      updateRule(schema, field, {
+                                        minimum:
+                                          event.target.value === ""
+                                            ? undefined
+                                            : Number(event.target.value),
+                                      }),
+                                    )
+                                  }
+                                />
+                              </label>
+                              <label>
+                                <span>最大值</span>
+                                <input
+                                  type="number"
+                                  value={rule.maximum ?? ""}
+                                  disabled={
+                                    !canEdit || Boolean(selected?.archived)
+                                  }
+                                  onChange={(event) =>
+                                    editSchema(
+                                      updateRule(schema, field, {
+                                        maximum:
+                                          event.target.value === ""
+                                            ? undefined
+                                            : Number(event.target.value),
+                                      }),
+                                    )
+                                  }
+                                />
+                              </label>
+                            </>
+                          )}
+                          <label className="strategy-schema-required">
+                            <input
+                              type="checkbox"
+                              checked={required.includes(field)}
+                              disabled={!canEdit || Boolean(selected?.archived)}
+                              onChange={(event) =>
+                                editSchema(
+                                  setRequired(
+                                    schema,
+                                    field,
+                                    event.target.checked,
+                                  ),
+                                )
+                              }
+                            />
+                            <span>必填</span>
+                          </label>
+                          <button
+                            type="button"
+                            className="strategy-schema-remove"
+                            disabled={!canEdit || Boolean(selected?.archived)}
+                            onClick={() =>
+                              editSchema(removeParameter(schema, field))
+                            }
+                          >
+                            删除
+                          </button>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="strategy-parameters-empty">
+                        尚未定义参数。
+                      </p>
+                    )}
+                  </div>
+                  <div className="strategy-schema-add">
+                    <input
+                      value={newParameterName}
+                      onChange={(event) =>
+                        setNewParameterName(event.target.value)
+                      }
+                      aria-label="新参数名"
+                      placeholder="新参数名，例如 lookback"
+                      disabled={!canEdit || Boolean(selected?.archived)}
+                    />
+                    <button
+                      type="button"
+                      className="button button-secondary"
+                      onClick={addNewParameter}
+                      disabled={!canEdit || Boolean(selected?.archived)}
+                    >
+                      添加参数
+                    </button>
+                  </div>
+                  {schemaMessage && (
+                    <p className="strategy-schema-message" role="status">
+                      {schemaMessage}
+                    </p>
+                  )}
+                  {schemaProblem && (
+                    <p className="strategy-schema-error" role="alert">
+                      {schemaProblem}
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <p className="strategy-schema-error" role="alert">
+                  参数 schema 不是有效 JSON。请切到 JSON 视图修复后再使用表单。
+                </p>
+              )}
               <div className="strategy-subheading strategy-parameters-heading">
                 <div>
                   <p className="eyebrow">INPUT VALUES</p>

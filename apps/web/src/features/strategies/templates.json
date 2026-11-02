@@ -1,0 +1,235 @@
+[
+  {
+    "id": "sma-cross",
+    "name": "双均线交叉",
+    "summary": "快线上穿慢线买入、下穿卖出，单标的趋势跟随的最小可运行例子。",
+    "tags": [
+      "趋势",
+      "单标的",
+      "入门"
+    ],
+    "default_name": "双均线交叉",
+    "default_description": "SMA(5,20) 交叉，适合先跑通完整回测流程。",
+    "code": "from qtrade import Strategy\n\n\nclass MovingAverageCross(Strategy):\n    \"\"\"双均线交叉：快线上穿慢线买入，下穿卖出，适合趋势行情。\"\"\"\n\n    def on_start(self):\n        self.fast = int(self.parameters.get(\"fast\", 5))\n        self.slow = int(self.parameters.get(\"slow\", 20))\n        self.quantity = int(self.parameters.get(\"quantity\", 1000))\n        if self.fast < 2 or self.fast >= self.slow:\n            raise ValueError(\"fast must be at least 2 and smaller than slow\")\n        if self.quantity < 1:\n            raise ValueError(\"quantity must be positive\")\n        self.closes = []\n        self.holding = 0\n\n    def on_bar(self, bar):\n        self.closes.append(float(bar.close))\n        if len(self.closes) < self.slow + 1:\n            return\n        fast_now = sum(self.closes[-self.fast:]) / self.fast\n        slow_now = sum(self.closes[-self.slow:]) / self.slow\n        fast_prev = sum(self.closes[-self.fast - 1:-1]) / self.fast\n        slow_prev = sum(self.closes[-self.slow - 1:-1]) / self.slow\n        if fast_prev <= slow_prev and fast_now > slow_now and self.holding == 0:\n            self.buy(self.quantity)\n            self.holding = self.quantity\n        elif fast_prev >= slow_prev and fast_now < slow_now and self.holding > 0:\n            self.sell(self.holding)\n            self.holding = 0\n",
+    "schema": {
+      "type": "object",
+      "properties": {
+        "fast": {
+          "type": "integer",
+          "title": "快线周期",
+          "default": 5,
+          "minimum": 2,
+          "maximum": 60
+        },
+        "slow": {
+          "type": "integer",
+          "title": "慢线周期",
+          "default": 20,
+          "minimum": 3,
+          "maximum": 250
+        },
+        "quantity": {
+          "type": "integer",
+          "title": "每次买入股数",
+          "default": 1000,
+          "minimum": 100,
+          "maximum": 1000000
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    }
+  },
+  {
+    "id": "rsi-reversal",
+    "name": "RSI 均值回归",
+    "summary": "RSI 跌破超卖线买入、升破超买线卖出，适合震荡行情。",
+    "tags": [
+      "反转",
+      "单标的",
+      "震荡"
+    ],
+    "default_name": "RSI 均值回归",
+    "default_description": "RSI(14) 超卖买入、超买卖出的均值回归示例。",
+    "code": "from qtrade import Strategy\n\n\nclass RsiReversal(Strategy):\n    \"\"\"RSI 均值回归：超卖买入、超买卖出，适合震荡行情。\"\"\"\n\n    def on_start(self):\n        self.period = int(self.parameters.get(\"period\", 14))\n        self.oversold = float(self.parameters.get(\"oversold\", 30))\n        self.overbought = float(self.parameters.get(\"overbought\", 70))\n        self.quantity = int(self.parameters.get(\"quantity\", 1000))\n        if self.period < 2 or self.oversold >= self.overbought:\n            raise ValueError(\"invalid rsi parameters\")\n        if self.oversold <= 0 or self.overbought >= 100 or self.quantity < 1:\n            raise ValueError(\"thresholds must be inside 0-100\")\n        self.previous = None\n        self.average_gain = None\n        self.average_loss = None\n        self.samples = 0\n        self.holding = 0\n\n    def update_rsi(self, close):\n        change = close - self.previous\n        gain = change if change > 0 else 0.0\n        loss = -change if change < 0 else 0.0\n        if self.average_gain is None:\n            self.average_gain = gain\n            self.average_loss = loss\n            self.samples = 1\n            return None\n        self.samples += 1\n        window = self.period if self.samples > self.period else self.samples\n        self.average_gain = (self.average_gain * (window - 1) + gain) / window\n        self.average_loss = (self.average_loss * (window - 1) + loss) / window\n        if self.samples < self.period:\n            return None\n        if self.average_loss == 0:\n            return 100.0\n        return 100.0 - 100.0 / (1.0 + self.average_gain / self.average_loss)\n\n    def on_bar(self, bar):\n        close = float(bar.close)\n        if self.previous is None:\n            self.previous = close\n            return\n        value = self.update_rsi(close)\n        self.previous = close\n        if value is None:\n            return\n        if value < self.oversold and self.holding == 0:\n            self.buy(self.quantity)\n            self.holding = self.quantity\n        elif value > self.overbought and self.holding > 0:\n            self.sell(self.holding)\n            self.holding = 0\n",
+    "schema": {
+      "type": "object",
+      "properties": {
+        "period": {
+          "type": "integer",
+          "title": "RSI 周期",
+          "default": 14,
+          "minimum": 2,
+          "maximum": 60
+        },
+        "oversold": {
+          "type": "number",
+          "title": "超卖阈值",
+          "default": 30,
+          "minimum": 1,
+          "maximum": 50
+        },
+        "overbought": {
+          "type": "number",
+          "title": "超买阈值",
+          "default": 70,
+          "minimum": 50,
+          "maximum": 99
+        },
+        "quantity": {
+          "type": "integer",
+          "title": "每次买入股数",
+          "default": 1000,
+          "minimum": 100,
+          "maximum": 1000000
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    }
+  },
+  {
+    "id": "momentum-rank",
+    "name": "横截面动量",
+    "summary": "按过去涨幅排序，持有前 N 名，先卖出再买入，适合多标的日线数据集。",
+    "tags": [
+      "动量",
+      "横截面",
+      "选股"
+    ],
+    "default_name": "横截面动量",
+    "default_description": "60 日动量排序，每 20 个交易日调仓，持有前 5 名。",
+    "code": "from qtrade import Strategy\n\n\nclass MomentumRank(Strategy):\n    \"\"\"横截面动量：每 N 个交易日买入过去涨幅最高的前 K 只，先卖后买。\"\"\"\n\n    def on_start(self):\n        self.lookback = int(self.parameters.get(\"lookback\", 60))\n        self.top_n = int(self.parameters.get(\"top_n\", 5))\n        self.rebalance_every = int(self.parameters.get(\"rebalance_every\", 20))\n        self.position_value = float(self.parameters.get(\"position_value\", 150000))\n        self.lot = int(self.parameters.get(\"lot_size\", 100))\n        if self.lookback < 2 or self.top_n < 1 or self.rebalance_every < 1:\n            raise ValueError(\"invalid momentum parameters\")\n        if self.position_value <= 0 or self.lot < 1:\n            raise ValueError(\"position value and lot must be positive\")\n        self.closes = {}\n        self.held = {}\n        self.quantity = {}\n        self.days = -1\n        self.last_day = None\n        self.decision_day = None\n        self.next_rebalance = self.lookback\n        self.sell_queue = {}\n        self.buy_queue = {}\n\n    def score(self, closes):\n        if len(closes) <= self.lookback:\n            return None\n        return closes[-1] / closes[-self.lookback - 1] - 1.0\n\n    def decide(self):\n        scores = {}\n        for instrument, closes in self.closes.items():\n            value = self.score(closes)\n            if value is not None:\n                scores[instrument] = value\n        chosen = []\n        if len(scores) >= self.top_n:\n            chosen = sorted(scores, key=lambda name: (-scores[name], name))[: self.top_n]\n        self.decision_day = self.days\n        self.next_rebalance = self.days + self.rebalance_every\n        self.sell_queue = {\n            instrument: self.quantity.get(instrument, 0)\n            for instrument in self.held\n            if self.held.get(instrument) and instrument not in chosen\n        }\n        self.buy_queue = {\n            instrument: self.position_value\n            for instrument in chosen\n            if not self.held.get(instrument)\n        }\n\n    def on_bar(self, bar):\n        instrument = bar.instrument_id\n        day = bar.timestamp.date()\n        if day != self.last_day:\n            self.last_day = day\n            self.days += 1\n            if self.days >= self.next_rebalance:\n                self.decide()\n        if self.decision_day is not None:\n            age = self.days - self.decision_day\n            if age == 1 and instrument in self.sell_queue:\n                quantity = self.sell_queue.pop(instrument)\n                if quantity > 0:\n                    self.sell(quantity, instrument_id=instrument)\n                    self.held[instrument] = False\n                    self.quantity[instrument] = 0\n            if age == 2 and not self.sell_queue and instrument in self.buy_queue:\n                closes = self.closes.get(instrument, [])\n                if closes:\n                    quantity = int(self.buy_queue[instrument] / closes[-1] / self.lot) * self.lot\n                    if quantity > 0:\n                        self.buy(quantity, instrument_id=instrument)\n                        self.held[instrument] = True\n                        self.quantity[instrument] = quantity\n                self.buy_queue.pop(instrument)\n        self.closes.setdefault(instrument, []).append(float(bar.close))\n",
+    "schema": {
+      "type": "object",
+      "properties": {
+        "lookback": {
+          "type": "integer",
+          "title": "动量回看天数",
+          "default": 60,
+          "minimum": 2,
+          "maximum": 250
+        },
+        "top_n": {
+          "type": "integer",
+          "title": "持仓数量",
+          "default": 5,
+          "minimum": 1,
+          "maximum": 50
+        },
+        "rebalance_every": {
+          "type": "integer",
+          "title": "调仓间隔（交易日）",
+          "default": 20,
+          "minimum": 1,
+          "maximum": 250
+        },
+        "position_value": {
+          "type": "number",
+          "title": "单只目标金额",
+          "default": 150000,
+          "minimum": 1000,
+          "maximum": 100000000
+        },
+        "lot_size": {
+          "type": "integer",
+          "title": "整手股数",
+          "default": 100,
+          "minimum": 1,
+          "maximum": 1000
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    }
+  },
+  {
+    "id": "low-volatility",
+    "name": "横截面低波",
+    "summary": "按过去波动率排序，持有波动最低的前 N 名，适合防守型配置。",
+    "tags": [
+      "低波",
+      "横截面",
+      "选股"
+    ],
+    "default_name": "横截面低波",
+    "default_description": "60 日波动率排序，每 20 个交易日调仓，持有最低的 5 只。",
+    "code": "from qtrade import Strategy\n\n\nclass LowVolatility(Strategy):\n    \"\"\"横截面低波：每 N 个交易日买入过去波动率最低的前 K 只，先卖后买。\"\"\"\n\n    def on_start(self):\n        self.lookback = int(self.parameters.get(\"lookback\", 60))\n        self.top_n = int(self.parameters.get(\"top_n\", 5))\n        self.rebalance_every = int(self.parameters.get(\"rebalance_every\", 20))\n        self.position_value = float(self.parameters.get(\"position_value\", 150000))\n        self.lot = int(self.parameters.get(\"lot_size\", 100))\n        if self.lookback < 2 or self.top_n < 1 or self.rebalance_every < 1:\n            raise ValueError(\"invalid low volatility parameters\")\n        if self.position_value <= 0 or self.lot < 1:\n            raise ValueError(\"position value and lot must be positive\")\n        self.closes = {}\n        self.returns = {}\n        self.held = {}\n        self.quantity = {}\n        self.days = -1\n        self.last_day = None\n        self.decision_day = None\n        self.next_rebalance = self.lookback\n        self.sell_queue = {}\n        self.buy_queue = {}\n\n    def score(self, series):\n        if len(series) < self.lookback:\n            return None\n        window = series[-self.lookback:]\n        mean = sum(window) / self.lookback\n        variance = sum((value - mean) ** 2 for value in window) / self.lookback\n        return variance ** 0.5\n\n    def decide(self):\n        scores = {}\n        for instrument, series in self.returns.items():\n            value = self.score(series)\n            if value is not None:\n                scores[instrument] = value\n        chosen = []\n        if len(scores) >= self.top_n:\n            chosen = sorted(scores, key=lambda name: (scores[name], name))[: self.top_n]\n        self.decision_day = self.days\n        self.next_rebalance = self.days + self.rebalance_every\n        self.sell_queue = {\n            instrument: self.quantity.get(instrument, 0)\n            for instrument in self.held\n            if self.held.get(instrument) and instrument not in chosen\n        }\n        self.buy_queue = {\n            instrument: self.position_value\n            for instrument in chosen\n            if not self.held.get(instrument)\n        }\n\n    def on_bar(self, bar):\n        instrument = bar.instrument_id\n        day = bar.timestamp.date()\n        if day != self.last_day:\n            self.last_day = day\n            self.days += 1\n            if self.days >= self.next_rebalance:\n                self.decide()\n        if self.decision_day is not None:\n            age = self.days - self.decision_day\n            if age == 1 and instrument in self.sell_queue:\n                quantity = self.sell_queue.pop(instrument)\n                if quantity > 0:\n                    self.sell(quantity, instrument_id=instrument)\n                    self.held[instrument] = False\n                    self.quantity[instrument] = 0\n            if age == 2 and not self.sell_queue and instrument in self.buy_queue:\n                closes = self.closes.get(instrument, [])\n                if closes:\n                    quantity = int(self.buy_queue[instrument] / closes[-1] / self.lot) * self.lot\n                    if quantity > 0:\n                        self.buy(quantity, instrument_id=instrument)\n                        self.held[instrument] = True\n                        self.quantity[instrument] = quantity\n                self.buy_queue.pop(instrument)\n        close = float(bar.close)\n        closes = self.closes.setdefault(instrument, [])\n        if closes:\n            self.returns.setdefault(instrument, []).append(close / closes[-1] - 1.0)\n        closes.append(close)\n",
+    "schema": {
+      "type": "object",
+      "properties": {
+        "lookback": {
+          "type": "integer",
+          "title": "波动率窗口（交易日）",
+          "default": 60,
+          "minimum": 2,
+          "maximum": 250
+        },
+        "top_n": {
+          "type": "integer",
+          "title": "持仓数量",
+          "default": 5,
+          "minimum": 1,
+          "maximum": 50
+        },
+        "rebalance_every": {
+          "type": "integer",
+          "title": "调仓间隔（交易日）",
+          "default": 20,
+          "minimum": 1,
+          "maximum": 250
+        },
+        "position_value": {
+          "type": "number",
+          "title": "单只目标金额",
+          "default": 150000,
+          "minimum": 1000,
+          "maximum": 100000000
+        },
+        "lot_size": {
+          "type": "integer",
+          "title": "整手股数",
+          "default": 100,
+          "minimum": 1,
+          "maximum": 1000
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    }
+  },
+  {
+    "id": "equal-weight",
+    "name": "等权基准",
+    "summary": "每个标的买入相同金额并持有，用于和主动策略做横向对照。",
+    "tags": [
+      "基准",
+      "被动",
+      "横截面"
+    ],
+    "default_name": "等权基准",
+    "default_description": "多标的等权买入并持有，作为策略比较的被动基准。",
+    "code": "from qtrade import Strategy\n\n\nclass EqualWeight(Strategy):\n    \"\"\"等权基准：在每个标的的第一根 bar 买入相同金额并持有，用作对照。\"\"\"\n\n    def on_start(self):\n        self.position_value = float(self.parameters.get(\"position_value\", 150000))\n        self.lot = int(self.parameters.get(\"lot_size\", 100))\n        if self.position_value <= 0 or self.lot < 1:\n            raise ValueError(\"position value and lot must be positive\")\n        self.entered = set()\n\n    def on_bar(self, bar):\n        instrument = bar.instrument_id\n        if instrument in self.entered:\n            return\n        self.entered.add(instrument)\n        close = float(bar.close)\n        if close <= 0:\n            return\n        quantity = int(self.position_value / close / self.lot) * self.lot\n        if quantity > 0:\n            self.buy(quantity, instrument_id=instrument)\n",
+    "schema": {
+      "type": "object",
+      "properties": {
+        "position_value": {
+          "type": "number",
+          "title": "单只目标金额",
+          "default": 150000,
+          "minimum": 1000,
+          "maximum": 100000000
+        },
+        "lot_size": {
+          "type": "integer",
+          "title": "整手股数",
+          "default": 100,
+          "minimum": 1,
+          "maximum": 1000
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    }
+  }
+]
