@@ -22,6 +22,8 @@ export type CollectorSource = {
   configured: boolean;
   evidence: string;
   limitations: string[];
+  /** Commercial tier from the collector catalog; paid sources win defaults. */
+  tier?: "paid" | "free";
 };
 export type FactorDefinition = {
   factor_id: string;

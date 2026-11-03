@@ -134,6 +134,10 @@ class SourceDataset(BaseModel):
     mapping_version: Text
     earliest: AwareDatetime | None = None
     limitations: tuple[str, ...] = ()
+    # Commercial tier drives the workbench default ("prefer an available paid
+    # source, fall back to free"). Vendor-neutral: adapters classify their own
+    # datasets; consumers must not infer tier from source-name patterns.
+    tier: Literal["paid", "free"] = "free"
 
 
 class CollectionDefaultRange(BaseModel):

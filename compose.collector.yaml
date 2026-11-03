@@ -23,6 +23,17 @@ services:
       context: .
       dockerfile: Dockerfile.collector
       network: host
+      # Same pass-through rationale as the runtime environment below: builds on
+      # hosts without direct TLS egress need the standard proxy variables for
+      # pip; Docker injects these predefined build args into every RUN step.
+      # Empty default keeps normal direct-egress builds unchanged.
+      args:
+        HTTP_PROXY: ${COLLECTOR_HTTP_PROXY:-}
+        HTTPS_PROXY: ${COLLECTOR_HTTP_PROXY:-}
+        http_proxy: ${COLLECTOR_HTTP_PROXY:-}
+        https_proxy: ${COLLECTOR_HTTP_PROXY:-}
+        NO_PROXY: ${COLLECTOR_NO_PROXY:-127.0.0.1,localhost,::1}
+        no_proxy: ${COLLECTOR_NO_PROXY:-127.0.0.1,localhost,::1}
     environment:
       DATA_COLLECTION_DATABASE_URL: postgresql://collector:${COLLECTOR_DB_PASSWORD}@collector-db:5432/collector
       COLLECTOR_SERVICE_TOKEN: ${COLLECTOR_SERVICE_TOKEN:?Set strong private service token}
@@ -58,6 +69,17 @@ services:
       COLLECTOR_LOG_LEVEL: ${COLLECTOR_LOG_LEVEL:-INFO}
       COLLECTOR_ARCHIVE_ROOT: /data/archives
       MAIRUI_LICENCE: ${MAIRUI_LICENCE:-}
+      # Outbound proxy pass-through for provider HTTP calls. Hosts behind a
+      # filtering NAT (e.g. WSL2 mirrored networking) cannot open direct TLS
+      # egress; httpx/urllib honour these standard variables when trust_env is
+      # on. NO_PROXY always keeps loopback so the healthcheck and the internal
+      # authorizer call never traverse the proxy. Empty default = direct egress.
+      HTTP_PROXY: ${COLLECTOR_HTTP_PROXY:-}
+      HTTPS_PROXY: ${COLLECTOR_HTTP_PROXY:-}
+      http_proxy: ${COLLECTOR_HTTP_PROXY:-}
+      https_proxy: ${COLLECTOR_HTTP_PROXY:-}
+      NO_PROXY: ${COLLECTOR_NO_PROXY:-127.0.0.1,localhost,::1}
+      no_proxy: ${COLLECTOR_NO_PROXY:-127.0.0.1,localhost,::1}
     ports: ["${COLLECTOR_BIND_ADDRESS:-127.0.0.1}:${COLLECTOR_PORT:-18100}:8100"]
     extra_hosts: ["host.docker.internal:host-gateway"]
     volumes: ["collector-archives:/data/archives"]

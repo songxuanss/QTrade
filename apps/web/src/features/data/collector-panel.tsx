@@ -86,6 +86,27 @@ const periods: Record<string, string> = {
   "30m": "30 分钟",
   "1h": "60 分钟",
 };
+// Coarse-to-fine so 日线 leads the union dropdown; only periods some source of
+// the current kind actually offers are rendered.
+const PERIOD_ORDER = ["1d", "1h", "30m", "15m", "5m", "1m"];
+
+/** Paid-first default among usable sources; explicit user picks bypass this. */
+function preferredSource(
+  list: CollectorSource[],
+  granularity: string,
+): CollectorSource | undefined {
+  const usable = list.filter((item) => item.configured);
+  const supporting = usable.filter((item) =>
+    item.periods.includes(granularity),
+  );
+  return (
+    supporting.find((item) => item.tier === "paid") ??
+    supporting[0] ??
+    usable.find((item) => item.tier === "paid") ??
+    usable[0] ??
+    list[0]
+  );
+}
 const budgetWaits = {
   source_daily: "来源日信用不足，等待预算重置；管理员调整额度后可提前重试。",
   scope_daily: "当前空间日信用不足，等待预算重置；管理员调整额度后可提前重试。",
@@ -124,18 +145,38 @@ export function CollectorPanel({
   const [kind, setKind] = useState<"bars" | "factors">(
     initialPreferences?.dataset_kind ?? "bars",
   );
-  const [sourceId, setSourceId] = useState(
-    (initialPreferences?.source ||
-      catalog.find((item) => item.configured && item.periods.includes("1d"))
-        ?.source) ??
-      catalog[0]?.source ??
-      "",
-  );
+  const [period, setPeriod] = useState(initialPreferences?.granularity ?? "1d");
+  const [sourceId, setSourceId] = useState(() => {
+    const initialKind = initialPreferences?.dataset_kind ?? "bars";
+    const list = catalog.filter((item) => item.dataset_kind === initialKind);
+    const effectivePeriod = initialKind === "factors" ? "1d" : period;
+    const saved = initialPreferences?.source;
+    if (saved) {
+      const savedSource = list.find((item) => item.source === saved);
+      // Dangling saved source stays selected so the picker can disclose it
+      // instead of silently substituting a different source.
+      if (!savedSource) return saved;
+      if (
+        savedSource.configured &&
+        (savedSource.periods.includes(effectivePeriod) || list.length === 1)
+      )
+        return saved;
+    }
+    return (
+      preferredSource(list, effectivePeriod)?.source ??
+      saved ??
+      list[0]?.source ??
+      ""
+    );
+  });
   const sources = catalog.filter((item) => item.dataset_kind === kind);
   const source = sourceId
     ? sources.find((item) => item.source === sourceId)
     : sources[0];
-  const [period, setPeriod] = useState(initialPreferences?.granularity ?? "1d");
+  // An explicit user/preference choice stops the paid-first default from
+  // re-selecting the source on every kind/period change; untouched selections
+  // keep following the default.
+  const sourceTouched = useRef(Boolean(initialPreferences?.source));
   const [mode, setMode] = useState<"missing" | "all">(
     initialPreferences?.mode ?? "missing",
   );
@@ -187,6 +228,18 @@ export function CollectorPanel({
   }
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const errorRef = useRef<HTMLParagraphElement | null>(null);
+  useEffect(() => {
+    // Rejection feedback must reach the user where they are: the create view
+    // shows it beside the action buttons, the results view in the panel
+    // banner; either way it scrolls into sight instead of failing silently
+    // somewhere above the viewport.
+    if (error)
+      errorRef.current?.scrollIntoView({
+        block: "nearest",
+        behavior: "smooth",
+      });
+  }, [error]);
   const [selectedFields, setSelectedFields] = useState<string[]>(
     initialPreferences?.fields ?? ["pe_ttm"],
   );
@@ -505,6 +558,15 @@ export function CollectorPanel({
   const proMinuteSource = sources.find(
     (item) => item.source === "mairui.pro.bars" && item.configured,
   );
+  // Union of what any source of this kind offers so a period switch can drive
+  // the paid-first source auto-selection instead of being capped by the
+  // currently selected source.
+  const periodOptions =
+    kind === "factors"
+      ? ["1d"]
+      : PERIOD_ORDER.filter((value) =>
+          sources.some((item) => item.periods.includes(value)),
+        );
 
   return (
     <section
@@ -534,8 +596,8 @@ export function CollectorPanel({
           独立采集服务尚未连接。旧任务仍在下方保留。
         </p>
       )}
-      {error && (
-        <p className="data-notice" role="alert">
+      {error && view !== "create" && (
+        <p className="data-notice" role="alert" ref={errorRef}>
           {errors[error] ?? "操作暂未完成，请刷新重试。"}
         </p>
       )}
@@ -598,8 +660,19 @@ export function CollectorPanel({
                     aria-label="采集数据类别"
                     value={kind}
                     onChange={(e) => {
-                      setKind(e.target.value as "bars" | "factors");
-                      setSourceId("");
+                      const nextKind = e.target.value as "bars" | "factors";
+                      setKind(nextKind);
+                      // Re-run the paid-first default for the new kind instead
+                      // of leaving the source dangling on a filtered-out pick.
+                      const list = catalog.filter(
+                        (item) => item.dataset_kind === nextKind,
+                      );
+                      setSourceId(
+                        preferredSource(
+                          list,
+                          nextKind === "factors" ? "1d" : period,
+                        )?.source ?? "",
+                      );
                     }}
                   >
                     <option value="bars">价格行情 · 日线与分钟</option>
@@ -611,7 +684,10 @@ export function CollectorPanel({
                   <select
                     aria-label="采集数据来源"
                     value={sourceId || source?.source || ""}
-                    onChange={(e) => setSourceId(e.target.value)}
+                    onChange={(e) => {
+                      sourceTouched.current = true;
+                      setSourceId(e.target.value);
+                    }}
                   >
                     {sourceId &&
                       !sources.some((item) => item.source === sourceId) && (
@@ -626,7 +702,11 @@ export function CollectorPanel({
                         disabled={!item.configured}
                       >
                         {item.name}
-                        {!item.configured ? " · 未配置" : ""}
+                        {!item.configured
+                          ? " · 未配置"
+                          : item.tier === "paid"
+                            ? " · 付费"
+                            : " · 免费"}
                       </option>
                     ))}
                   </select>
@@ -636,15 +716,33 @@ export function CollectorPanel({
                   <select
                     aria-label="独立采集周期"
                     value={kind === "factors" ? "1d" : period}
-                    onChange={(e) => setPeriod(e.target.value)}
+                    onChange={(e) => {
+                      const next = e.target.value;
+                      setPeriod(next);
+                      // The period drives capability: an untouched source keeps
+                      // following the paid-first default, and an explicit pick
+                      // only yields when it cannot serve the new period.
+                      const supporting = sources.filter(
+                        (item) =>
+                          item.configured && item.periods.includes(next),
+                      );
+                      const best =
+                        supporting.find((item) => item.tier === "paid") ??
+                        supporting[0];
+                      if (
+                        best &&
+                        (!source?.periods.includes(next) ||
+                          !sourceTouched.current)
+                      )
+                        setSourceId(best.source);
+                    }}
                   >
-                    {kind === "bars" &&
-                      (!source || !source.periods.includes(period)) && (
-                        <option value={period}>
-                          {periods[period]} · 当前来源不支持
-                        </option>
-                      )}
-                    {source?.periods.map((value) => (
+                    {kind === "bars" && !periodOptions.includes(period) && (
+                      <option value={period}>
+                        {periods[period] ?? period} · 当前来源不支持
+                      </option>
+                    )}
+                    {periodOptions.map((value) => (
                       <option key={value} value={value}>
                         {periods[value] ?? value}
                       </option>
@@ -755,6 +853,7 @@ export function CollectorPanel({
                           className="button button-secondary"
                           onClick={() => {
                             invalidateSelection();
+                            sourceTouched.current = true;
                             setSourceId(proMinuteSource.source);
                           }}
                         >
@@ -810,8 +909,20 @@ export function CollectorPanel({
                         }
                         onClick={() => void fillDefaultDates()}
                       >
-                        使用最近自然年日期
+                        {busy ? "计算中…" : "使用最近自然年日期"}
                       </button>
+                      {!busy && !source.configured ? (
+                        <small className="data-footnote">
+                          当前来源未配置，无法计算默认区间。
+                        </small>
+                      ) : (
+                        !busy &&
+                        Boolean(first || last) && (
+                          <small className="data-footnote">
+                            已填写日期；清空开始与结束日期后可一键填充最近自然年。
+                          </small>
+                        )
+                      )}
                       <details className={workspaceStyles.help}>
                         <summary>日期计算说明</summary>
                         <p>
@@ -872,6 +983,25 @@ export function CollectorPanel({
                       {kind === "factors" && "因子历史可知时间尚未验证。"}
                     </p>
                   </details>
+                  {view === "create" && error && (
+                    <p className="data-notice" role="alert" ref={errorRef}>
+                      {errors[error] ?? "操作暂未完成，请刷新重试。"}
+                    </p>
+                  )}
+                  {!busy && !source?.configured && (
+                    <small className="data-footnote">
+                      当前来源未配置，无法预览采集计划。
+                    </small>
+                  )}
+                  {!busy &&
+                    source?.configured &&
+                    kind === "factors" &&
+                    (!factorSelectionAvailable ||
+                      selectedFields.length === 0) && (
+                      <small className="data-footnote">
+                        请至少选择一个因子字段后再预览。
+                      </small>
+                    )}
                   <button
                     type="submit"
                     className="button button-primary"

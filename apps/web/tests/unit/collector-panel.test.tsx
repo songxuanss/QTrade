@@ -4,8 +4,10 @@ import { act, type ComponentProps } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CollectorPanel } from "../../src/features/data/collector-panel";
+import { previewCollector } from "../../src/app/workspace/collector-actions";
 import type {
   CollectorJob,
+  CollectorPreferences,
   CollectorSource,
 } from "../../src/features/data/collector-types";
 
@@ -391,5 +393,202 @@ describe("CollectorPanel job observability", () => {
         'select[aria-label="查看已保存采集任务"]',
       )?.value,
     ).toBe(secondId);
+  });
+});
+
+describe("CollectorPanel source defaults and inline feedback", () => {
+  let container: HTMLDivElement;
+  let root: Root;
+
+  function makeSource(
+    overrides: Partial<CollectorSource> &
+      Pick<CollectorSource, "source" | "name">,
+  ): CollectorSource {
+    return {
+      provider: "mairui",
+      dataset_kind: "bars",
+      periods: ["1d", "5m"],
+      instrument_kinds: ["stock"],
+      markets: ["CN"],
+      timezone: "Asia/Shanghai",
+      configured: true,
+      evidence: "configured",
+      limitations: [],
+      ...overrides,
+    };
+  }
+
+  const freeDaily = makeSource({
+    source: "mairui.history.bars",
+    name: "MaiRui 日线/分钟历史",
+    periods: ["5m", "15m", "30m", "1h", "1d"],
+    tier: "free",
+  });
+  const paidMinute = makeSource({
+    source: "mairui.pro.bars",
+    name: "MaiRui Pro 分钟历史",
+    periods: ["1m", "5m", "15m", "30m", "1h"],
+    tier: "paid",
+  });
+
+  function prefs(
+    overrides: Partial<CollectorPreferences> = {},
+  ): CollectorPreferences {
+    return {
+      schema_version: 1,
+      dataset_kind: "bars",
+      source: "",
+      granularity: "1d",
+      first: null,
+      last: null,
+      instruments: "",
+      snapshot_id: null,
+      snapshot_ids: [],
+      fields: [],
+      mode: "missing",
+      ...overrides,
+    };
+  }
+
+  const setSelectValue = Object.getOwnPropertyDescriptor(
+    HTMLSelectElement.prototype,
+    "value",
+  )!.set!;
+
+  function select(label: string): HTMLSelectElement {
+    return container.querySelector<HTMLSelectElement>(
+      `select[aria-label="${label}"]`,
+    )!;
+  }
+
+  async function choose(label: string, value: string) {
+    const element = select(label);
+    await act(async () => {
+      setSelectValue.call(element, value);
+      element.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+  }
+
+  async function renderCatalog(
+    catalog: CollectorSource[],
+    initialPreferences: CollectorPreferences | null = null,
+  ) {
+    await act(async () => {
+      root.render(
+        <CollectorPanel
+          catalog={catalog}
+          factors={[]}
+          factorsAvailable={false}
+          initialJobs={[]}
+          available
+          canManage
+          snapshots={[]}
+          initialPreferences={initialPreferences}
+        />,
+      );
+    });
+  }
+
+  beforeEach(() => {
+    (
+      globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }
+    ).IS_REACT_ACT_ENVIRONMENT = true;
+    window.history.replaceState(null, "", "/workspace/data");
+    if (!Element.prototype.scrollIntoView) {
+      (Element.prototype as unknown as Record<string, unknown>).scrollIntoView =
+        () => {};
+    }
+    container = document.createElement("div");
+    document.body.append(container);
+    root = createRoot(container);
+  });
+
+  afterEach(async () => {
+    await act(async () => root.unmount());
+    container.remove();
+    vi.useRealTimers();
+  });
+
+  it("falls back to the free source for daily bars and upgrades to the paid source for a minute period", async () => {
+    await renderCatalog([freeDaily, paidMinute]);
+    expect(select("采集数据来源").value).toBe("mairui.history.bars");
+    const optionTexts = [...select("采集数据来源").options].map(
+      (option) => option.textContent,
+    );
+    expect(optionTexts).toContain("MaiRui 日线/分钟历史 · 免费");
+    expect(optionTexts).toContain("MaiRui Pro 分钟历史 · 付费");
+    await choose("独立采集周期", "5m");
+    expect(select("采集数据来源").value).toBe("mairui.pro.bars");
+  });
+
+  it("prefers the configured paid source when it supports the selected period", async () => {
+    await renderCatalog([freeDaily, paidMinute], prefs({ granularity: "5m" }));
+    expect(select("采集数据来源").value).toBe("mairui.pro.bars");
+  });
+
+  it("keeps an explicitly saved source over the paid default", async () => {
+    await renderCatalog(
+      [freeDaily, paidMinute],
+      prefs({ source: "mairui.history.bars", granularity: "5m" }),
+    );
+    expect(select("采集数据来源").value).toBe("mairui.history.bars");
+    await choose("独立采集周期", "15m");
+    expect(select("采集数据来源").value).toBe("mairui.history.bars");
+  });
+
+  it("shows preview failure inline beside the action buttons in the create view", async () => {
+    vi.mocked(previewCollector).mockResolvedValue({ error: "timeout" });
+    await renderCatalog(
+      [freeDaily, paidMinute],
+      prefs({
+        source: "mairui.history.bars",
+        first: "2024-01-01",
+        last: "2024-01-05",
+        instruments: "000001.SZ",
+      }),
+    );
+    const form = container.querySelector<HTMLFormElement>(
+      "form.collector-form",
+    )!;
+    await act(async () => {
+      form.dispatchEvent(
+        new Event("submit", { bubbles: true, cancelable: true }),
+      );
+    });
+    await act(async () => {});
+    const footerAlert = container.querySelector(
+      '.collector-footer [role="alert"]',
+    );
+    expect(footerAlert?.textContent).toContain("来源请求超时");
+    expect(container.querySelectorAll('[role="alert"]')).toHaveLength(1);
+  });
+
+  it("explains why the default-range button is disabled when dates are filled", async () => {
+    await renderCatalog(
+      [freeDaily, paidMinute],
+      prefs({ first: "2024-01-01", last: "2024-01-05" }),
+    );
+    const yearButton = [
+      ...container.querySelectorAll<HTMLButtonElement>("button"),
+    ].find((button) => button.textContent?.includes("使用最近自然年日期"))!;
+    expect(yearButton.disabled).toBe(true);
+    expect(container.querySelector(".collector-form")?.textContent).toContain(
+      "已填写日期；清空开始与结束日期后可一键填充最近自然年。",
+    );
+  });
+
+  it("explains why preview is disabled when the only source is unconfigured", async () => {
+    await renderCatalog([{ ...freeDaily, configured: false }]);
+    expect(select("采集数据来源").value).toBe("mairui.history.bars");
+    const previewButton = [
+      ...container.querySelectorAll<HTMLButtonElement>("button"),
+    ].find((button) => button.textContent?.includes("预览独立采集计划"))!;
+    expect(previewButton.disabled).toBe(true);
+    expect(container.querySelector(".collector-footer")?.textContent).toContain(
+      "当前来源未配置，无法预览采集计划。",
+    );
+    expect(container.querySelector(".collector-form")?.textContent).toContain(
+      "当前来源未配置，无法计算默认区间。",
+    );
   });
 });

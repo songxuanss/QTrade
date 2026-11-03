@@ -186,6 +186,7 @@ class MaiRuiCollection:
                 periods=("1m", "5m", "15m", "30m", "1h"),
                 instrument_kinds=("stock", "index"),
                 mapping_version="mairui.pro-bars.v1",
+                tier="paid",
                 limitations=(
                     "历史年片按年缓存；当前年使用普通历史增量。",
                     "实际权限和历史覆盖以下载结果为准。",
@@ -199,6 +200,7 @@ class MaiRuiCollection:
                 periods=("1d",),
                 instrument_kinds=("stock",),
                 mapping_version="mairui.factor-history.v1",
+                tier="paid",
                 limitations=("历史可知时间未验证，不能据此声称财务PIT回测就绪。",),
             ),
         )
