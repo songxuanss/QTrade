@@ -30,7 +30,12 @@ class MockDatasetRepository:
                     for (scope, _), dataset in self._datasets.items()
                     if scope == workspace_id
                 ),
-                key=lambda dataset: (dataset.metadata.created_at, str(dataset.metadata.dataset_id)),
+                key=lambda dataset: (
+                    len(dataset.metadata.instrument_ids) > 1,
+                    len(dataset.metadata.instrument_ids),
+                    dataset.metadata.created_at,
+                    str(dataset.metadata.dataset_id),
+                ),
                 reverse=True,
             )
             return tuple(datasets[:limit])
@@ -49,7 +54,7 @@ class MockDatasetRepository:
             or not 1 <= len(instrument_id) <= 256
             or type(limit) is not int
             or not 1 <= limit <= 200
-            or granularity not in (None, "tick", "1m", "5m", "15m", "1h", "1d")
+            or granularity not in (None, "tick", "1m", "5m", "15m", "30m", "1h", "1d")
             or (before is not None and not isinstance(before, UUID))
         ):
             raise PortError(ErrorCode.INVALID_INPUT, "invalid instrument dataset query")

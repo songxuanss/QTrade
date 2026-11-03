@@ -75,9 +75,9 @@ def historical_ingestion_from_env(
             HistoricalSource(
                 "mairui.a-share.bar",
                 "mairui-default",
-                ("1m", "5m", "15m", "1h", "1d")
+                ("1m", "5m", "15m", "30m", "1h", "1d")
                 if env.get("QTRADE_MAIRUI_PRO_ENABLED") == "true"
-                else ("5m", "15m", "1h", "1d"),
+                else ("5m", "15m", "30m", "1h", "1d"),
             ),
         ),
     )

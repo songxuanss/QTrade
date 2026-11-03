@@ -95,6 +95,8 @@ export async function composePoolDatasetAction(form: FormData) {
   const start = Date.parse(`${first}T00:00:00+08:00`);
   const end = Date.parse(`${last}T00:00:00+08:00`) + 86400_000;
   const selectionSize = Number(form.get("selection_size"));
+  const rawGranularity = String(form.get("granularity") || "1d");
+  const allowedGranularities = ["1m", "5m", "15m", "30m", "1h", "1d"] as const;
   if (
     !/^\d{4}-\d{2}-\d{2}$/.test(first) ||
     !/^\d{4}-\d{2}-\d{2}$/.test(last) ||
@@ -103,14 +105,19 @@ export async function composePoolDatasetAction(form: FormData) {
     start >= end ||
     !Number.isInteger(selectionSize) ||
     selectionSize < 1 ||
-    selectionSize > 50
+    selectionSize > 50 ||
+    !allowedGranularities.includes(
+      rawGranularity as (typeof allowedGranularities)[number],
+    )
   )
     return finish("composition_rejected", "assets", "research");
+  const granularity = rawGranularity as (typeof allowedGranularities)[number];
   const result = await composePoolDataset({
     snapshot_id: String(form.get("snapshot_id") ?? ""),
     start: new Date(start).toISOString(),
     end: new Date(end).toISOString(),
     selection_size: selectionSize,
+    granularity,
   });
   if ("error" in result)
     return finish(

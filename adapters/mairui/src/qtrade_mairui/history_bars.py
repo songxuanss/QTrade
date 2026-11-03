@@ -6,7 +6,6 @@ from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from threading import RLock
 from time import monotonic
-from typing import cast
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
@@ -20,8 +19,8 @@ from qtrade_domain.ports import ErrorCode, PortError
 from qtrade_domain.raw_records import RawRecord
 
 ZONE = ZoneInfo("Asia/Shanghai")
-PERIODS = {"1m": "1", "5m": "5", "15m": "15", "1h": "60", "1d": "d"}
-MINUTES = {"1m": 1, "5m": 5, "15m": 15, "1h": 60}
+PERIODS = {"1m": "1", "5m": "5", "15m": "15", "30m": "30", "1h": "60", "1d": "d"}
+MINUTES = {"1m": 1, "5m": 5, "15m": 15, "30m": 30, "1h": 60}
 
 
 def symbol(value: str) -> str:
@@ -186,9 +185,9 @@ class MaiRuiBarTransformation:
     version = MaiRuiHistoricalBars.transformation_version
 
     def output_granularity(self, source: Granularity) -> BarGranularity:
-        if source not in PERIODS:
+        if source == "tick" or source not in PERIODS:
             raise PortError(ErrorCode.INVALID_INPUT, "history transformation requires Bars")
-        return cast(BarGranularity, source)
+        return source
 
     def transform(self, dataset_id: UUID, batches: tuple[ArchivedBatch, ...]) -> tuple[Bar, ...]:
         bars = []

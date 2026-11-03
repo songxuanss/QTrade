@@ -1007,10 +1007,11 @@ export function StrategyWorkbench({
                 }}
                 readOnly={!canEdit || Boolean(selected?.archived)}
                 spellCheck={false}
-                placeholder={'{\n  "numpy": "==2.1.0"\n}'}
+                placeholder="{}"
               />
               <p className="strategy-dependencies-help">
-                依赖清单随版本保存并参与 SHA-256 校验。
+                依赖清单随版本保存并参与 SHA-256 校验；当前隔离 Runner 以标准库模式（python
+                -I -S）执行，仅支持 Python 标准库与 qtrade，声明第三方依赖的版本将在提交回测时被拒绝。
               </p>
               <div className="strategy-subheading strategy-versions-heading">
                 <div>
@@ -1130,7 +1131,7 @@ export function StrategyWorkbench({
               {canBacktest ? (
                 <Link
                   className="button button-primary"
-                  href="/workspace/backtests"
+                  href={`/workspace/backtests?strategy_id=${encodeURIComponent(selected.strategy_id)}&version=${encodeURIComponent(String(selected.current_version))}`}
                 >
                   配置回测
                 </Link>

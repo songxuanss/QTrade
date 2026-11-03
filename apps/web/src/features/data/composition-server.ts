@@ -25,6 +25,7 @@ export async function composePoolDataset(input: {
   start: string;
   end: string;
   selection_size: number;
+  granularity?: "1m" | "5m" | "15m" | "30m" | "1h" | "1d";
   transformation_version?: string;
 }) {
   const response = await workspaceRequest(
@@ -32,6 +33,7 @@ export async function composePoolDataset(input: {
     "POST",
     {
       ...input,
+      granularity: input.granularity ?? "1d",
       transformation_version:
         input.transformation_version ?? "mairui.unadjusted-bars.v1",
     },

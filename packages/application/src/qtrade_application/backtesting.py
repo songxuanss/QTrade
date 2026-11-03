@@ -4,6 +4,7 @@ import json
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from hashlib import sha256
 from itertools import product
 from typing import Literal, Protocol, cast
 from uuid import UUID, uuid4
@@ -366,6 +367,12 @@ class BacktestService:
             StrategyVersionState.ARCHIVED,
         }:
             raise PortError(ErrorCode.REJECTED, "strategy version must pass static validation")
+        if strategy_version.dependencies_sha256 != sha256(b"{}").hexdigest():
+            raise PortError(
+                ErrorCode.UNSUPPORTED,
+                "isolated Runner supports only Python stdlib; "
+                "third-party dependencies are not supported",
+            )
         dataset = self._datasets.get(access.workspace.workspace_id, request.dataset_id).metadata
         if request.start < dataset.start or request.end > dataset.end:
             raise PortError(ErrorCode.INVALID_INPUT, "backtest range must stay within the dataset")
@@ -410,6 +417,34 @@ class BacktestService:
         # every session one day back, so ex-dates and their corporate actions
         # would apply a day late. The frozen default keeps that date intact.
         execution_settings = dict(request.execution_model or {})
+        if request.currency.upper() == "CNY":
+            if not request.execution_model:
+                execution_settings.update(
+                    {
+                        "lot_size": 100,
+                        "fee_bps": "3",
+                        "minimum_fee": "5",
+                        "sell_tax_bps": "5",
+                        "slippage_bps": "5",
+                        "impact_bps": "0",
+                        "tick_size": "0.01",
+                        "settlement_days": 1,
+                        "max_volume_fraction": "0.1",
+                        "daily_price_limit_fraction": "0.1",
+                        "tick_aggregation_seconds": 60,
+                        "timezone_name": "Asia/Shanghai",
+                    }
+                )
+            cny_periods = {
+                "1d": 252,
+                "1h": 252 * 4,
+                "30m": 252 * 8,
+                "15m": 252 * 16,
+                "5m": 252 * 48,
+                "1m": 252 * 240,
+            }.get(dataset.granularity)
+            if cny_periods is not None:
+                execution_settings.setdefault("periods_per_year", cny_periods)
         execution_settings.setdefault("timezone_name", "Asia/Shanghai")
         execution_model = BacktestExecutionModel.from_config(execution_settings)
         execution_config = json.dumps(

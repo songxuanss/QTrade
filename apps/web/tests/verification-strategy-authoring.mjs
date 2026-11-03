@@ -238,8 +238,30 @@ try {
   const backtestLink = page.getByRole("link", { name: "配置回测" });
   await expect(backtestLink).toBeVisible({ timeout: 15000 });
   await backtestLink.click();
-  await expect(page).toHaveURL(`${origin}/workspace/backtests`);
-  step("参数校验后可进入回测配置");
+  await expect(page).toHaveURL(
+    `${origin}/workspace/backtests?strategy_id=${encodeURIComponent(strategyId)}&version=1`,
+  );
+  const datasetSelect = page.getByLabel("Market Dataset").first();
+  await expect(datasetSelect).toHaveValue(
+    "4ad3c536-681b-57d3-b2f1-7fc224093106",
+  );
+  const firstDatasetOption = await datasetSelect
+    .locator("option")
+    .first()
+    .innerText();
+  assert.match(
+    firstDatasetOption,
+    /20 标的/,
+    `expected multi-instrument dataset first, saw ${firstDatasetOption}`,
+  );
+  const datasetFilter = page.getByLabel("筛选回测数据集");
+  await datasetFilter.fill("4ad3c536");
+  await expect(datasetSelect.locator("option")).toHaveCount(1);
+  await datasetFilter.fill("");
+  step("参数校验后可进入回测配置并预选合成数据集", {
+    strategyId,
+    firstDatasetOption,
+  });
 
   await page.goto(`${origin}/workspace/strategies?strategy_id=${strategyId}`);
   await expect(page.getByRole("heading", { name: strategyName })).toBeVisible();

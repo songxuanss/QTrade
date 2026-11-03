@@ -165,6 +165,7 @@ export function DataWorkbench({
           batches: "assets",
           quality: "assets",
           "research-data": "assets",
+          composition: "assets",
         }}
         panels={[
           {
@@ -253,6 +254,7 @@ export function DataWorkbench({
                     batches: "raw",
                     quality: "quality",
                     "research-data": "research",
+                    composition: "research",
                   }}
                   panels={[
                     {

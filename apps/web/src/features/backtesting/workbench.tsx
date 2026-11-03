@@ -67,6 +67,15 @@ function localRangeStart(value: string) {
   return localDateTime(new Date(milliseconds).toISOString());
 }
 
+function formatDatasetOption(item: BacktestDatasetInfo) {
+  const count = item.instrument_ids.length;
+  const preview = item.instrument_ids.slice(0, 3).join(", ");
+  const instruments =
+    count > 1 ? `${count} 标的（${preview}${count > 3 ? "…" : ""}）` : preview;
+  const range = `${item.start.slice(0, 10)} → ${item.end.slice(0, 10)}`;
+  return `v${item.version} · ${instruments} · ${item.granularity} · ${range} · ${item.dataset_id.slice(0, 8)}`;
+}
+
 export function BacktestWorkbench({
   runs,
   datasets,
@@ -74,6 +83,9 @@ export function BacktestWorkbench({
   memberships,
   canRun,
   error,
+  initialDatasetId,
+  initialStrategyId,
+  initialVersion,
 }: {
   runs: BacktestRunInfo[];
   datasets: BacktestDatasetInfo[];
@@ -81,17 +93,29 @@ export function BacktestWorkbench({
   memberships: MembershipInfo[];
   canRun: boolean;
   error: boolean;
+  initialDatasetId?: string;
+  initialStrategyId?: string;
+  initialVersion?: number;
 }) {
   const router = useRouter();
   const runnableStrategies = useMemo(
     () => strategies.filter((item) => !item.archived),
     [strategies],
   );
+  const initialStrategy =
+    runnableStrategies.find((item) => item.strategy_id === initialStrategyId) ??
+    runnableStrategies[0];
   const [strategyId, setStrategyId] = useState(
-    runnableStrategies[0]?.strategy_id ?? "",
+    initialStrategy?.strategy_id ?? "",
   );
   const [version, setVersion] = useState(
-    runnableStrategies[0]?.current_version ?? 1,
+    initialStrategy &&
+      initialVersion &&
+      initialStrategy.strategy_versions?.some(
+        (candidate) => candidate.version === initialVersion,
+      )
+      ? initialVersion
+      : (initialStrategy?.current_version ?? 1),
   );
   const selectedStrategy = strategies.find(
     (item) => item.strategy_id === strategyId,
@@ -107,9 +131,23 @@ export function BacktestWorkbench({
     >,
   );
   const runnableDatasets = useMemo(() => datasets, [datasets]);
+  const [datasetQuery, setDatasetQuery] = useState("");
   const [datasetId, setDatasetId] = useState(
-    runnableDatasets[0]?.dataset_id ?? "",
+    runnableDatasets.find((item) => item.dataset_id === initialDatasetId)
+      ?.dataset_id ??
+      runnableDatasets[0]?.dataset_id ??
+      "",
   );
+  const filteredDatasets = useMemo(() => {
+    const query = datasetQuery.trim().toLowerCase();
+    if (!query) return runnableDatasets;
+    return runnableDatasets.filter((item) => {
+      if (item.dataset_id === datasetId) return true;
+      const scopeTag = item.instrument_ids.length > 1 ? "多标的 合成" : "单标的";
+      const text = `${item.dataset_id} ${item.granularity} ${item.start} ${item.end} ${item.instrument_ids.join(" ")} ${scopeTag}`.toLowerCase();
+      return text.includes(query);
+    });
+  }, [runnableDatasets, datasetQuery, datasetId]);
   const selectedDataset = useMemo(
     () => runnableDatasets.find((item) => item.dataset_id === datasetId),
     [runnableDatasets, datasetId],
@@ -392,6 +430,16 @@ export function BacktestWorkbench({
                 </small>
               </label>
               <label>
+                <span>筛选回测数据集</span>
+                <input
+                  type="search"
+                  aria-label="筛选回测数据集"
+                  value={datasetQuery}
+                  onChange={(event) => setDatasetQuery(event.target.value)}
+                  placeholder="按数据集 ID、标的代码、周期或“多标的”筛选"
+                />
+              </label>
+              <label>
                 <span>Market Dataset</span>
                 <select
                   value={datasetId}
@@ -407,17 +455,22 @@ export function BacktestWorkbench({
                     }
                   }}
                 >
-                  {runnableDatasets.map((item) => (
+                  {filteredDatasets.map((item) => (
                     <option key={item.dataset_id} value={item.dataset_id}>
-                      v{item.version} ·{" "}
-                      {item.instrument_ids.slice(0, 3).join(", ")} ·{" "}
-                      {item.granularity}
+                      {formatDatasetOption(item)}
                     </option>
                   ))}
                 </select>
                 <small>
-                  {selectedDataset?.content_sha256.slice(0, 16)} ·
-                  数据集内容摘要
+                  {selectedDataset ? (
+                    <>
+                      ID <code>{selectedDataset.dataset_id}</code> ·{" "}
+                      {selectedDataset.instrument_ids.length} 个标的 · 摘要{" "}
+                      {selectedDataset.content_sha256.slice(0, 16)}
+                    </>
+                  ) : (
+                    "数据集内容摘要"
+                  )}
                 </small>
               </label>
               <div className="backtest-date-grid">

@@ -180,7 +180,7 @@ export function UniversePanel({
       </details>
       {canManage && (
         <details className="universe-custom">
-          <summary>创建我的股票池</summary>
+          <summary>创建我的股票池（支持手输或 CSV/TXT 导入）</summary>
           <form action={customUniverseAction} className="universe-search">
             <label>
               股票池名称
@@ -195,9 +195,17 @@ export function UniversePanel({
               股票代码
               <textarea
                 name="instrument_ids"
-                required
-                placeholder="601288.SH, 600519.SH"
+                placeholder="601288.SH, 600519.SH（若上传 CSV/TXT 文件可留空或追加）"
                 rows={2}
+              />
+            </label>
+            <label>
+              从文件导入代码（.csv / .txt）
+              <input
+                type="file"
+                name="instrument_file"
+                accept=".csv,.txt,text/csv,text/plain"
+                aria-label="从 CSV 或 TXT 导入股票代码"
               />
             </label>
             <button className="button" type="submit">
@@ -244,9 +252,14 @@ export function UniversePanel({
               </p>
             </div>
             {canManage && (
-              <Link className="button" href="#pool-download">
-                下载本板块全部成员
-              </Link>
+              <div className="data-actions">
+                <Link className="button" href="#pool-download">
+                  下载本板块全部成员
+                </Link>
+                <a className="button button-secondary" href="#composition">
+                  前往合成选股数据集
+                </a>
+              </div>
             )}
           </div>
           {snapshot.reference_issues.length > 0 && (

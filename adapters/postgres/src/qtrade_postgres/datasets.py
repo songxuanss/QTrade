@@ -62,7 +62,9 @@ class PostgresDatasetRepository(PostgresStore):
         with self._connection() as conn:
             identifiers = conn.execute(
                 """SELECT dataset_id FROM market_dataset WHERE workspace_id=%s
-                ORDER BY published_at DESC,dataset_id DESC LIMIT %s""",
+                ORDER BY jsonb_array_length(payload->'instrument_ids') > 1 DESC,
+                jsonb_array_length(payload->'instrument_ids') DESC,
+                published_at DESC,dataset_id DESC LIMIT %s""",
                 (workspace_id, limit),
             ).fetchall()
             dataset_ids: list[UUID] = []

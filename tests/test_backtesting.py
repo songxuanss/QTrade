@@ -218,7 +218,12 @@ def test_submission_freezes_manifest_before_engine_and_syncs_immutable_result():
     assert crash.run.error_code == ErrorCode.UNAVAILABLE.value
 
 
-def _frozen_timezone(execution_model):
+def _frozen_execution_model(
+    execution_model,
+    *,
+    granularity: str = "1d",
+    dependencies_sha256: str | None = None,
+):
     actor, workspace_id = uuid4(), uuid4()
     workspace = Workspace(workspace_id, "Research", "team", actor, False, False, datetime.now(UTC))
     access = WorkspaceAccess(workspace, actor, Role.ADMIN)
@@ -236,7 +241,7 @@ def _frozen_timezone(execution_model):
         code_object_key=f"strategies/{strategy_id}/v1.py",
         code_sha256=sha256(source.encode()).hexdigest(),
         parameter_schema_json='{"type":"object","properties":{},"required":[]}',
-        dependencies_sha256=sha256(b"{}").hexdigest(),
+        dependencies_sha256=dependencies_sha256 or sha256(b"{}").hexdigest(),
     )
     strategy = Strategy(strategy_id, workspace_id, "Momentum", "", actor, now, now, 1)
     strategy_store = MockStrategyStore()
@@ -259,7 +264,12 @@ def _frozen_timezone(execution_model):
         ),
     )
     metadata = load(MarketDataset).model_copy(
-        update={"workspace_id": workspace_id, "dataset_id": dataset_id, "created_at": now}
+        update={
+            "workspace_id": workspace_id,
+            "dataset_id": dataset_id,
+            "granularity": granularity,
+            "created_at": now,
+        }
     )
     datasets = MockDatasetRepository()
     datasets.put(actor, PublishedDataset(metadata, "b" * 64, None, "c" * 64))
@@ -290,7 +300,11 @@ def _frozen_timezone(execution_model):
         ),
     )
     manifest = ManifestService(objects).get(workspace_id, queued.run.run_id)
-    return json.loads(manifest.execution_config_json)["execution_model"]["timezone_name"]
+    return json.loads(manifest.execution_config_json)["execution_model"]
+
+
+def _frozen_timezone(execution_model):
+    return _frozen_execution_model(execution_model)["timezone_name"]
 
 
 def test_daily_execution_defaults_to_exchange_zone_and_keeps_explicit_choice():
@@ -301,3 +315,57 @@ def test_daily_execution_defaults_to_exchange_zone_and_keeps_explicit_choice():
     assert _frozen_timezone({}) == "Asia/Shanghai"
     assert _frozen_timezone({"lot_size": 100}) == "Asia/Shanghai"
     assert _frozen_timezone({"timezone_name": "UTC"}) == "UTC"
+
+
+def test_cny_empty_execution_model_applies_a_share_defaults_and_annualization():
+    frozen = _frozen_execution_model({}, granularity="1d")
+    assert frozen["lot_size"] == 100
+    assert frozen["fee_bps"] == "3"
+    assert frozen["minimum_fee"] == "5"
+    assert frozen["sell_tax_bps"] == "5"
+    assert frozen["slippage_bps"] == "5"
+    assert frozen["tick_size"] == "0.01"
+    assert frozen["settlement_days"] == 1
+    assert frozen["max_volume_fraction"] == "0.1"
+    assert frozen["daily_price_limit_fraction"] == "0.1"
+    assert frozen["periods_per_year"] == 252
+    hourly = _frozen_execution_model({"lot_size": 100}, granularity="1h")
+    assert hourly["periods_per_year"] == 252 * 4
+
+
+def test_strategy_version_with_third_party_dependencies_is_rejected():
+    with pytest.raises(PortError) as unsupported:
+        _frozen_execution_model(
+            {},
+            dependencies_sha256=sha256(b'{"numpy":"==2.1.0"}').hexdigest(),
+        )
+    assert unsupported.value.code == ErrorCode.UNSUPPORTED
+
+
+def test_dataset_list_orders_multi_instrument_composed_datasets_first():
+    actor, workspace_id = uuid4(), uuid4()
+    now = datetime.now(UTC)
+    datasets = MockDatasetRepository()
+    composed = load(MarketDataset).model_copy(
+        update={
+            "workspace_id": workspace_id,
+            "dataset_id": uuid4(),
+            "instrument_ids": ("600519.SH", "000001.SZ", "601288.SH"),
+            "granularity": "1d",
+            "created_at": now,
+        }
+    )
+    fragment = load(MarketDataset).model_copy(
+        update={
+            "workspace_id": workspace_id,
+            "dataset_id": uuid4(),
+            "instrument_ids": ("600519.SH",),
+            "granularity": "1h",
+            "created_at": now.replace(microsecond=0),
+        }
+    )
+    datasets.put(actor, PublishedDataset(composed, "b" * 64, None, "c" * 64))
+    datasets.put(actor, PublishedDataset(fragment, "d" * 64, None, "e" * 64))
+    listed = datasets.list(workspace_id)
+    assert listed[0].metadata.dataset_id == composed.dataset_id
+    assert listed[1].metadata.dataset_id == fragment.dataset_id

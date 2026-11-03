@@ -33,7 +33,7 @@ class CollectionBody(BaseModel):
     instrument_id: str = Field(min_length=1, max_length=256)
     start: datetime
     end: datetime
-    granularity: Literal["tick", "1m", "5m", "15m", "1h", "1d"] = "tick"
+    granularity: Literal["tick", "1m", "5m", "15m", "30m", "1h", "1d"] = "tick"
     mode: Literal["check", "all", "missing"] = "check"
 
 
@@ -44,7 +44,7 @@ class ComposeDatasetBody(BaseModel):
     start: datetime
     end: datetime
     selection_size: int = Field(default=20, ge=1, le=50)
-    granularity: Literal["1d"] = "1d"
+    granularity: Literal["1m", "5m", "15m", "30m", "1h", "1d"] = "1d"
     transformation_version: str = Field(
         default="mairui.unadjusted-bars.v1", min_length=1, max_length=256
     )

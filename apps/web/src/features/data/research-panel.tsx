@@ -81,10 +81,17 @@ export function ResearchDataPanel({
                   data-dataset-id={dataset.dataset_id}
                 >
                   <div className="data-row-main">
-                    <strong>{dataset.instrument_ids.join("、")}</strong>
+                    <strong>
+                      {dataset.instrument_ids.length > 5
+                        ? `${dataset.instrument_ids.slice(0, 5).join("、")} 等 ${dataset.instrument_ids.length} 个标的`
+                        : dataset.instrument_ids.join("、")}
+                    </strong>
                     <span>
-                      {dataset.granularity} · {dataset.batch_ids.length}{" "}
-                      个原始批次
+                      {dataset.granularity} · {dataset.instrument_ids.length} 个标的 ·{" "}
+                      {dataset.batch_ids.length} 个原始批次 ·{" "}
+                      <code title={dataset.dataset_id}>
+                        {dataset.dataset_id.slice(0, 8)}
+                      </code>
                     </span>
                     <span className="data-period">
                       {dataset.start.slice(0, 16)} — {dataset.end.slice(0, 16)}{" "}
@@ -106,7 +113,7 @@ export function ResearchDataPanel({
                     </Link>
                     <Link
                       className="button button-secondary"
-                      href="/workspace/backtests"
+                      href={`/workspace/backtests?dataset_id=${encodeURIComponent(dataset.dataset_id)}`}
                     >
                       配置回测
                     </Link>

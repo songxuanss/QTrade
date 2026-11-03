@@ -180,22 +180,26 @@ def run_csv(run: BacktestRun, result: BacktestResult, manifest: ArtifactManifest
         ],
     )
     execution = _execution_config(manifest).get("execution_model", {})
-    _section(
-        writer,
-        "execution_model",
-        ("name", "value"),
-        [(name, json.dumps(value, ensure_ascii=False)) for name, value in execution.items()]
-        + [
+    execution_rows: list[tuple[object, ...]] = []
+    if isinstance(execution, dict):
+        execution_rows = [
+            *(
+                (str(name), json.dumps(value, ensure_ascii=False))
+                for name, value in execution.items()
+            ),
             (
                 "depth_model",
                 json.dumps(
                     _execution_config(manifest).get("depth_model", "bar_approximation"),
                     ensure_ascii=False,
                 ),
-            )
+            ),
         ]
-        if isinstance(execution, dict)
-        else [],
+    _section(
+        writer,
+        "execution_model",
+        ("name", "value"),
+        execution_rows,
     )
     execution_config = _execution_config(manifest)
     _section(

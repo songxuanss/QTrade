@@ -32,7 +32,7 @@ class CompositionRequest:
     start: datetime
     end: datetime
     selection_size: int = 20
-    granularity: Literal["1d"] = "1d"
+    granularity: Literal["1m", "5m", "15m", "30m", "1h", "1d"] = "1d"
     transformation_version: str = "mairui.unadjusted-bars.v1"
     dataset_id: UUID | None = None
     created_at: datetime | None = None
@@ -48,7 +48,7 @@ class CompositionRequest:
             or self.start >= self.end
             or type(self.selection_size) is not int
             or not 1 <= self.selection_size <= MAX_SELECTION
-            or self.granularity != "1d"
+            or self.granularity not in ("1m", "5m", "15m", "30m", "1h", "1d")
             or not isinstance(self.transformation_version, str)
             or not self.transformation_version
             or (self.dataset_id is not None and not isinstance(self.dataset_id, UUID))
@@ -142,18 +142,19 @@ class DatasetCompositionService:
         last = max(dataset.metadata.end for _, datasets, _ in selected for dataset in datasets)
         # Deterministic identity keeps repeated selection of the same frozen
         # snapshot and range idempotent instead of publishing duplicate datasets.
-        identity = ":".join(
-            (
-                "qtrade.compose.v1",
-                str(request.workspace_id),
-                str(snapshot.snapshot_id),
-                request.start.isoformat(),
-                request.end.isoformat(),
-                request.transformation_version,
-                str(request.selection_size),
-                ",".join(instrument_id for instrument_id, _, _ in selected),
-            )
-        )
+        identity_parts = [
+            "qtrade.compose.v1",
+            str(request.workspace_id),
+            str(snapshot.snapshot_id),
+            request.start.isoformat(),
+            request.end.isoformat(),
+            request.transformation_version,
+            str(request.selection_size),
+            ",".join(instrument_id for instrument_id, _, _ in selected),
+        ]
+        if request.granularity != "1d":
+            identity_parts.append(request.granularity)
+        identity = ":".join(identity_parts)
         dataset_id = request.dataset_id or uuid5(NAMESPACE_URL, identity)
         chosen = tuple(
             CompositionMember(instrument_id, average, len(datasets))

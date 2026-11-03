@@ -117,6 +117,7 @@ export default async function WorkspaceSection({
     dataset_id?: string;
     event_id?: string;
     strategy_id?: string;
+    version?: string;
     quality_dataset?: string;
     universe_search?: string;
     universe_category?: string;
@@ -131,6 +132,10 @@ export default async function WorkspaceSection({
     download_end?: string;
     data_view?: string;
     composed_dataset?: string;
+    compose_snapshot?: string;
+    compose_start?: string;
+    compose_end?: string;
+    compose_granularity?: string;
     collect_view?: string;
     research_view?: string;
     asset_view?: string;
@@ -153,7 +158,15 @@ export default async function WorkspaceSection({
         "research_view",
         "asset_view",
         "monitor_view",
+        "composed_dataset",
+        "compose_snapshot",
+        "compose_start",
+        "compose_end",
+        "compose_granularity",
       ] as const)
+        if (query[key]) navigationQuery.set(key, query[key].slice(0, 40));
+    } else if (section === "backtests") {
+      for (const key of ["dataset_id", "strategy_id", "version"] as const)
         if (query[key]) navigationQuery.set(key, query[key].slice(0, 40));
     }
     const target =
@@ -235,7 +248,11 @@ export default async function WorkspaceSection({
           query.universe_offset !== undefined ||
           query.universe_result !== undefined
             ? "pools"
-            : query.quality_dataset || query.result?.startsWith("research_")
+            : query.quality_dataset ||
+                query.result?.startsWith("research_") ||
+                query.result?.startsWith("composition_") ||
+                query.composed_dataset ||
+                query.compose_snapshot
               ? "assets"
               : query.download_instrument || query.result
                 ? "ticks"
@@ -317,6 +334,10 @@ export default async function WorkspaceSection({
             canManage={identity.workspace?.role === "admin"}
             result={query.result}
             composedDataset={query.composed_dataset}
+            initialSnapshotId={query.compose_snapshot ?? query.universe_snapshot}
+            initialStartDate={query.compose_start}
+            initialEndDate={query.compose_end}
+            initialGranularity={query.compose_granularity}
           />
         }
         sourceOptions={data?.sourceOptions ?? []}
@@ -433,6 +454,9 @@ export default async function WorkspaceSection({
         memberships={data.memberships}
         error={data.error}
         canRun={["admin", "analyst"].includes(identity.workspace?.role ?? "")}
+        initialDatasetId={query.dataset_id}
+        initialStrategyId={query.strategy_id}
+        initialVersion={query.version ? Number(query.version) : undefined}
       />
     );
   }

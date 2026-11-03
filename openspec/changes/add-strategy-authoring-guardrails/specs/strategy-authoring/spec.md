@@ -54,8 +54,12 @@
 
 ### Requirement: 执行语义不变
 
-模板与表单编辑 MUST NOT 改变策略执行方式。保存后的版本仍为不可变 Strategy Version，仍只能由隔离 Runner 执行；模板元数据 MUST NOT 参与运行时或 manifest 复现判断。
+模板与表单编辑 MUST NOT 改变策略执行方式。保存后的版本仍为不可变 Strategy Version，仍只能由隔离 Runner 执行；模板元数据 MUST NOT 参与运行时或 manifest 复现判断。由于隔离 Runner 以标准库模式（`python -I -S`）运行，回测创建 MUST 明确拒绝声明了第三方依赖（`dependencies` 非空）的策略版本，而不是入队后在运行时以不透明的 `rejected` 失败；策略工作台 MUST 披露该标准库限制，并在校验通过后支持携带 `strategy_id` 与 `version` 直达回测实验页。
 
 #### Scenario: 模板策略回测
 - **WHEN** 用户用模板创建并校验策略后提交回测
 - **THEN** 系统按既有冻结源码、参数与数据集执行，并生成同样的 manifest 字段
+
+#### Scenario: 拒绝含第三方依赖的策略版本回测
+- **WHEN** 用户为声明了第三方依赖的策略版本提交回测
+- **THEN** 服务端在入队前以 `unsupported` 拒绝请求，不创建必然失败的排队运行
