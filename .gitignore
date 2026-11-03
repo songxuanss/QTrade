@@ -12,6 +12,10 @@
 .venv/
 venv/
 
+# Agent harness runtime state (session-local, never project source)
+.opencode/
+.claude/
+
 # Python caches and build outputs
 __pycache__/
 *.py[cod]
