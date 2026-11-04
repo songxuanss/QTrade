@@ -22,7 +22,7 @@
 
 - [x] 4.1 新增单测:拆分模式草稿跨视图保持、choose() 切 data_view=jobs、WorkbenchTabs 别名(静态+条件)、锚点兼容;运行 web 全量 Vitest。
 - [x] 4.3 CI auth specs 与验证脚本适配:login.spec.ts 数据段断言改四视图;verification-workbench-layout.mjs 重写为四视图正典验收(含 origin 环境覆写);9 个 openDataView 调用脚本机械迁移到新视图/嵌套 tab 名;verification-collection-compact-ui.mjs 适配拆分模式(`#collector-results` 钩子、顶层 tab 导航、reader 无创建表单断言)。data-workbench.spec.ts 本体不改(旧 URL 恰好验证别名链路),其 4 张截图快照在 production build 后重新生成。
-- [ ] 4.2 全量门禁:tsc、eslint、prettier、Vitest、openspec strict、constitution、architecture(后端未动则 pytest/ruff/mypy 快速确认不受影响)。
+- [x] 4.2 全量门禁:tsc、eslint、prettier、Vitest、openspec strict、constitution、architecture(后端未动则 pytest/ruff/mypy 快速确认不受影响)。
 
 ## 5. 真实栈验证与交付
 

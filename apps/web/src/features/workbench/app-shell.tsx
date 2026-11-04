@@ -29,7 +29,7 @@ export function AppShell({
   const [hoveredHref, setHoveredHref] = useState("");
   const [logoutError, setLogoutError] = useState(false);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
-  const sidebarRef = useRef<HTMLElement>(null);
+  const sidebarRef = useRef<HTMLDivElement>(null);
   function closeMenu() {
     // Let Next Link start navigation before the mobile drawer is hidden.
     queueMicrotask(() => setMenuOpen(false));
@@ -106,11 +106,14 @@ export function AppShell({
       <a className="skip-link" href="#main-content">
         跳转到主内容
       </a>
-      <aside
+      {/* A plain <div> because HTML-AAM forbids role="dialog" on <aside>
+          (axe aria-allowed-role); the closed state keeps the complementary
+          landmark the implicit aside role used to provide. */}
+      <div
         ref={sidebarRef}
         className={`sidebar ${menuOpen ? "sidebar-open" : ""}`}
         id="workspace-navigation"
-        role={menuOpen ? "dialog" : undefined}
+        role={menuOpen ? "dialog" : "complementary"}
         aria-modal={menuOpen ? true : undefined}
         aria-label={menuOpen ? "工作区导航" : undefined}
       >
@@ -216,7 +219,7 @@ export function AppShell({
             </p>
           )}
         </div>
-      </aside>
+      </div>
       {menuOpen && (
         <button
           className="menu-backdrop"

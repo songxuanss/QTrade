@@ -1230,3 +1230,33 @@ test("signed global logout revokes all tabs and rejects replay after a new login
   ).toBe(401);
   expect((await page.request.get("/auth/session")).status()).toBe(200);
 });
+
+test("authenticated mobile drawer navigation reaches workspace sections", async ({
+  page,
+}) => {
+  // Companion to the public-page drawer assertions in tests/e2e/
+  // baseline.spec.ts: the e2e dev server has no auth environment, so only
+  // this suite can exercise the authenticated half of mobile navigation.
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/workspace/health");
+  // 身份已验证 lives in the sidebar, which is display:none at this width
+  // until the drawer opens — the health heading is the guest-free signal.
+  await expect(
+    page.getByRole("heading", { name: "系统与数据健康" }),
+  ).toBeVisible();
+  const menuButton = page.getByRole("button", { name: /主导航/ });
+  await menuButton.click();
+  await expect(page.getByText("身份已验证", { exact: true })).toBeVisible();
+  await expect(page.locator(".nav-item").first()).toBeFocused();
+  await expect(page.locator(".app-body")).toHaveAttribute("inert", "");
+  await page
+    .getByRole("navigation")
+    .getByRole("link", { name: "策略研究" })
+    .click();
+  await expect(page).toHaveURL(/\/workspace\/strategies$/);
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("策略研究");
+  expect(
+    await page.evaluate(() => document.body.scrollWidth <= innerWidth),
+  ).toBe(true);
+  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+});
