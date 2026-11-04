@@ -95,7 +95,11 @@ export function WalkForwardBatchResults({
           </div>
         </dl>
       )}
-      <div className="backtest-table-scroll walk-forward-results">
+      <div
+        className="backtest-table-scroll walk-forward-results"
+        tabIndex={0}
+        aria-label="Walk-forward 窗口结果表"
+      >
         <table className="backtest-comparison-table">
           <thead>
             <tr>

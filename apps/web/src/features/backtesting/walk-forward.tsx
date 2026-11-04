@@ -429,8 +429,8 @@ export function WalkForwardPlanner({
               <span>初始资金</span>
               <input
                 type="number"
-                min="1"
-                step="1000"
+                min="0.01"
+                step="0.01"
                 value={initialCash}
                 onChange={(event) => setInitialCash(event.target.value)}
                 required
@@ -485,7 +485,11 @@ export function WalkForwardPlanner({
         </p>
       )}
       {plan && (
-        <div className="backtest-table-scroll walk-forward-results">
+        <div
+          className="backtest-table-scroll walk-forward-results"
+          tabIndex={0}
+          aria-label="Walk-forward 切分预览表"
+        >
           <table className="backtest-comparison-table">
             <thead>
               <tr>

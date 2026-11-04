@@ -132,7 +132,11 @@ export function BacktestComparison({
             <h2>核心指标</h2>
           </div>
         </div>
-        <div className="backtest-table-scroll">
+        <div
+          className="backtest-table-scroll"
+          tabIndex={0}
+          aria-label="核心指标对比表"
+        >
           <table className="backtest-comparison-table">
             <thead>
               <tr>
