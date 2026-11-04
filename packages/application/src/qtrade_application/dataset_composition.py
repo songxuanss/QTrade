@@ -85,7 +85,7 @@ class DatasetCompositionService:
         repository: DatasetRepositoryPort,
         replay: DatasetReplayService,
         market: MarketDataPort,
-        snapshots: SnapshotReader,
+        snapshots: SnapshotReader | None,
     ):
         self._repository = repository
         self._replay = replay

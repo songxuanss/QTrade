@@ -311,7 +311,7 @@ class MockEngineAdapter(TradingEnginePort):
         else:
             instruments = self._market_instruments(run.workspace_id, run.dataset_id)
 
-            def stream(item: tuple[str, str]) -> list[Bar]:
+            def stream(item: tuple[str, BarGranularity]) -> list[Bar]:
                 instrument, granularity = item
                 bars: list[Bar] = []
                 cursor: str | None = None

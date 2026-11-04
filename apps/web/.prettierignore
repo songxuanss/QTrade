@@ -4,3 +4,4 @@ public/monaco/
 playwright-report/
 test-results/
 *.tsbuildinfo
+src/features/strategies/templates.json
