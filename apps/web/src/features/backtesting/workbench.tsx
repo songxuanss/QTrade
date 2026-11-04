@@ -143,8 +143,10 @@ export function BacktestWorkbench({
     if (!query) return runnableDatasets;
     return runnableDatasets.filter((item) => {
       if (item.dataset_id === datasetId) return true;
-      const scopeTag = item.instrument_ids.length > 1 ? "多标的 合成" : "单标的";
-      const text = `${item.dataset_id} ${item.granularity} ${item.start} ${item.end} ${item.instrument_ids.join(" ")} ${scopeTag}`.toLowerCase();
+      const scopeTag =
+        item.instrument_ids.length > 1 ? "多标的 合成" : "单标的";
+      const text =
+        `${item.dataset_id} ${item.granularity} ${item.start} ${item.end} ${item.instrument_ids.join(" ")} ${scopeTag}`.toLowerCase();
       return text.includes(query);
     });
   }, [runnableDatasets, datasetQuery, datasetId]);

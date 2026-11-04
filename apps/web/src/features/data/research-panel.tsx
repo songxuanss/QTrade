@@ -87,8 +87,8 @@ export function ResearchDataPanel({
                         : dataset.instrument_ids.join("、")}
                     </strong>
                     <span>
-                      {dataset.granularity} · {dataset.instrument_ids.length} 个标的 ·{" "}
-                      {dataset.batch_ids.length} 个原始批次 ·{" "}
+                      {dataset.granularity} · {dataset.instrument_ids.length}{" "}
+                      个标的 · {dataset.batch_ids.length} 个原始批次 ·{" "}
                       <code title={dataset.dataset_id}>
                         {dataset.dataset_id.slice(0, 8)}
                       </code>

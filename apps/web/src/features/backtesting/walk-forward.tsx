@@ -301,7 +301,7 @@ export function WalkForwardPlanner({
             >
               {supported.map((dataset) => (
                 <option key={dataset.dataset_id} value={dataset.dataset_id}>
-                  { dataset.instrument_ids.length > 1
+                  {dataset.instrument_ids.length > 1
                     ? `${dataset.instrument_ids.length} 标的（${dataset.instrument_ids.slice(0, 2).join(", ")}${dataset.instrument_ids.length > 2 ? "…" : ""}）`
                     : dataset.instrument_ids.slice(0, 2).join(", ")}{" "}
                   · {dataset.granularity} · v{dataset.version} ·{" "}

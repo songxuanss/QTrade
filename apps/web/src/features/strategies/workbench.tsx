@@ -31,7 +31,12 @@ import {
   type ParameterSchema,
 } from "./schema-editor";
 import { registerStrategyLanguageSupport } from "./strategy-language";
-import { STRATEGY_TEMPLATES, STRATEGY_TEMPLATE_GROUPS, STRATEGY_CATEGORY_NOTES, findTemplate } from "./templates";
+import {
+  STRATEGY_TEMPLATES,
+  STRATEGY_TEMPLATE_GROUPS,
+  STRATEGY_CATEGORY_NOTES,
+  findTemplate,
+} from "./templates";
 
 loader.config({ paths: { vs: "/monaco/vs" } });
 
@@ -135,7 +140,8 @@ export function StrategyWorkbench({
   const monacoRef = useRef<Monaco | null>(null);
   const schema = useMemo(() => parseSchema(schemaText), [schemaText]);
   const schemaProblem = useMemo(
-    () => (schema ? validateSchema(schema) : "参数 schema 必须是有效 JSON 对象。"),
+    () =>
+      schema ? validateSchema(schema) : "参数 schema 必须是有效 JSON 对象。",
     [schema],
   );
   const properties = useMemo(() => schemaProperties(schema), [schema]);
@@ -194,9 +200,7 @@ export function StrategyWorkbench({
     setStaticPassed(null);
     setStaticDiagnostics([]);
     setSchemaMessage("");
-    setNotice(
-      `已载入模板「${template.name}」。保存后会冻结为新的不可变版本。`,
-    );
+    setNotice(`已载入模板「${template.name}」。保存后会冻结为新的不可变版本。`);
   }
 
   function editSchema(next: ParameterSchema, message = "") {
@@ -241,7 +245,8 @@ export function StrategyWorkbench({
 
   function defaultText(rule: ParameterRule): string {
     if (rule.default === undefined) return "";
-    if (typeof rule.default === "boolean") return rule.default ? "true" : "false";
+    if (typeof rule.default === "boolean")
+      return rule.default ? "true" : "false";
     return String(rule.default);
   }
 
@@ -251,7 +256,8 @@ export function StrategyWorkbench({
     if (!canEdit) return;
     if (!schema || schemaProblem) {
       setErrorMessage(
-        schemaProblem ?? "参数 schema 必须是有效 JSON 对象。请检查括号、引号和逗号。",
+        schemaProblem ??
+          "参数 schema 必须是有效 JSON 对象。请检查括号、引号和逗号。",
       );
       return;
     }
@@ -471,7 +477,8 @@ export function StrategyWorkbench({
                 <span>{STRATEGY_TEMPLATES.length} 个模板</span>
               </div>
               <p className="strategy-template-hint">
-                模板只填充源码与参数 schema；保存后仍冻结为不可变版本，通过静态校验和参数校验才能回测。
+                模板只填充源码与参数
+                schema；保存后仍冻结为不可变版本，通过静态校验和参数校验才能回测。
               </p>
               <div className="strategy-template-groups">
                 {STRATEGY_TEMPLATE_GROUPS.map((group) => (
@@ -1010,8 +1017,9 @@ export function StrategyWorkbench({
                 placeholder="{}"
               />
               <p className="strategy-dependencies-help">
-                依赖清单随版本保存并参与 SHA-256 校验；当前隔离 Runner 以标准库模式（python
-                -I -S）执行，仅支持 Python 标准库与 qtrade，声明第三方依赖的版本将在提交回测时被拒绝。
+                依赖清单随版本保存并参与 SHA-256 校验；当前隔离 Runner
+                以标准库模式（python -I -S）执行，仅支持 Python 标准库与
+                qtrade，声明第三方依赖的版本将在提交回测时被拒绝。
               </p>
               <div className="strategy-subheading strategy-versions-heading">
                 <div>

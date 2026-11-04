@@ -55,8 +55,7 @@ const SELF_MEMBERS: CompletionItem[] = [
     kind: "method",
     insertText: "buy(quantity)",
     detail: "buy(quantity, **options)",
-    documentation:
-      "买入提议的简写。默认使用当前 bar 的标的；数量必须为正。",
+    documentation: "买入提议的简写。默认使用当前 bar 的标的；数量必须为正。",
   },
   {
     label: "sell",
@@ -105,12 +104,12 @@ const HOVER_DOCS: Record<string, string> = {
   order: [
     "```python",
     'order(side, quantity, *, instrument_id=None, order_type="market",',
-    "      limit_price=None, stop_price=None, time_in_force=\"day\")",
+    '      limit_price=None, stop_price=None, time_in_force="day")',
     "```",
     "产生下单提议。side 为 `buy`/`sell`；限价与止损字段必须与订单类型匹配。",
   ].join("\n"),
-  buy: "`buy(quantity, **options)`：`order(\"buy\", ...)` 的简写。数量必须为正。",
-  sell: "`sell(quantity, **options)`：`order(\"sell\", ...)` 的简写。受 T+1 与持仓约束。",
+  buy: '`buy(quantity, **options)`：`order("buy", ...)` 的简写。数量必须为正。',
+  sell: '`sell(quantity, **options)`：`order("sell", ...)` 的简写。受 T+1 与持仓约束。',
   parameters:
     "冻结版本的参数字典。键必须在版本参数 schema 的 `properties` 中，保存后不可修改。",
   bar: "当前 bar。字段包括 `instrument_id`、`timestamp`、`open`、`high`、`low`、`close`、`volume`、`value`、`granularity`、`quality`。",

@@ -57,7 +57,8 @@ export function CompositionPanel({
         <span>{snapshots.length} 个股票池</span>
       </div>
       <p className="page-description">
-        按冻结股票池成员发现已发布的单标的数据集，以最近成交额为流动性排序，取前 N
+        按冻结股票池成员发现已发布的单标的数据集，以最近成交额为流动性排序，取前
+        N
         只合成为一个只读多标的数据集。合成不复制、不改写来源批次；回测页会显示数据集与来源质量报告。
       </p>
       {notice && (
@@ -138,7 +139,9 @@ export function CompositionPanel({
         </form>
       ) : (
         !canManage && (
-          <p className="data-empty">当前账号没有数据管理权限，无法合成选股数据集。</p>
+          <p className="data-empty">
+            当前账号没有数据管理权限，无法合成选股数据集。
+          </p>
         )
       )}
     </section>

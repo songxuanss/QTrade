@@ -20,8 +20,7 @@ export type ParameterSchema = {
 };
 
 export type SchemaEditResult =
-  | { ok: true; schema: ParameterSchema }
-  | { ok: false; error: string };
+  { ok: true; schema: ParameterSchema } | { ok: false; error: string };
 
 const PARAMETER_NAME = /^[A-Za-z_][A-Za-z0-9_]{0,63}$/;
 const TYPES = new Set(["string", "integer", "number", "boolean"]);
@@ -49,7 +48,8 @@ export function emptySchema(): ParameterSchema {
 export function parseSchema(source: string): ParameterSchema | null {
   try {
     const value = JSON.parse(source) as unknown;
-    if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+    if (!value || typeof value !== "object" || Array.isArray(value))
+      return null;
     return value as ParameterSchema;
   } catch {
     return null;
@@ -64,7 +64,11 @@ export function schemaProperties(
   schema: ParameterSchema | null,
 ): [string, ParameterRule][] {
   const properties = schema?.properties;
-  if (!properties || typeof properties !== "object" || Array.isArray(properties))
+  if (
+    !properties ||
+    typeof properties !== "object" ||
+    Array.isArray(properties)
+  )
     return [];
   return Object.entries(properties).filter(
     (entry): entry is [string, ParameterRule] =>
@@ -80,7 +84,10 @@ export function addParameter(
 ): SchemaEditResult {
   const trimmed = name.trim();
   if (!PARAMETER_NAME.test(trimmed))
-    return { ok: false, error: "参数名只能包含字母、数字和下划线，且不能以数字开头。" };
+    return {
+      ok: false,
+      error: "参数名只能包含字母、数字和下划线，且不能以数字开头。",
+    };
   if (Object.hasOwn(schema.properties, trimmed))
     return { ok: false, error: "参数名已存在。" };
   return {
@@ -116,7 +123,10 @@ export function renameParameter(
   const trimmed = to.trim();
   if (trimmed === from) return { ok: true, schema };
   if (!PARAMETER_NAME.test(trimmed))
-    return { ok: false, error: "参数名只能包含字母、数字和下划线，且不能以数字开头。" };
+    return {
+      ok: false,
+      error: "参数名只能包含字母、数字和下划线，且不能以数字开头。",
+    };
   if (Object.hasOwn(schema.properties, trimmed))
     return { ok: false, error: "参数名已存在。" };
   const properties: Record<string, ParameterRule> = {};
@@ -202,7 +212,10 @@ export function validateSchema(schema: ParameterSchema): string | null {
     if (unknown) return `参数 ${name} 含未知字段 ${unknown}。`;
     if (!rule.type || !TYPES.has(rule.type))
       return `参数 ${name} 的 type 必须是 string、integer、number 或 boolean。`;
-    if (rule.type === "string" && (rule.minimum !== undefined || rule.maximum !== undefined))
+    if (
+      rule.type === "string" &&
+      (rule.minimum !== undefined || rule.maximum !== undefined)
+    )
       return `参数 ${name} 是字符串，不能设置最小/最大值。`;
     if (rule.type === "integer" || rule.type === "number") {
       if (rule.minLength !== undefined || rule.maxLength !== undefined)
@@ -214,7 +227,11 @@ export function validateSchema(schema: ParameterSchema): string | null {
       )
         return `参数 ${name} 的最小值不能大于最大值。`;
     }
-    if (rule.type === "integer" && rule.default !== undefined && !Number.isInteger(rule.default))
+    if (
+      rule.type === "integer" &&
+      rule.default !== undefined &&
+      !Number.isInteger(rule.default)
+    )
       return `参数 ${name} 的默认值必须是整数。`;
     if (
       (rule.type === "integer" || rule.type === "number") &&
@@ -222,11 +239,22 @@ export function validateSchema(schema: ParameterSchema): string | null {
       typeof rule.default !== "number"
     )
       return `参数 ${name} 的默认值必须是数字。`;
-    if (rule.type === "boolean" && rule.default !== undefined && typeof rule.default !== "boolean")
+    if (
+      rule.type === "boolean" &&
+      rule.default !== undefined &&
+      typeof rule.default !== "boolean"
+    )
       return `参数 ${name} 的默认值必须是布尔值。`;
-    if (rule.type === "string" && rule.default !== undefined && typeof rule.default !== "string")
+    if (
+      rule.type === "string" &&
+      rule.default !== undefined &&
+      typeof rule.default !== "string"
+    )
       return `参数 ${name} 的默认值必须是字符串。`;
-    if (rule.enum !== undefined && (!Array.isArray(rule.enum) || rule.enum.length === 0))
+    if (
+      rule.enum !== undefined &&
+      (!Array.isArray(rule.enum) || rule.enum.length === 0)
+    )
       return `参数 ${name} 的 enum 必须是非空数组。`;
   }
   return null;

@@ -50,7 +50,9 @@ try {
   await expect(templatePanel).toBeVisible();
   const cards = templatePanel.locator(".strategy-template-card");
   await expect(cards).toHaveCount(21);
-  const groups = await templatePanel.locator(".strategy-template-group h3").allInnerTexts();
+  const groups = await templatePanel
+    .locator(".strategy-template-group h3")
+    .allInnerTexts();
   assert.ok(groups.length >= 5, `template groups missing: ${groups}`);
   await expect(
     templatePanel.getByText("论坛实战派", { exact: false }),
@@ -59,9 +61,7 @@ try {
 
   const stamp = new Date().toISOString().slice(11, 19);
   const strategyName = `模板验收 · 横截面动量 ${stamp}`;
-  await templatePanel
-    .getByRole("button", { name: /横截面动量/ })
-    .click();
+  await templatePanel.getByRole("button", { name: /横截面动量/ }).click();
   await expect(page.getByLabel("策略名称", { exact: true })).toHaveValue(
     "横截面动量",
   );
@@ -90,11 +90,17 @@ try {
     editor.trigger("verification", "editor.action.triggerSuggest", {});
   });
   await expect(page.locator(".suggest-widget.visible")).toBeVisible();
-  const suggestions = await page
-    .locator(".suggest-widget.visible")
-    .innerText();
-  assert.match(suggestions, /parameters/, `missing self.parameters: ${suggestions}`);
-  assert.match(suggestions, /buy|order/, `missing order helpers: ${suggestions}`);
+  const suggestions = await page.locator(".suggest-widget.visible").innerText();
+  assert.match(
+    suggestions,
+    /parameters/,
+    `missing self.parameters: ${suggestions}`,
+  );
+  assert.match(
+    suggestions,
+    /buy|order/,
+    `missing order helpers: ${suggestions}`,
+  );
   await page.keyboard.press("Escape");
   await page.evaluate(() => {
     window.monaco.editor.getModels()[0].setValue(window.__authoringOriginal);
@@ -121,9 +127,7 @@ try {
   );
   const checked = [];
   for (const template of library) {
-    await templatePanel
-      .getByRole("button", { name: template.name })
-      .click();
+    await templatePanel.getByRole("button", { name: template.name }).click();
     const applied = await page.evaluate(
       () => window.monaco?.editor.getModels()[0]?.getValue() ?? "",
     );
@@ -133,7 +137,9 @@ try {
       `template ${template.id} code was not applied verbatim`,
     );
     const expectedRows = Object.keys(template.schema.properties).length;
-    await expect(page.locator(".strategy-schema-row")).toHaveCount(expectedRows);
+    await expect(page.locator(".strategy-schema-row")).toHaveCount(
+      expectedRows,
+    );
     await page.getByRole("button", { name: "静态校验", exact: true }).click();
     await expect(page.getByRole("status")).toContainText("静态校验通过", {
       timeout: 15000,
@@ -156,9 +162,7 @@ try {
     .locator("input");
   await defaultValueInput.fill("3");
   await page.getByRole("button", { name: "JSON", exact: true }).click();
-  const jsonText = await page
-    .getByLabel("参数 schema JSON")
-    .inputValue();
+  const jsonText = await page.getByLabel("参数 schema JSON").inputValue();
   assert.ok(jsonText.includes('"top_n"'), "top_n missing from JSON view");
   assert.match(jsonText, /"default": 3/);
   step("表单修改同步到 JSON 视图");
@@ -166,9 +170,9 @@ try {
   await expect(page.locator(".strategy-schema-row")).toHaveCount(5);
 
   await page.getByLabel("策略名称", { exact: true }).fill(strategyName);
-  await page.getByLabel("用途说明", { exact: true }).fill(
-    "模板发起的横截面动量研究，验证参数表单与内联诊断。",
-  );
+  await page
+    .getByLabel("用途说明", { exact: true })
+    .fill("模板发起的横截面动量研究，验证参数表单与内联诊断。");
 
   await page.evaluate(() => {
     const monaco = window.monaco;

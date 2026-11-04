@@ -39,7 +39,9 @@ function extractInstrumentCodes(text: string): string[] {
     if (/^\d{6}$/.test(upper)) {
       const suffix = upper.startsWith("6")
         ? "SH"
-        : upper.startsWith("4") || upper.startsWith("8") || upper.startsWith("92")
+        : upper.startsWith("4") ||
+            upper.startsWith("8") ||
+            upper.startsWith("92")
           ? "BJ"
           : "SZ";
       normalized.push(`${upper}.${suffix}`);
