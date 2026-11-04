@@ -1,8 +1,5 @@
 "use client";
 
-import { CollectionReplayControl } from "./collection-replay";
-import { IsoDateInput } from "../../components/ui/iso-date";
-import Link from "next/link";
 import workspaceStyles from "./collector-workspace.module.css";
 import {
   useCallback,
@@ -10,6 +7,7 @@ import {
   useRef,
   useState,
   useSyncExternalStore,
+  type ReactNode,
 } from "react";
 import {
   controlCollector,
@@ -21,10 +19,11 @@ import {
   saveCollectorPreferences,
 } from "../../app/workspace/collector-actions";
 import { collectionDates } from "./collection-dates";
-import { FactorFieldPicker } from "./factor-field-picker";
-import { FactorCatalogStatus } from "./factor-catalog-status";
-import { FreshnessPanel } from "./freshness-panel";
-import { CollectionQualityPanel } from "./collection-quality-panel";
+import { CollectorCreateForm } from "./collector-create-form";
+import { CollectorPlanPreview } from "./collector-plan-preview";
+import { CollectorJobDetail } from "./collector-job-detail";
+import { PERIOD_ORDER, errors, preferredSource } from "./collector-labels";
+import { WORKBENCH_NAVIGATION_EVENT } from "./workbench-tabs";
 import type {
   CollectorJob,
   CollectorDefaultRange,
@@ -38,80 +37,23 @@ import type {
 } from "./collector-types";
 import type { UniverseSnapshot } from "./universe-server";
 
-const observedDate = (value: string) =>
-  new Intl.DateTimeFormat("zh-CN", {
-    dateStyle: "short",
-    timeZone: "Asia/Shanghai",
-  }).format(new Date(value));
-
 function subscribeView(onChange: () => void) {
   window.addEventListener("popstate", onChange);
-  window.addEventListener("collector-navigation", onChange);
+  window.addEventListener(WORKBENCH_NAVIGATION_EVENT, onChange);
   return () => {
     window.removeEventListener("popstate", onChange);
-    window.removeEventListener("collector-navigation", onChange);
+    window.removeEventListener(WORKBENCH_NAVIGATION_EVENT, onChange);
   };
 }
 
-const states: Record<string, string> = {
-  queued: "排队中",
-  running: "采集中",
-  waiting: "等待重试",
-  failed: "失败",
-  completed: "采集完成",
-  completed_with_gaps: "完成 · 存在无数据分段",
-  no_data: "无观测数据",
-  cancelled: "已取消",
-};
-const errors: Record<string, string> = {
-  unavailable: "采集服务暂不可用，请检查独立服务或授权连接。",
-  unauthorized: "来源权限验证未通过，请检查订阅和采集配置。",
-  forbidden: "当前账号没有该作用域的操作权限。",
-  unsupported: "该来源不支持所选市场、资产类别、周期或字段。",
-  invalid_input: "请检查标的、日期范围和字段选择。",
-  incomplete_dates:
-    "请同时填写开始和结束日期；两个日期都留空时才采用来源默认范围。",
-  default_unavailable:
-    "该类别或周期的默认发布时间尚未验证，请明确填写日期后预览。",
-  conflict: "计划覆盖已变化，请重新预览后提交。",
-  unverified: "来源数据未通过结构或单位校验，未发布为可见行情。",
-  rate_limited: "来源限流，任务会按退避计划重试。",
-  timeout: "来源请求超时，任务会按退避计划重试。",
-};
-const periods: Record<string, string> = {
-  "1d": "日线",
-  "1m": "1 分钟",
-  "5m": "5 分钟",
-  "15m": "15 分钟",
-  "30m": "30 分钟",
-  "1h": "60 分钟",
-};
-// Coarse-to-fine so 日线 leads the union dropdown; only periods some source of
-// the current kind actually offers are rendered.
-const PERIOD_ORDER = ["1d", "1h", "30m", "15m", "5m", "1m"];
-
-/** Paid-first default among usable sources; explicit user picks bypass this. */
-function preferredSource(
-  list: CollectorSource[],
-  granularity: string,
-): CollectorSource | undefined {
-  const usable = list.filter((item) => item.configured);
-  const supporting = usable.filter((item) =>
-    item.periods.includes(granularity),
-  );
-  return (
-    supporting.find((item) => item.tier === "paid") ??
-    supporting[0] ??
-    usable.find((item) => item.tier === "paid") ??
-    usable[0] ??
-    list[0]
-  );
-}
-const budgetWaits = {
-  source_daily: "来源日信用不足，等待预算重置；管理员调整额度后可提前重试。",
-  scope_daily: "当前空间日信用不足，等待预算重置；管理员调整额度后可提前重试。",
-  source_concurrency: "来源并发预留已满，等待释放后再尝试。",
-  scope_concurrency: "当前空间并发预留已满，等待释放后再尝试。",
+/** Split-mode composition API: one mounted instance feeds the create half to
+ * the download view and the results half to the jobs view, so switching
+ * top-level views can never discard drafts or interrupt job polling. */
+export type CollectorSplitApi = {
+  create: ReactNode;
+  results: ReactNode;
+  view: "create" | "results";
+  navigate: (next: "create" | "results") => void;
 };
 
 export function CollectorPanel({
@@ -125,6 +67,7 @@ export function CollectorPanel({
   snapshots,
   initialPreferences = null,
   preferencesAvailable = true,
+  children = null,
 }: {
   catalog: CollectorSource[];
   factors: FactorDefinition[];
@@ -136,7 +79,12 @@ export function CollectorPanel({
   snapshots: UniverseSnapshot[];
   initialPreferences?: CollectorPreferences | null;
   preferencesAvailable?: boolean;
+  children?: ((api: CollectorSplitApi) => ReactNode) | null;
 }) {
+  // Presence of a composition function is the split contract: presentation is
+  // delegated to the caller (four-view workbench); absent, this panel renders
+  // its historic combined layout with the internal view switcher.
+  const split = typeof children === "function";
   const [catalogState, setCatalogState] = useState(factorCatalog);
   const displayedFactors = catalogState?.definitions ?? factors;
   const factorSelectionAvailable = catalogState
@@ -209,8 +157,15 @@ export function CollectorPanel({
     subscribeView,
     () => {
       const query = new URL(location.href).searchParams;
-      return !canManage ||
-        query.get("collect_view") === "results" ||
+      if (!canManage) return "results";
+      if (split) {
+        // The top-level view key owns navigation in split mode; legacy
+        // parameters still resolve so old deep links keep their meaning.
+        const dataView = query.get("data_view");
+        if (dataView === "jobs") return "results";
+        if (dataView === "download") return "create";
+      }
+      return query.get("collect_view") === "results" ||
         (query.has("collector_job") && query.get("collect_view") !== "create")
         ? "results"
         : "create";
@@ -222,9 +177,17 @@ export function CollectorPanel({
   // between a running task and its configuration never discards draft inputs.
   function navigate(next: "create" | "results") {
     const url = new URL(location.href);
-    url.searchParams.set("collect_view", next);
+    if (split) {
+      url.searchParams.set(
+        "data_view",
+        next === "create" ? "download" : "jobs",
+      );
+      url.searchParams.delete("collect_view");
+    } else {
+      url.searchParams.set("collect_view", next);
+    }
     history.replaceState(null, "", url);
-    window.dispatchEvent(new Event("collector-navigation"));
+    window.dispatchEvent(new Event(WORKBENCH_NAVIGATION_EVENT));
   }
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -348,9 +311,14 @@ export function CollectorPanel({
     setPublication(null);
     const url = new URL(location.href);
     url.searchParams.set("collector_job", job.job_id);
-    url.searchParams.set("collect_view", "results");
+    if (split) {
+      url.searchParams.set("data_view", "jobs");
+      url.searchParams.delete("collect_view");
+    } else {
+      url.searchParams.set("collect_view", "results");
+    }
     history.replaceState(null, "", url);
-    window.dispatchEvent(new Event("collector-navigation"));
+    window.dispatchEvent(new Event(WORKBENCH_NAVIGATION_EVENT));
   }
   async function fillDefaultDates() {
     if (!source || first || last) return;
@@ -568,6 +536,212 @@ export function CollectorPanel({
           sources.some((item) => item.periods.includes(value)),
         );
 
+  const connection = (
+    <span
+      className={`data-chip collector-connection ${available ? "is-connected" : "is-disconnected"}`}
+    >
+      <span aria-hidden="true" />
+      {available ? "远程服务已连接" : "服务待连接"}
+    </span>
+  );
+  const notices = (
+    <>
+      {!preferencesAvailable && (
+        <p className="data-footnote" role="status">
+          已保存选择暂不可读取，当前显示默认输入。请刷新重试或检查业务
+          API；保存新选择会覆盖原草稿。
+        </p>
+      )}
+      {!available && (
+        <p className="data-notice" role="alert">
+          {split
+            ? "独立采集服务尚未连接。已保存任务仍可在「任务与结果」查看。"
+            : "独立采集服务尚未连接。旧任务仍在下方保留。"}
+        </p>
+      )}
+    </>
+  );
+  // Exactly one of the two error channels renders at a time: inline beside the
+  // create actions, or as the results banner. Split mode keeps the rule.
+  const banner =
+    error && view !== "create" ? (
+      <p className="data-notice" role="alert" ref={errorRef}>
+        {errors[error] ?? "操作暂未完成，请刷新重试。"}
+      </p>
+    ) : null;
+  const createInner = (
+    <div className={`collector-layout ${workspaceStyles.createLayout}`}>
+      <CollectorCreateForm
+        sources={sources}
+        source={source}
+        sourceId={sourceId}
+        kind={kind}
+        period={period}
+        periodOptions={periodOptions}
+        onKindChange={(nextKind) => {
+          setKind(nextKind);
+          // Re-run the paid-first default for the new kind instead
+          // of leaving the source dangling on a filtered-out pick.
+          const list = catalog.filter((item) => item.dataset_kind === nextKind);
+          setSourceId(
+            preferredSource(list, nextKind === "factors" ? "1d" : period)
+              ?.source ?? "",
+          );
+        }}
+        onSourceChange={(next) => {
+          sourceTouched.current = true;
+          setSourceId(next);
+        }}
+        onPeriodChange={(next) => {
+          setPeriod(next);
+          // The period drives capability: an untouched source keeps
+          // following the paid-first default, and an explicit pick
+          // only yields when it cannot serve the new period.
+          const supporting = sources.filter(
+            (item) => item.configured && item.periods.includes(next),
+          );
+          const best =
+            supporting.find((item) => item.tier === "paid") ?? supporting[0];
+          if (
+            best &&
+            (!source?.periods.includes(next) || !sourceTouched.current)
+          )
+            setSourceId(best.source);
+        }}
+        snapshots={snapshots}
+        snapshotIds={snapshotIds}
+        onSnapshotToggle={(snapshotId, checked) => {
+          invalidateSelection();
+          setSnapshotIds((current) =>
+            checked
+              ? [...new Set([...current, snapshotId])]
+              : current.filter((id) => id !== snapshotId),
+          );
+        }}
+        duplicatePoolNames={duplicatePoolNames}
+        unresolvedPools={unresolvedPools}
+        instruments={instruments}
+        onInstrumentsChange={setInstruments}
+        poolCount={selectedPools.length}
+        manualCount={manualIds.length}
+        combinedCount={combinedIds.size}
+        estimatedSegments={estimatedSegments}
+        segmentsPerInstrument={segmentsPerInstrument}
+        annual={annual}
+        proMinuteSource={proMinuteSource}
+        onSwitchPro={() => {
+          if (!proMinuteSource) return;
+          invalidateSelection();
+          sourceTouched.current = true;
+          setSourceId(proMinuteSource.source);
+        }}
+        first={first}
+        last={last}
+        onFirstChange={setFirst}
+        onLastChange={setLast}
+        mode={mode}
+        onModeChange={setMode}
+        busy={busy}
+        defaultRange={defaultRange}
+        onFillDefaultDates={() => void fillDefaultDates()}
+        catalogState={catalogState}
+        onCatalogUpdated={(snapshot) => {
+          if (catalogState?.content_sha256 !== snapshot.content_sha256)
+            invalidateSelection();
+          setCatalogState(snapshot);
+        }}
+        factorSelectionAvailable={factorSelectionAvailable}
+        displayedFactors={displayedFactors}
+        selectedFields={selectedFields}
+        onFieldsChange={(fields) => {
+          // Removing a chip emits no native change event. Invalidate
+          // the frozen plan here too, before accepting new fields.
+          invalidateSelection();
+          setSelectedFields(fields);
+        }}
+        onFormChange={invalidateSelection}
+        view={view}
+        error={error}
+        errorRef={errorRef}
+        savedSelection={savedSelection}
+        onSaveSelection={() => void saveSelection()}
+        onPreview={(form) => void build(form)}
+        canManage={canManage}
+        available={available}
+      />
+      <CollectorPlanPreview
+        preview={preview}
+        catalog={catalog}
+        planConfirmed={planConfirmed}
+        onPlanConfirmedChange={setPlanConfirmed}
+        busy={busy}
+        onSubmit={() => void submit()}
+        jobs={jobs}
+        onRefreshJob={(jobId) => void refresh(jobId)}
+      />
+    </div>
+  );
+  const resultsInner = (
+    <CollectorJobDetail
+      job={job}
+      jobs={jobs}
+      canManage={canManage}
+      busy={busy}
+      jobReadError={jobReadError}
+      pending={pending}
+      lastJobUpdate={lastJobUpdate}
+      onRefresh={(jobId, offset) => void refresh(jobId, offset)}
+      onControl={(action) => void control(action)}
+      publication={publication}
+      records={records}
+      nextRecordOffset={nextRecordOffset}
+      onBrowse={(value, offset) => void browse(value, offset)}
+      onClosePublication={() => setPublication(null)}
+    />
+  );
+
+  if (typeof children === "function")
+    return (
+      <>
+        {children({
+          create: (
+            <section
+              className={`panel collector-workbench ${workspaceStyles.workbench}`}
+              id="independent-collector"
+              aria-labelledby="collector-title"
+            >
+              <div className={workspaceStyles.heading}>
+                <div>
+                  <h2 id="collector-title">独立数据采集</h2>
+                </div>
+                {connection}
+              </div>
+              {notices}
+              {createInner}
+            </section>
+          ),
+          results: (
+            <section
+              className={`panel collector-workbench ${workspaceStyles.workbench}`}
+              id="collector-results"
+              aria-labelledby="collector-results-title"
+            >
+              <div className={workspaceStyles.heading}>
+                <div>
+                  <h2 id="collector-results-title">采集任务与产物</h2>
+                </div>
+                {connection}
+              </div>
+              {banner}
+              <div className={workspaceStyles.view}>{resultsInner}</div>
+            </section>
+          ),
+          view,
+          navigate,
+        })}
+      </>
+    );
+
   return (
     <section
       className={`panel collector-workbench ${workspaceStyles.workbench}`}
@@ -578,29 +752,10 @@ export function CollectorPanel({
         <div>
           <h2 id="collector-title">独立数据采集</h2>
         </div>
-        <span
-          className={`data-chip collector-connection ${available ? "is-connected" : "is-disconnected"}`}
-        >
-          <span aria-hidden="true" />
-          {available ? "远程服务已连接" : "服务待连接"}
-        </span>
+        {connection}
       </div>
-      {!preferencesAvailable && (
-        <p className="data-footnote" role="status">
-          已保存选择暂不可读取，当前显示默认输入。请刷新重试或检查业务
-          API；保存新选择会覆盖原草稿。
-        </p>
-      )}
-      {!available && (
-        <p className="data-notice" role="alert">
-          独立采集服务尚未连接。旧任务仍在下方保留。
-        </p>
-      )}
-      {error && view !== "create" && (
-        <p className="data-notice" role="alert" ref={errorRef}>
-          {errors[error] ?? "操作暂未完成，请刷新重试。"}
-        </p>
-      )}
+      {notices}
+      {banner}
       <div
         className={workspaceStyles.toolbar}
         role="group"
@@ -631,923 +786,10 @@ export function CollectorPanel({
         </span>
       </div>
       <div className={workspaceStyles.view} hidden={view !== "create"}>
-        <div className={`collector-layout ${workspaceStyles.createLayout}`}>
-          <div className="collector-builder">
-            {canManage && available && (
-              <form
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  void build(new FormData(event.currentTarget));
-                }}
-                onChange={invalidateSelection}
-                className={`collector-form ${workspaceStyles.form}`}
-              >
-                <div className="collector-wide collector-zone-heading">
-                  <div>
-                    <span className="collector-step-number">01</span>
-                    <div>
-                      <h3>配置采集范围</h3>
-                      <p>先确定类别、标的与日期，再预览计划。</p>
-                    </div>
-                  </div>
-                </div>
-                <div className="collector-form-section-title">
-                  <span>数据类型与来源</span>
-                </div>
-                <label className="collector-kind-field">
-                  数据类别
-                  <select
-                    aria-label="采集数据类别"
-                    value={kind}
-                    onChange={(e) => {
-                      const nextKind = e.target.value as "bars" | "factors";
-                      setKind(nextKind);
-                      // Re-run the paid-first default for the new kind instead
-                      // of leaving the source dangling on a filtered-out pick.
-                      const list = catalog.filter(
-                        (item) => item.dataset_kind === nextKind,
-                      );
-                      setSourceId(
-                        preferredSource(
-                          list,
-                          nextKind === "factors" ? "1d" : period,
-                        )?.source ?? "",
-                      );
-                    }}
-                  >
-                    <option value="bars">价格行情 · 日线与分钟</option>
-                    <option value="factors">量化因子 · 历史序列</option>
-                  </select>
-                </label>
-                <label className="collector-source-field">
-                  数据来源
-                  <select
-                    aria-label="采集数据来源"
-                    value={sourceId || source?.source || ""}
-                    onChange={(e) => {
-                      sourceTouched.current = true;
-                      setSourceId(e.target.value);
-                    }}
-                  >
-                    {sourceId &&
-                      !sources.some((item) => item.source === sourceId) && (
-                        <option value={sourceId}>
-                          {sourceId} · 已保存来源不可用，请重新选择
-                        </option>
-                      )}
-                    {sources.map((item) => (
-                      <option
-                        key={item.source}
-                        value={item.source}
-                        disabled={!item.configured}
-                      >
-                        {item.name}
-                        {!item.configured
-                          ? " · 未配置"
-                          : item.tier === "paid"
-                            ? " · 付费"
-                            : " · 免费"}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="collector-period-field">
-                  周期
-                  <select
-                    aria-label="独立采集周期"
-                    value={kind === "factors" ? "1d" : period}
-                    onChange={(e) => {
-                      const next = e.target.value;
-                      setPeriod(next);
-                      // The period drives capability: an untouched source keeps
-                      // following the paid-first default, and an explicit pick
-                      // only yields when it cannot serve the new period.
-                      const supporting = sources.filter(
-                        (item) =>
-                          item.configured && item.periods.includes(next),
-                      );
-                      const best =
-                        supporting.find((item) => item.tier === "paid") ??
-                        supporting[0];
-                      if (
-                        best &&
-                        (!source?.periods.includes(next) ||
-                          !sourceTouched.current)
-                      )
-                        setSourceId(best.source);
-                    }}
-                  >
-                    {kind === "bars" && !periodOptions.includes(period) && (
-                      <option value={period}>
-                        {periods[period] ?? period} · 当前来源不支持
-                      </option>
-                    )}
-                    {periodOptions.map((value) => (
-                      <option key={value} value={value}>
-                        {periods[value] ?? value}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <div className="collector-form-section-title">
-                  <span>标的范围</span>
-                </div>
-                <fieldset
-                  className="collector-wide collector-pool-picker"
-                  aria-label="独立采集股票池"
-                >
-                  <legend>
-                    行业、主题与指数股票池（可多选）
-                    {snapshotIds.length > 0 && (
-                      <span className="collector-pool-selected">
-                        已选 {snapshotIds.length}
-                      </span>
-                    )}
-                  </legend>
-                  <p>
-                    可同时选择多个行业/主题/指数池，也可在下方追加公司代码；成员合并去重后提交，提交时冻结当前成员快照。
-                  </p>
-                  <div className="collector-pool-options">
-                    {snapshots.map((item) => {
-                      const selected = snapshotIds.includes(item.snapshot_id);
-                      return (
-                        <label
-                          key={item.snapshot_id}
-                          className={selected ? "is-selected" : undefined}
-                        >
-                          <input
-                            type="checkbox"
-                            value={item.snapshot_id}
-                            checked={selected}
-                            onChange={(event) => {
-                              invalidateSelection();
-                              setSnapshotIds((current) =>
-                                event.target.checked
-                                  ? [...new Set([...current, item.snapshot_id])]
-                                  : current.filter(
-                                      (id) => id !== item.snapshot_id,
-                                    ),
-                              );
-                            }}
-                          />
-                          <span>
-                            {item.name}
-                            <small>
-                              v{item.version} · {item.members.length} 个成员 ·{" "}
-                              {observedDate(item.observed_at)}
-                              {duplicatePoolNames.has(item.name)
-                                ? ` · #${item.snapshot_id.slice(0, 8)}`
-                                : ""}
-                            </small>
-                          </span>
-                        </label>
-                      );
-                    })}
-                    {snapshots.length === 0 && <span>暂无已保存股票池</span>}
-                  </div>
-                  {unresolvedPools.length > 0 && (
-                    <p role="alert">
-                      已选 {unresolvedPools.length}{" "}
-                      个股票池不在当前列表，将保留选择但请确认可用性。
-                    </p>
-                  )}
-                </fieldset>
-                <label className="collector-wide">
-                  追加公司代码（可与上方股票池组合）
-                  <input
-                    name="instruments"
-                    value={instruments}
-                    onChange={(event) => setInstruments(event.target.value)}
-                    aria-label="独立采集标的"
-                    placeholder="601288.SH, 600519.SH；指数使用 index:000001.SH"
-                    maxLength={20000}
-                  />
-                </label>
-                <p
-                  className={`collector-wide collector-scope-note ${combinedIds.size ? "" : "is-empty"}`}
-                >
-                  {combinedIds.size
-                    ? `本次合并范围：${selectedPools.length} 个股票池、${manualIds.length} 个手工标的，去重后 ${combinedIds.size} 个标的。提交时冻结所选池成员。`
-                    : "尚未选择范围：勾选至少一个行业/指数池，或填写公司代码后才能预览。"}
-                </p>
-                {estimatedSegments > 0 && (
-                  <div className="collector-wide collector-segment-estimate">
-                    <strong>
-                      粗估约 {estimatedSegments.toLocaleString("zh-CN")}{" "}
-                      个采集分段
-                    </strong>
-                    <span>
-                      {combinedIds.size} 个标的 × 每标的约{" "}
-                      {segmentsPerInstrument.toLocaleString("zh-CN")}{" "}
-                      段；最终以预览处理。
-                      {annual
-                        ? " 当前来源按日历年组织分段。"
-                        : " 普通历史分钟接口按最多 7 天拆分。"}
-                    </span>
-                    {!annual && proMinuteSource && (
-                      <p className="data-notice warning">
-                        当前分钟范围会产生大量分段。可显式切换到 MaiRui Pro
-                        分钟历史，按年组织范围通常显著减少分段。
-                        <button
-                          type="button"
-                          className="button button-secondary"
-                          onClick={() => {
-                            invalidateSelection();
-                            sourceTouched.current = true;
-                            setSourceId(proMinuteSource.source);
-                          }}
-                        >
-                          改用 Pro 分钟历史
-                        </button>
-                      </p>
-                    )}
-                  </div>
-                )}
-                <div className="collector-form-section-title">
-                  <span>时间范围与下载策略</span>
-                </div>
-                <IsoDateInput
-                  className="collector-date-field"
-                  label={`开始日期（${source?.timezone ?? "UTC"}）`}
-                  ariaLabel="独立采集开始日期"
-                  name="first"
-                  value={first}
-                  onChange={setFirst}
-                />
-                <IsoDateInput
-                  className="collector-date-field"
-                  label="结束日期（含当日）"
-                  ariaLabel="独立采集结束日期"
-                  name="last"
-                  value={last}
-                  onChange={setLast}
-                />
-                <label className="collector-mode-field">
-                  下载方式
-                  <select
-                    aria-label="独立采集下载方式"
-                    value={mode}
-                    onChange={(e) =>
-                      setMode(e.target.value as "missing" | "all")
-                    }
-                  >
-                    <option value="missing">仅下载缺失数据</option>
-                    <option value="all">重新下载全部数据</option>
-                  </select>
-                </label>
-                {kind === "bars" &&
-                  source?.source === "mairui.history.bars" &&
-                  period === "1d" && (
-                    <div
-                      className={`collector-wide ${workspaceStyles.dateShortcut}`}
-                    >
-                      <button
-                        type="button"
-                        className="button button-secondary"
-                        disabled={
-                          busy || Boolean(first || last) || !source.configured
-                        }
-                        onClick={() => void fillDefaultDates()}
-                      >
-                        {busy ? "计算中…" : "使用最近自然年日期"}
-                      </button>
-                      {!busy && !source.configured ? (
-                        <small className="data-footnote">
-                          当前来源未配置，无法计算默认区间。
-                        </small>
-                      ) : (
-                        !busy &&
-                        Boolean(first || last) && (
-                          <small className="data-footnote">
-                            已填写日期；清空开始与结束日期后可一键填充最近自然年。
-                          </small>
-                        )
-                      )}
-                      <details className={workspaceStyles.help}>
-                        <summary>日期计算说明</summary>
-                        <p>
-                          仅在两个日期都未填写时应用，保留自定义日期。按来源交易日历和预计
-                          17:10 日线发布计算，不代表来源已实际更新。
-                        </p>
-                      </details>
-                      {defaultRange && (
-                        <p className="data-footnote" role="status">
-                          范围 [{defaultRange.start}, {defaultRange.end}
-                          )；市场时区 {defaultRange.timezone}
-                          ，开始包含、结束不包含。依据：{defaultRange.basis}
-                        </p>
-                      )}
-                    </div>
-                  )}
-                {kind === "factors" && (
-                  <fieldset className="collector-wide collector-fields">
-                    <legend>选择历史因子</legend>
-                    <FactorCatalogStatus
-                      snapshot={catalogState}
-                      onUpdated={(snapshot) => {
-                        if (
-                          catalogState?.content_sha256 !==
-                          snapshot.content_sha256
-                        )
-                          invalidateSelection();
-                        setCatalogState(snapshot);
-                      }}
-                    />
-                    {!factorSelectionAvailable && (
-                      <p role="alert">
-                        因子目录读取失败，当前无法创建因子任务。
-                      </p>
-                    )}
-                    <FactorFieldPicker
-                      definitions={displayedFactors}
-                      selected={selectedFields}
-                      onChange={(fields) => {
-                        // Removing a chip emits no native change event. Invalidate
-                        // the frozen plan here too, before accepting new fields.
-                        invalidateSelection();
-                        setSelectedFields(fields);
-                      }}
-                    />
-                  </fieldset>
-                )}
-                <div className="collector-wide collector-footer">
-                  {/* Disclosure retains source caveats without placing long
-                      reference text ahead of the primary workflow. */}
-                  <details className={workspaceStyles.help}>
-                    <summary>来源能力与采集说明</summary>
-                    <p>
-                      {source?.limitations.join(" ")}{" "}
-                      较长范围会自动拆分为可恢复的分段任务。
-                      手工标的优先于股票池；留空时使用冻结池成员。当前接入 A
-                      股与指数。
-                      {kind === "factors" && "因子历史可知时间尚未验证。"}
-                    </p>
-                  </details>
-                  {view === "create" && error && (
-                    <p className="data-notice" role="alert" ref={errorRef}>
-                      {errors[error] ?? "操作暂未完成，请刷新重试。"}
-                    </p>
-                  )}
-                  {!busy && !source?.configured && (
-                    <small className="data-footnote">
-                      当前来源未配置，无法预览采集计划。
-                    </small>
-                  )}
-                  {!busy &&
-                    source?.configured &&
-                    kind === "factors" &&
-                    (!factorSelectionAvailable ||
-                      selectedFields.length === 0) && (
-                      <small className="data-footnote">
-                        请至少选择一个因子字段后再预览。
-                      </small>
-                    )}
-                  <button
-                    type="submit"
-                    className="button button-primary"
-                    disabled={
-                      busy ||
-                      !source?.configured ||
-                      (kind === "factors" &&
-                        (!factorSelectionAvailable ||
-                          selectedFields.length === 0))
-                    }
-                  >
-                    {busy ? "处理中…" : "预览独立采集计划"}
-                  </button>
-                  <button
-                    type="button"
-                    className="button button-secondary"
-                    disabled={busy}
-                    onClick={() => void saveSelection()}
-                  >
-                    保存选择
-                  </button>
-                  {savedSelection && (
-                    <p role="status" className="data-footnote">
-                      已为当前用户和工作空间保存选择，刷新后可恢复。
-                    </p>
-                  )}
-                </div>
-              </form>
-            )}
-            {!canManage && (
-              <p className="data-footnote">
-                当前为只读访问，可以查看进度和产物。
-              </p>
-            )}
-            {canManage && !available && (
-              <p className="collector-form-unavailable">
-                采集服务连接后，可在此创建和预览采集计划。
-              </p>
-            )}
-          </div>
-          <aside className="collector-sidebar" aria-label="计划预览与最近任务">
-            {!preview && (
-              <div className="collector-sidebar-empty">
-                <h3>计划摘要</h3>
-                选择数据范围后生成预览。确认新增分段和覆盖情况，再提交任务。
-              </div>
-            )}
-            {preview && (
-              <div className="collector-preview" aria-label="独立采集计划">
-                <div className="collector-zone-heading compact">
-                  <div>
-                    <span className="collector-step-number">02</span>
-                    <div>
-                      <h3>
-                        {preview.missing_parts === 0
-                          ? "所选范围已有数据或任务"
-                          : "下载计划已生成"}
-                      </h3>
-                      <p>核对范围和新增任务后确认提交</p>
-                    </div>
-                  </div>
-                </div>
-                <p>
-                  {Object.entries(preview.instrument_names)
-                    .slice(0, 8)
-                    .map(([code, name]) => `${name} · ${code}`)
-                    .join("，")}
-                  {preview.request.instrument_ids.length > 8
-                    ? ` 等 ${preview.request.instrument_ids.length} 个标的`
-                    : ""}
-                </p>
-                <p className="data-secondary">
-                  {catalog.find(
-                    (item) => item.source === preview.request.source,
-                  )?.name ?? preview.request.source}
-                  {" · "}
-                  {periods[preview.request.granularity] ??
-                    preview.request.granularity}
-                  {" · UTC 半开范围："}
-                  {preview.request.start} — {preview.request.end}
-                </p>
-                {preview.field_definitions.length > 0 && (
-                  <p className="data-secondary">
-                    因子：
-                    {preview.field_definitions
-                      .map((field) => field.name)
-                      .join("、")}
-                  </p>
-                )}
-                <div className="collector-metrics">
-                  <span>
-                    总分段 <strong>{preview.planned_parts}</strong>
-                  </span>
-                  <span>
-                    已完成 <strong>{preview.completed_parts}</strong>
-                  </span>
-                  <span>
-                    处理中 <strong>{preview.active_parts}</strong>
-                  </span>
-                  <span>
-                    新增下载 <strong>{preview.missing_parts}</strong>
-                  </span>
-                </div>
-                <p className="data-secondary">
-                  {preview.request.mode === "all"
-                    ? "将重新请求全部范围，并保留已有产物。"
-                    : "复用已完成或处理中的范围，只采集缺失部分。"}
-                </p>
-                {preview.execution_estimate && (
-                  <div aria-label="采集调用估计">
-                    <p>
-                      执行调用估计 {preview.execution_estimate.calls_min}–
-                      {preview.execution_estimate.calls_max} 次 · 内部信用{" "}
-                      {preview.execution_estimate.credits_min}–
-                      {preview.execution_estimate.credits_max}
-                    </p>
-                    <p className="data-secondary">
-                      {preview.execution_estimate.basis}
-                    </p>
-                  </div>
-                )}
-                {preview.plan_guard && (
-                  <p className="data-secondary">
-                    单次上限：{preview.plan_guard.max_instruments} 个标的 /{" "}
-                    {preview.plan_guard.max_new_parts}{" "}
-                    个新增分段。确认不能绕过硬预算和规模限制。
-                  </p>
-                )}
-                {preview.confirmation_required && (
-                  <label>
-                    <input
-                      type="checkbox"
-                      aria-label="确认计划调用规模"
-                      checked={planConfirmed}
-                      onChange={(event) =>
-                        setPlanConfirmed(event.target.checked)
-                      }
-                    />
-                    我已核对新增任务及调用区间，确认执行；实际重试可能增加用量。
-                  </label>
-                )}
-                <button
-                  className="button button-primary"
-                  disabled={
-                    busy ||
-                    Boolean(preview.confirmation_required && !planConfirmed)
-                  }
-                  onClick={() => void submit()}
-                >
-                  提交独立采集任务
-                </button>
-              </div>
-            )}
-            {jobs.length > 0 && (
-              <details className="collector-recent">
-                <summary>
-                  <span>最近任务</span>
-                  <span className="collector-history-count">{jobs.length}</span>
-                </summary>
-                <ul>
-                  {jobs.map((item) => (
-                    <li key={item.job_id}>
-                      <button
-                        className="button button-quiet"
-                        onClick={() => void refresh(item.job_id)}
-                      >
-                        {Object.values(item.instrument_names)
-                          .slice(0, 2)
-                          .join("、")}{" "}
-                        · {item.request.granularity} ·{" "}
-                        {states[item.state] ?? item.state}
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              </details>
-            )}
-          </aside>
-        </div>
+        {createInner}
       </div>
       <div className={workspaceStyles.view} hidden={view !== "results"}>
-        <div className={workspaceStyles.taskPicker}>
-          <label>
-            查看已保存任务
-            <select
-              aria-label="查看已保存采集任务"
-              value={job?.job_id ?? ""}
-              onChange={(event) => {
-                if (event.target.value) void refresh(event.target.value);
-              }}
-            >
-              <option value="" disabled>
-                请选择任务
-              </option>
-              {job && !jobs.some((item) => item.job_id === job.job_id) && (
-                <option value={job.job_id}>
-                  当前任务 · {job.job_id.slice(0, 8)}
-                </option>
-              )}
-              {jobs.map((item) => (
-                <option key={item.job_id} value={item.job_id}>
-                  {Object.values(item.instrument_names)
-                    .slice(0, 2)
-                    .join("、") || item.job_id.slice(0, 8)}
-                  {" · "}
-                  {periods[item.request.granularity] ??
-                    item.request.granularity}
-                  {" · "}
-                  {states[item.state] ?? item.state}
-                  {" · "}
-                  {item.job_id.slice(0, 8)}
-                </option>
-              ))}
-            </select>
-          </label>
-          <p>选择任务查看分段、质量和已发布记录，刷新后仍可继续查看。</p>
-        </div>
-        {!job && (
-          <p className="data-footnote" role="status">
-            {jobs.length
-              ? "请选择一个已保存任务。"
-              : "当前工作区暂无采集任务。"}
-            {!canManage && " 当前为只读访问，可以查看进度和产物。"}
-          </p>
-        )}
-        <div className={workspaceStyles.resultGrid}>
-          {job && (
-            <div className="collector-run" data-collector-job={job.job_id}>
-              <div className="data-section-heading">
-                <div className="collector-zone-heading compact">
-                  <div>
-                    <span className="collector-step-number">03</span>
-                    <div>
-                      <h3>任务执行</h3>
-                      <p>
-                        {states[job.state] ?? job.state} · {job.total_parts}{" "}
-                        个分段
-                      </p>
-                    </div>
-                  </div>
-                </div>
-                <button
-                  className="button button-secondary"
-                  onClick={() => void refresh(job.job_id, job.offset)}
-                >
-                  刷新采集进度
-                </button>
-              </div>
-              <p
-                className="data-footnote"
-                role={jobReadError ? "alert" : "status"}
-              >
-                {jobReadError
-                  ? `${errors[jobReadError] ?? "进度读取失败。"} 当前显示上次成功快照；${pending ? "自动刷新将退避重试，也可" : "可"}点击“刷新采集进度”重试。`
-                  : pending
-                    ? "自动刷新已开启，失败后将退避重试。"
-                    : ""}
-                {lastJobUpdate !== null &&
-                  ` 上次更新：${new Intl.DateTimeFormat("zh-CN", {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                    second: "2-digit",
-                    hour12: false,
-                  }).format(lastJobUpdate)}。`}
-              </p>
-              <p>
-                {Object.entries(job.instrument_names)
-                  .slice(0, 6)
-                  .map(([code, name]) => `${name} · ${code}`)
-                  .join("，")}{" "}
-                · {periods[job.request.granularity] ?? job.request.granularity}
-              </p>
-              <p className="data-secondary">
-                关联 ID：<code>{job.request.correlation_id}</code> ·{" "}
-                {job.request.source}
-              </p>
-              <div className="collector-metrics">
-                <span>
-                  总分段 <strong>{job.total_parts}</strong>
-                </span>
-                <span>
-                  采集完成 <strong>{job.counts.completed ?? 0}</strong>
-                </span>
-                <span>
-                  失败 <strong>{job.counts.failed ?? 0}</strong>
-                </span>
-                <span>
-                  无观测 <strong>{job.counts.no_data ?? 0}</strong>
-                </span>
-              </div>
-              {canManage && (
-                <div className="data-actions">
-                  {["running", "waiting"].includes(job.state) && (
-                    <button
-                      className="button button-secondary"
-                      disabled={busy}
-                      onClick={() => void control("cancel")}
-                    >
-                      取消独立任务
-                    </button>
-                  )}
-                  {[
-                    "failed",
-                    "no_data",
-                    "completed_with_gaps",
-                    "cancelled",
-                  ].includes(job.state) && (
-                    <button
-                      className="button"
-                      disabled={busy}
-                      onClick={() => void control("retry")}
-                    >
-                      重试失败或空分段
-                    </button>
-                  )}
-                  {job.parts.some(
-                    (p) => p.state === "waiting" && p.wait_reason,
-                  ) && (
-                    <button
-                      className="button"
-                      disabled={busy}
-                      onClick={() => void control("retry")}
-                    >
-                      提前重试预算等待
-                    </button>
-                  )}
-                </div>
-              )}
-              <div
-                className={`collector-parts ${workspaceStyles.parts}`}
-                role="region"
-                aria-label="采集任务分段"
-                tabIndex={0}
-              >
-                {job.parts.map((part) => (
-                  <article
-                    key={part.part_id}
-                    className="collector-part"
-                    data-collector-part={part.part_id}
-                  >
-                    <div>
-                      <strong>
-                        {part.instrument_name}{" "}
-                        <small>
-                          {part.instrument_id}
-                          {part.field
-                            ? ` · ${job.field_definitions.find((f) => f.factor_id === part.field)?.name ?? part.field}`
-                            : ""}
-                        </small>
-                      </strong>
-                      <span className={`data-status status-${part.state}`}>
-                        {part.wait_reason && part.state === "waiting"
-                          ? "等待预算 / 预留"
-                          : (states[part.state] ?? part.state)}
-                      </span>
-                    </div>
-                    <p className="data-secondary">
-                      {part.start.slice(0, 10)} — {part.end.slice(0, 10)} UTC ·
-                      尝试 {part.attempt} 次
-                    </p>
-                    {part.error_code && (
-                      <p role="status">
-                        {part.wait_reason
-                          ? part.state === "waiting"
-                            ? budgetWaits[part.wait_reason]
-                            : "预算拒绝，当前没有自动重试时间；请核对额度配置后手动重试。"
-                          : (errors[part.error_code] ?? part.error_code)}
-                        {part.state === "waiting"
-                          ? ` 下次重试：${part.next_attempt_at}`
-                          : ""}
-                      </p>
-                    )}
-                    {part.execution_kind === "normalization_replay" && (
-                      <p className="data-footnote">
-                        离线重处理 · 原始获取时间保持，未重新访问供应商。
-                      </p>
-                    )}
-                    <CollectionQualityPanel
-                      job={job.job_id}
-                      part={part.part_id}
-                    />
-                    <CollectionReplayControl
-                      key={`${job.job_id}:${part.part_id}`}
-                      job={job.job_id}
-                      part={part.part_id}
-                      canManage={canManage}
-                      offline={part.execution_kind === "normalization_replay"}
-                    />
-                    {part.publication && (
-                      <>
-                        <p>
-                          {part.publication.record_count.toLocaleString()}{" "}
-                          条标准记录 ·{" "}
-                          {part.publication.raw_record_count.toLocaleString()}{" "}
-                          条原始记录
-                        </p>
-                        {part.publication.evidence
-                          ?.opening_boundary_semantics === "unverified" && (
-                          <p role="status" className="data-footnote">
-                            1 分钟来源含额外09:30观测，既有标签转换后为09:29；
-                            时段语义未确认，不能据此认证为常规一分钟区间。
-                          </p>
-                        )}
-                        {part.publication.dataset_kind === "bars" &&
-                          part.publication.granularity === "1d" && (
-                            <FreshnessPanel
-                              publication={part.publication.publication_id}
-                              canManage={canManage}
-                            />
-                          )}
-                        <p className="data-secondary">
-                          归档 SHA-256：
-                          {part.publication.raw_sha256.slice(0, 16)}…
-                        </p>
-                        <div className="data-actions">
-                          <button
-                            className="button button-secondary"
-                            onClick={() => void browse(part.publication!)}
-                          >
-                            {part.publication.dataset_kind === "factors"
-                              ? "查看因子数据"
-                              : "查看行情记录"}
-                          </button>
-                          {part.publication.dataset_kind === "bars" &&
-                            (part.consumer?.state === "visible" ? (
-                              <Link
-                                className="button"
-                                href={`/workspace/market?instrument=${encodeURIComponent(part.instrument_id)}&granularity=${job.request.granularity}${part.consumer.dataset_id ? `&dataset_id=${encodeURIComponent(part.consumer.dataset_id)}` : ""}`}
-                              >
-                                终端可见 · 查看图表
-                              </Link>
-                            ) : (
-                              <span
-                                className={`data-notice ${part.consumer?.state === "failed" ? "" : "warning"}`}
-                              >
-                                {part.consumer?.state === "failed"
-                                  ? `市场导入失败 · ${part.consumer.error_code}，后台继续重试`
-                                  : "采集完成 · 等待市场导入"}
-                              </span>
-                            ))}
-                        </div>
-                      </>
-                    )}
-                  </article>
-                ))}
-              </div>
-              <nav
-                className="universe-pagination"
-                aria-label="独立采集分段分页"
-              >
-                {job.offset > 0 && (
-                  <button
-                    className="button"
-                    onClick={() =>
-                      void refresh(job.job_id, Math.max(0, job.offset - 100))
-                    }
-                  >
-                    上一页分段
-                  </button>
-                )}
-                {job.next_offset !== null && (
-                  <button
-                    className="button"
-                    onClick={() => void refresh(job.job_id, job.next_offset!)}
-                  >
-                    下一页分段
-                  </button>
-                )}
-              </nav>
-            </div>
-          )}
-          {publication && (
-            <div className="collector-records" aria-label="采集数据预览">
-              <div className="collector-zone-heading compact">
-                <div>
-                  <span className="collector-step-number">04</span>
-                  <div>
-                    <h3>
-                      {publication.instrument_name} ·{" "}
-                      {publication.instrument_id} ·{" "}
-                      {publication.field ?? periods[publication.granularity]}
-                    </h3>
-                    <p>已发布记录样本</p>
-                  </div>
-                </div>
-              </div>
-              <p className="page-description">
-                {publication.limitations.join(" ")}
-              </p>
-              <div
-                className={`collector-table-scroll ${workspaceStyles.records}`}
-                tabIndex={0}
-                aria-label="采集记录表格"
-              >
-                <table>
-                  <thead>
-                    <tr>
-                      <th>日期 / 时间</th>
-                      <th>
-                        {publication.dataset_kind === "factors"
-                          ? "因子值"
-                          : "收盘价"}
-                      </th>
-                      <th>
-                        {publication.dataset_kind === "factors"
-                          ? "值状态 / 计算版本"
-                          : "成交量（股）"}
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {records.map((record, index) => (
-                      <tr key={index}>
-                        <td>{record.trade_date ?? record.timestamp}</td>
-                        <td>
-                          {publication.dataset_kind === "factors"
-                            ? (record.value ?? "空值")
-                            : record.close}
-                        </td>
-                        <td>
-                          {publication.dataset_kind === "factors"
-                            ? `${record.value_kind === "missing" ? (record.missing_reason === "not_available" ? "来源未开放" : "来源空值") : "来源观测"} / ${record.calc_version}`
-                            : record.volume}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              {nextRecordOffset !== null && (
-                <button
-                  className="button"
-                  onClick={() => void browse(publication, nextRecordOffset)}
-                >
-                  下一页记录
-                </button>
-              )}
-              <button
-                className="button button-quiet"
-                onClick={() => setPublication(null)}
-              >
-                关闭数据预览
-              </button>
-            </div>
-          )}
-        </div>
+        {resultsInner}
       </div>
     </section>
   );

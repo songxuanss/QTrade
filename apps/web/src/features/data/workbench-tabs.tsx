@@ -4,12 +4,21 @@ import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import styles from "./workbench-tabs.module.css";
 
+/** Any component that rewrites the URL for presentation-only navigation
+ * announces it here, so tab strips and URL-derived panel state re-read the
+ * address bar without a full router round-trip. */
+export const WORKBENCH_NAVIGATION_EVENT = "workbench-navigation";
+
 type WorkspacePanel = {
   key: string;
   title: string;
   description?: string;
   content: ReactNode;
 };
+
+/** Legacy query values keep old deep links working: a plain string maps to a
+ * fixed key, a function resolves conditionally (e.g. collect_view=results). */
+export type PanelAliases = Record<string, string | ((url: URL) => string)>;
 
 export function DataWorkbenchRefresh() {
   const router = useRouter();
@@ -35,6 +44,7 @@ export function WorkbenchTabs({
   initialKey,
   panels,
   anchors = {},
+  aliases = {},
   compact = false,
 }: {
   label: string;
@@ -42,6 +52,7 @@ export function WorkbenchTabs({
   initialKey: string;
   panels: WorkspacePanel[];
   anchors?: Record<string, string>;
+  aliases?: PanelAliases;
   compact?: boolean;
 }) {
   const id = useId();
@@ -67,9 +78,12 @@ export function WorkbenchTabs({
   useEffect(() => {
     const sync = () => {
       const url = new URL(location.href);
+      const raw = url.searchParams.get(queryKey);
+      const alias = raw === null ? undefined : aliases[raw];
       const key =
         anchors[url.hash.slice(1)] ??
-        url.searchParams.get(queryKey) ??
+        (typeof alias === "function" ? alias(url) : alias) ??
+        raw ??
         initialKey;
       if (panels.some((p) => p.key === key)) setSelected(key);
       else setSelected(initialKey);
@@ -77,11 +91,13 @@ export function WorkbenchTabs({
     sync();
     window.addEventListener("popstate", sync);
     window.addEventListener("hashchange", sync);
+    window.addEventListener(WORKBENCH_NAVIGATION_EVENT, sync);
     return () => {
       window.removeEventListener("popstate", sync);
       window.removeEventListener("hashchange", sync);
+      window.removeEventListener(WORKBENCH_NAVIGATION_EVENT, sync);
     };
-  }, [anchors, initialKey, panels, queryKey]);
+  }, [aliases, anchors, initialKey, panels, queryKey]);
 
   function select(index: number, focus = false) {
     const key = panels[index].key;
@@ -90,6 +106,9 @@ export function WorkbenchTabs({
     url.searchParams.set(queryKey, key);
     url.hash = "";
     window.history.pushState(null, "", url);
+    // URL-derived panel state (e.g. the collector's create/results half) must
+    // follow tab clicks even though pushState fires no native event.
+    window.dispatchEvent(new Event(WORKBENCH_NAVIGATION_EVENT));
     if (focus) {
       buttons.current[index]?.focus();
       buttons.current[index]?.scrollIntoView({

@@ -38,7 +38,7 @@ try {
     await expect(page).toHaveURL(origin + "/", { timeout: 60000 });
     await page.goto(origin + "/workspace/data", { timeout: 90000 });
   }
-  await openDataView(page, "财务与事件", "分红与送转");
+  await openDataView(page, "多维下载", "分红、送转与配股");
   const panel = page.locator("#distribution-collection");
   await expect(panel).toBeVisible({ timeout: 90000 });
   const finishDownload = await trackResearchDownload(

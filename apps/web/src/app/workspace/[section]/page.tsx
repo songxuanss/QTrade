@@ -1,7 +1,6 @@
 import { Suspense } from "react";
 import { DistributionCollectionPanel } from "../../../features/data/distribution-collection-panel";
 import { ResearchCollectionPanel } from "../../../features/data/research-collection-panel";
-import { CollectorPanel } from "../../../features/data/collector-panel";
 import { SchedulePanel } from "../../../features/data/schedule-panel";
 import { FreshnessHealthPanel } from "../../../features/data/freshness-health-panel";
 import { SourceProfilePanel } from "../../../features/data/source-profile-panel";
@@ -54,9 +53,70 @@ import { workspaceResearchDatasets } from "../../../features/data/research-serve
 import { RiskPanel } from "../../../features/risk/panel";
 import { workspaceRisk } from "../../../features/risk/server";
 
+/** Legacy data_view keys predate the four-view IA; normalize them (and the
+ * collector-specific collect_view/collector_job signals) server-side so the
+ * first render selects the right tab without a client-side flash. */
+function resolveInitialDataView(
+  query: {
+    data_view?: string;
+    collect_view?: string;
+    collector_job?: string;
+    universe_snapshot?: string;
+    universe_search?: string;
+    universe_category?: string;
+    universe_offset?: string;
+    universe_result?: string;
+    quality_dataset?: string;
+    result?: string;
+    composed_dataset?: string;
+    compose_snapshot?: string;
+    download_instrument?: string;
+  },
+  canManage: boolean,
+): string {
+  const legacy: Record<string, string> = {
+    pools: "catalog",
+    fundamentals: "download",
+    ticks: "download",
+    schedules: "sources",
+    monitor: "sources",
+    assets: "jobs",
+  };
+  const requested = query.data_view;
+  if (requested) {
+    if (["catalog", "download", "jobs", "sources"].includes(requested))
+      return requested;
+    if (requested === "collect")
+      return query.collect_view === "results" ||
+        (query.collector_job !== undefined && query.collect_view !== "create")
+        ? "jobs"
+        : "download";
+    return legacy[requested] ?? "download";
+  }
+  if (
+    query.universe_snapshot !== undefined ||
+    query.universe_search !== undefined ||
+    query.universe_category !== undefined ||
+    query.universe_offset !== undefined ||
+    query.universe_result !== undefined
+  )
+    return "catalog";
+  if (
+    query.quality_dataset ||
+    query.result?.startsWith("research_") ||
+    query.result?.startsWith("composition_") ||
+    query.composed_dataset ||
+    query.compose_snapshot
+  )
+    return "jobs";
+  if (query.collector_job) return "jobs";
+  // Without an explicit deep link, admins land on the download workbench while
+  // read-only members land on tasks & results (they cannot create downloads).
+  return canManage ? "download" : "jobs";
+}
+
 /** The reference catalog can fall back to a slow provider call. Keep it in its
- * own boundary so the downloaded-data and collection panels are not blocked. */
-async function UniverseSection({
+ * own boundary so the downloaded-data and collection panels are not blocked. */ async function UniverseSection({
   search,
   category,
   offset,
@@ -137,6 +197,7 @@ export default async function WorkspaceSection({
     compose_end?: string;
     compose_granularity?: string;
     collect_view?: string;
+    collector_job?: string;
     research_view?: string;
     asset_view?: string;
     monitor_view?: string;
@@ -237,46 +298,37 @@ export default async function WorkspaceSection({
       ? await workspaceDatasetQuality(query.quality_dataset)
       : null;
     const usageScope = (await readSession())?.workspaceId;
+    const canManageData = identity.workspace?.role === "admin";
     return (
       <DataWorkbench
         instrumentNames={instrumentNames}
-        initialView={
-          query.data_view ??
-          (query.universe_snapshot !== undefined ||
-          query.universe_search !== undefined ||
-          query.universe_category !== undefined ||
-          query.universe_offset !== undefined ||
-          query.universe_result !== undefined
-            ? "pools"
-            : query.quality_dataset ||
-                query.result?.startsWith("research_") ||
-                query.result?.startsWith("composition_") ||
-                query.composed_dataset ||
-                query.compose_snapshot
-              ? "assets"
-              : query.download_instrument || query.result
-                ? "ticks"
-                : "collect")
+        initialView={resolveInitialDataView(query, canManageData)}
+        initialResearchView={
+          query.research_view ??
+          (query.data_view === "ticks" ||
+          (query.download_instrument && query.data_view === undefined)
+            ? "ticks"
+            : "financial")
         }
-        initialResearchView={query.research_view}
         initialAssetView={
           query.asset_view ?? (query.quality_dataset ? "quality" : "research")
         }
-        initialMonitorView={query.monitor_view}
-        collectorPanel={
-          <CollectorPanel
-            {...collector}
-            initialJobs={collector.jobs}
-            snapshots={recent}
-            canManage={identity.workspace?.role === "admin"}
-          />
+        initialMonitorView={
+          query.monitor_view ??
+          (query.data_view === "schedules" ? "schedules" : "health")
         }
+        collectorProps={{
+          ...collector,
+          initialJobs: collector.jobs,
+          snapshots: recent,
+          canManage: canManageData,
+        }}
         schedulePanel={
           <SchedulePanel
             key={`schedule-${usageScope}`}
             snapshots={recent}
             names={instrumentNames}
-            canManage={identity.workspace?.role === "admin"}
+            canManage={canManageData}
           />
         }
         financialPanel={
@@ -284,7 +336,7 @@ export default async function WorkspaceSection({
             {...researchCollection}
             initialJobs={researchCollection.jobs}
             instrumentNames={instrumentNames}
-            canManage={identity.workspace?.role === "admin"}
+            canManage={canManageData}
           />
         }
         distributionPanel={
@@ -292,7 +344,7 @@ export default async function WorkspaceSection({
             {...distributions}
             initialJobs={distributions.jobs}
             instrumentNames={instrumentNames}
-            canManage={identity.workspace?.role === "admin"}
+            canManage={canManageData}
           />
         }
         healthPanel={<FreshnessHealthPanel key={`health-${usageScope}`} />}
@@ -334,7 +386,9 @@ export default async function WorkspaceSection({
             canManage={identity.workspace?.role === "admin"}
             result={query.result}
             composedDataset={query.composed_dataset}
-            initialSnapshotId={query.compose_snapshot ?? query.universe_snapshot}
+            initialSnapshotId={
+              query.compose_snapshot ?? query.universe_snapshot
+            }
             initialStartDate={query.compose_start}
             initialEndDate={query.compose_end}
             initialGranularity={query.compose_granularity}

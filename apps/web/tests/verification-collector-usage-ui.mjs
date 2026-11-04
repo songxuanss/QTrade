@@ -22,7 +22,7 @@ async function login(identity, viewport) {
   await page.waitForURL((u) => u.pathname === "/workspace/data", {
     timeout: 90000,
   });
-  await page.getByRole("tab", { name: "运行监控", exact: true }).click();
+  await page.getByRole("tab", { name: "来源与新鲜度", exact: true }).click();
   await page.getByRole("tab", { name: "用量与配额", exact: true }).click();
   const panel = page.getByRole("region", { name: "采集用量", exact: true });
   await expect(panel).toHaveAttribute("data-usage-scope", /[a-f0-9-]{36}/, {

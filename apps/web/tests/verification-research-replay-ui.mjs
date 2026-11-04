@@ -23,7 +23,7 @@ const targets = readOnly
         ...read("verification-local/review/distribution-ui-results.json")
           .download,
         kind: "corporate_action",
-        tab: "分红与送转",
+        tab: "分红、送转与配股",
         panel: "#distribution-collection",
         browse: "浏览公司行为版本",
       },
@@ -140,7 +140,7 @@ try {
 
     for (const target of targets) {
       phase = role + " " + target.kind + " modal";
-      await openDataView(page, "财务与事件", target.tab);
+      await openDataView(page, "多维下载", target.tab);
       const beforeUsage = await json(page, "usage");
       const parent = await json(
         page,

@@ -43,7 +43,7 @@ try {
     await expect(page).toHaveURL(origin + "/", { timeout: 60000 });
     await page.goto(origin + "/workspace/data", { timeout: 90000 });
   }
-  await openDataView(page, "财务与事件", "财务报表");
+  await openDataView(page, "多维下载", "财务报表");
   phase = "financial form";
   const panel = page.locator("#financial-collection");
   await expect(panel).toBeVisible({ timeout: 90000 });

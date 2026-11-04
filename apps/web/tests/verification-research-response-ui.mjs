@@ -91,8 +91,8 @@ try {
     for (const target of targets) {
       await openDataView(
         page,
-        "财务与事件",
-        target.kind === "financial_statement" ? "财务报表" : "分红与送转",
+        "多维下载",
+        target.kind === "financial_statement" ? "财务报表" : "分红、送转与配股",
       );
       phase = `${role} ${target.fixture ? "controlled" : "live"} ${target.kind} receipts`;
       const endpoint = `${root}/jobs/${target.request_id}/response-receipts`;

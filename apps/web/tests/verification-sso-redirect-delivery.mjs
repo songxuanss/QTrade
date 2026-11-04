@@ -61,7 +61,7 @@ try {
           const contentReadyMs = Math.round(performance.now() - rendering);
           phase = "RP selected navigation";
           await expect(
-            page.getByRole("tab", { name: "运行监控", exact: true }),
+            page.getByRole("tab", { name: "来源与新鲜度", exact: true }),
           ).toHaveAttribute("aria-selected", "true");
           await expect(
             page.getByRole("tab", { name: "来源能力", exact: true }),

@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { readFileSync, writeFileSync } from "node:fs";
 import { chromium, expect } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
+import { openDataView } from "./data-workbench-navigation.mjs";
 const read = (p) => JSON.parse(readFileSync(`../../.tools/${p}`));
 const admin = read("sso-local/state.json");
 const reader = read("verification-local/approver.json");
@@ -12,7 +13,7 @@ const namespace =
   process.env.QTRADE_COLLECTION_REPORT ?? "collection-compact-ui";
 assert(/^[a-z0-9-]+$/.test(namespace));
 const path = `../../.tools/verification-local/review/${namespace}.json`;
-const origin = "http://127.0.0.1:13000";
+const origin = process.env.QTRADE_WEB_ORIGIN ?? "http://127.0.0.1:13000";
 const endpoint = `http://127.0.0.1:3122/api/v1/workspaces/${scope}/data/collector`;
 const resume = process.argv.includes("--resume");
 const report = resume ? JSON.parse(readFileSync(path)) : { checks: [] };
@@ -57,6 +58,7 @@ try {
     page.on("pageerror", () => browserErrors++);
     await login(page, role);
     const panel = page.locator("#independent-collector");
+    const results = page.locator("#collector-results");
     if (role === "admin" && !resume) {
       phase = "draft retention";
       await panel
@@ -78,15 +80,11 @@ try {
       await panel
         .getByLabel("独立采集下载方式", { exact: true })
         .selectOption("all");
-      await panel
-        .getByRole("button", { name: "任务与结果", exact: true })
-        .click();
+      await openDataView(page, "任务与结果");
       await expect(
         panel.getByRole("button", { name: "预览独立采集计划", exact: true }),
       ).not.toBeVisible();
-      await panel
-        .getByRole("button", { name: "新建采集", exact: true })
-        .click();
+      await openDataView(page, "多维下载");
       await expect(
         panel.getByLabel("独立采集标的", { exact: true }),
       ).toHaveValue("601288.SH");
@@ -120,13 +118,15 @@ try {
       await panel
         .getByRole("button", { name: "提交独立采集任务", exact: true })
         .click();
-      const run = panel.locator("[data-collector-job]");
+      const run = results.locator("[data-collector-job]");
       await expect(run).toBeVisible({ timeout: 90000 });
       report.job_id = await run.getAttribute("data-collector-job");
       save();
       await expect(
-        panel.getByRole("button", { name: "任务与结果", exact: true }),
-      ).toHaveAttribute("aria-pressed", "true");
+        page
+          .getByRole("tablist", { name: "数据管理分区", exact: true })
+          .getByRole("tab", { name: "任务与结果", exact: true }),
+      ).toHaveAttribute("aria-selected", "true");
       phase = "live worker and consumer";
       let job;
       await expect
@@ -269,7 +269,7 @@ try {
           `/workspace/data?data_view=collect&collector_job=${report.job_id}`,
         { timeout: 90000 },
       );
-      await expect(panel.locator("[data-collector-job]")).toHaveAttribute(
+      await expect(results.locator("[data-collector-job]")).toHaveAttribute(
         "data-collector-job",
         report.job_id,
         { timeout: 90000 },
@@ -278,23 +278,23 @@ try {
         panel.getByLabel("独立采集标的", { exact: true }),
       ).not.toBeVisible();
       await expect(
-        panel.getByLabel("查看已保存采集任务", { exact: true }),
+        results.getByLabel("查看已保存采集任务", { exact: true }),
       ).toHaveValue(report.job_id);
-      const parts = panel.getByRole("region", {
+      const parts = results.getByRole("region", {
         name: "采集任务分段",
         exact: true,
       });
       await parts.focus();
       await page.keyboard.press("PageDown");
       assert(await parts.evaluate((n) => n.clientHeight <= 561));
-      await panel
+      await results
         .getByRole("button", { name: "查看行情记录", exact: true })
         .first()
         .click();
       await expect(
-        panel.getByLabel("采集数据预览", { exact: true }).locator("tbody tr"),
+        results.getByLabel("采集数据预览", { exact: true }).locator("tbody tr"),
       ).toHaveCount(5);
-      const height = await panel.evaluate(
+      const height = await results.evaluate(
         (n) => n.getBoundingClientRect().height,
       );
       assert(height < 2000, `result workspace too tall: ${height}`);
@@ -304,7 +304,7 @@ try {
         ),
       );
       const axe = await new AxeBuilder({ page })
-        .include("#independent-collector")
+        .include("#collector-results")
         .analyze();
       assert.equal(
         axe.violations.length,
@@ -318,27 +318,24 @@ try {
       report.checks.push({ role, width, result_height: height, axe: 0 });
       save();
       await page.reload({ timeout: 90000 });
-      await expect(panel.locator("[data-collector-job]")).toHaveAttribute(
+      await expect(results.locator("[data-collector-job]")).toHaveAttribute(
         "data-collector-job",
         report.job_id,
         { timeout: 90000 },
       );
       if (role === "admin") {
-        await panel
-          .getByRole("button", { name: "新建采集", exact: true })
-          .focus();
-        await page.keyboard.press("Enter");
+        await openDataView(page, "多维下载");
         await expect(
           panel.getByLabel("独立采集标的", { exact: true }),
         ).toBeVisible();
-        await expect(panel.locator("[data-collector-job]")).not.toBeVisible();
+        await expect(results.locator("[data-collector-job]")).not.toBeVisible();
         await page.reload({ timeout: 90000 });
         await expect(
           panel.getByLabel("独立采集标的", { exact: true }),
         ).toBeVisible();
       } else {
         await expect(
-          panel.getByRole("button", { name: "新建采集", exact: true }),
+          panel.getByLabel("独立采集标的", { exact: true }),
         ).toHaveCount(0);
         const session = await (
           await page.request.get("http://127.0.0.1:3122/auth/session")
@@ -367,7 +364,7 @@ try {
         `/workspace/data?data_view=collect&collector_job=${annual.job_id}`,
       { timeout: 90000 },
     );
-    await expect(panel.locator("[data-collector-job]")).toHaveAttribute(
+    await expect(results.locator("[data-collector-job]")).toHaveAttribute(
       "data-collector-job",
       annual.job_id,
       { timeout: 90000 },
@@ -376,7 +373,7 @@ try {
     await panel
       .getByLabel("查看已保存采集任务", { exact: true })
       .selectOption(report.job_id);
-    await expect(panel.locator("[data-collector-job]")).toHaveAttribute(
+    await expect(results.locator("[data-collector-job]")).toHaveAttribute(
       "data-collector-job",
       report.job_id,
       { timeout: 90000 },
@@ -386,17 +383,17 @@ try {
         `/workspace/data?data_view=collect&collector_job=${annual.job_id}`,
       { timeout: 90000 },
     );
-    await expect(panel.locator("[data-collector-job]")).toHaveAttribute(
+    await expect(results.locator("[data-collector-job]")).toHaveAttribute(
       "data-collector-job",
       annual.job_id,
       { timeout: 90000 },
     );
     phase = role + " annual records";
-    await panel
+    await results
       .getByRole("button", { name: "查看行情记录", exact: true })
       .first()
       .click();
-    const table = panel.getByLabel("采集记录表格", { exact: true });
+    const table = results.getByLabel("采集记录表格", { exact: true });
     await expect(table.locator("tbody tr")).toHaveCount(100);
     const bounds = await table.evaluate((n) => ({
       height: n.clientHeight,
@@ -411,14 +408,14 @@ try {
       .toBeGreaterThan(0);
     phase = role + " second record page";
     const firstRecord = await table.locator("tbody tr").first().innerText();
-    await panel
+    await results
       .getByRole("button", { name: "下一页记录", exact: true })
       .click();
     await expect
       .poll(() => table.locator("tbody tr").first().innerText())
       .not.toBe(firstRecord);
     await expect(table.locator("tbody tr")).toHaveCount(100);
-    await panel
+    await results
       .getByRole("button", { name: "下一页记录", exact: true })
       .click();
     await expect(table.locator("tbody tr")).toHaveCount(43);
@@ -435,7 +432,7 @@ try {
         `/workspace/data?data_view=collect&collector_job=${report.job_id}`,
       { timeout: 90000 },
     );
-    await expect(panel.locator("[data-collector-job]")).toHaveAttribute(
+    await expect(results.locator("[data-collector-job]")).toHaveAttribute(
       "data-collector-job",
       report.job_id,
       { timeout: 90000 },
@@ -444,7 +441,7 @@ try {
       await page.request.get(`${endpoint}/jobs/${report.job_id}`)
     ).json();
     const dataset = current.parts[0].consumer.dataset_id;
-    await panel
+    await results
       .getByRole("link", { name: "终端可见 · 查看图表", exact: true })
       .first()
       .click();

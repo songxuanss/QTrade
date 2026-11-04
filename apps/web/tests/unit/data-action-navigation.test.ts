@@ -75,7 +75,7 @@ describe("data operation navigation", () => {
     ["publish", publishResearchAction, "research"],
   ] as const)("returns %s to its own asset area", async (_, action, asset) => {
     const query = await destination(action);
-    expect(query.get("data_view")).toBe("assets");
+    expect(query.get("data_view")).toBe("jobs");
     expect(query.get("asset_view")).toBe(asset);
   });
   it("shows newly accepted compatibility downloads in the task list", async () => {
@@ -87,7 +87,7 @@ describe("data operation navigation", () => {
     form.set("start", "2026-10-15T00:00");
     form.set("end", "2026-10-16T00:00");
     const query = await destination(createTickTaskAction, form);
-    expect(query.get("data_view")).toBe("assets");
+    expect(query.get("data_view")).toBe("jobs");
     expect(query.get("asset_view")).toBe("tasks");
     expect(query.get("download_instrument")).toBe("601288.SH");
     expect(query.has("authorization_id")).toBe(false);
@@ -101,7 +101,8 @@ describe("data operation navigation", () => {
     form.set("start", "2026-10-16T00:00");
     form.set("end", "2026-10-15T00:00");
     const query = await destination(createTickTaskAction, form);
-    expect(query.get("data_view")).toBe("ticks");
+    expect(query.get("data_view")).toBe("download");
+    expect(query.get("research_view")).toBe("ticks");
     expect(query.get("result")).toBe("invalid");
     expect(query.get("download_instrument")).toBe("601288.SH");
     expect(query.get("download_start")).toBe("2026-10-16T00:00");
@@ -140,7 +141,7 @@ describe("data operation navigation", () => {
         selection_size: 5,
       }),
     );
-    expect(query.get("data_view")).toBe("assets");
+    expect(query.get("data_view")).toBe("jobs");
     expect(query.get("asset_view")).toBe("research");
     expect(query.get("result")).toBe("composition_saved");
     expect(query.get("composed_dataset")).toBe(
@@ -153,9 +154,13 @@ describe("data operation navigation", () => {
     form.set("instrument_ids", "600519.SH");
     form.set(
       "instrument_file",
-      new File(["code,name\n000001,平安银行\n601288.SH,农业银行\n"], "pool.csv", {
-        type: "text/csv",
-      }),
+      new File(
+        ["code,name\n000001,平安银行\n601288.SH,农业银行\n"],
+        "pool.csv",
+        {
+          type: "text/csv",
+        },
+      ),
     );
     const query = await destination(customUniverseAction, form);
     expect(ports.createUniverseSnapshot).toHaveBeenCalledWith({

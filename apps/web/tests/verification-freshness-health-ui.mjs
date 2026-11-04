@@ -58,7 +58,7 @@ try {
     await page.getByRole("button", { name: "切换", exact: true }).click();
     await expect(page).toHaveURL(`${origin}/`, { timeout: 60000 });
     await page.goto(`${origin}/workspace/data`);
-    await openDataView(page, "运行监控", "数据新鲜度");
+    await openDataView(page, "来源与新鲜度", "数据新鲜度");
 
     if (role === "admin") {
       const session = await (

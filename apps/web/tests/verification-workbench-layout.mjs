@@ -9,7 +9,7 @@ const root = "../../.tools/verification-local/";
 const admin = JSON.parse(readFileSync("../../.tools/sso-local/state.json"));
 const reader = JSON.parse(readFileSync(root + "approver.json"));
 const scope = JSON.parse(readFileSync(root + "budget-scope.json")).scope_id;
-const origin = "http://127.0.0.1:13000";
+const origin = process.env.QTRADE_WEB_ORIGIN ?? "http://127.0.0.1:13000";
 const baseline = process.argv.includes("--baseline");
 const mobileOnly = process.argv.includes("--mobile-only");
 const suffix = mobileOnly ? "-mobile" : "";
@@ -94,7 +94,7 @@ try {
     const main = page.locator('[data-workbench-tabs="data_view"]');
     const active = main.locator(":scope > [data-workbench-view]:visible");
     await expect(active).toHaveCount(1);
-    await expect(active).toHaveAttribute("data-workbench-view", "collect");
+    await expect(active).toHaveAttribute("data-workbench-view", "download");
     const first = await dimensions(page);
     assert(!first.overflow);
     assert(
@@ -104,13 +104,10 @@ try {
     if (role === "admin")
       await page.getByLabel("独立采集标的", { exact: true }).fill("601288.SH");
     for (const [title, key] of [
-      ["行情与因子", "collect"],
-      ["板块与股票池", "pools"],
-      ["财务与事件", "fundamentals"],
-      ["自动更新", "schedules"],
-      ["数据资产", "assets"],
-      ["运行监控", "monitor"],
-      ["逐笔与兼容", "ticks"],
+      ["数据目录", "catalog"],
+      ["多维下载", "download"],
+      ["任务与结果", "jobs"],
+      ["来源与新鲜度", "sources"],
     ]) {
       phase = role + " " + key;
       await openDataView(page, title);
@@ -129,7 +126,7 @@ try {
       "兼容采集任务",
     ]) {
       phase = role + " assets " + secondary;
-      await openDataView(page, "数据资产", secondary);
+      await openDataView(page, "任务与结果", secondary);
       assert.equal(
         (
           await new AxeBuilder({ page })
@@ -141,7 +138,7 @@ try {
       assert(!(await dimensions(page)).overflow);
     }
     phase = role + " monitor tools";
-    await openDataView(page, "运行监控", "来源能力");
+    await openDataView(page, "来源与新鲜度", "来源能力");
     await page
       .locator("summary")
       .filter({ hasText: /^来源能力与证据$/ })
@@ -160,7 +157,7 @@ try {
       ).violations.length,
       0,
     );
-    await openDataView(page, "运行监控", "数据新鲜度");
+    await openDataView(page, "来源与新鲜度", "数据新鲜度");
     await page
       .locator("summary")
       .filter({ hasText: /^新鲜度健康$/ })
@@ -192,10 +189,10 @@ try {
         ),
       );
     assert.equal(expandedAxe.violations.length, 0);
-    await openDataView(page, "运行监控", "用量与配额");
+    await openDataView(page, "来源与新鲜度", "用量与配额");
     await page.getByRole("button", { name: "刷新用量", exact: true }).click();
     await expect(page.getByText("用量已更新", { exact: true })).toBeVisible();
-    await openDataView(page, "行情与因子");
+    await openDataView(page, "多维下载");
     if (role === "admin")
       await expect(
         page.getByLabel("独立采集标的", { exact: true }),
@@ -203,21 +200,21 @@ try {
     // Automatic activation uses roving focus and visible native controls.
     const firstTab = page
       .getByRole("tablist", { name: "数据管理分区", exact: true })
-      .getByRole("tab", { name: "行情与因子", exact: true });
+      .getByRole("tab", { name: "数据目录", exact: true });
     await firstTab.focus();
     await page.keyboard.press("ArrowRight");
-    await expect(active).toHaveAttribute("data-workbench-view", "pools");
+    await expect(active).toHaveAttribute("data-workbench-view", "download");
     await page.keyboard.press("End");
-    await expect(active).toHaveAttribute("data-workbench-view", "ticks");
+    await expect(active).toHaveAttribute("data-workbench-view", "sources");
     await page.keyboard.press("Home");
-    await expect(active).toHaveAttribute("data-workbench-view", "collect");
-    await openDataView(page, "财务与事件", "分红与送转");
+    await expect(active).toHaveAttribute("data-workbench-view", "catalog");
+    await openDataView(page, "多维下载", "分红、送转与配股");
     await page.reload();
     await expect(page.locator("#distribution-collection")).toBeVisible();
     await expect(page.locator("#financial-collection")).not.toBeVisible();
     await page.getByRole("button", { name: "刷新数据", exact: true }).click();
     await expect(page.locator("#distribution-collection")).toBeVisible();
-    await openDataView(page, "运行监控", "来源能力");
+    await openDataView(page, "来源与新鲜度", "来源能力");
     await page.goBack();
     await expect(
       page.getByRole("tab", { name: "用量与配额", exact: true }),
@@ -225,7 +222,7 @@ try {
     await page.goBack();
     await expect(page.locator("#distribution-collection")).toBeVisible();
     await page.goForward();
-    await expect(active).toHaveAttribute("data-workbench-view", "monitor");
+    await expect(active).toHaveAttribute("data-workbench-view", "sources");
     await page.goto(origin + "/workspace/data#financial-collection");
     await expect(page.locator("#financial-collection")).toBeVisible();
     if (role === "reader")
@@ -233,19 +230,19 @@ try {
         page.getByRole("button", { name: "预览财务计划", exact: true }),
       ).toBeDisabled();
     await page.goto(origin + "/workspace/data?universe_search=");
-    await expect(active).toHaveAttribute("data-workbench-view", "pools");
+    await expect(active).toHaveAttribute("data-workbench-view", "catalog");
     await page.goto(origin + "/workspace/data?data_view=unknown");
-    await expect(active).toHaveAttribute("data-workbench-view", "collect");
+    await expect(active).toHaveAttribute("data-workbench-view", "download");
     phase = role + " legacy result navigation";
     await page.goto(origin + "/workspace/data?result=research_saved");
-    await expect(active).toHaveAttribute("data-workbench-view", "assets");
+    await expect(active).toHaveAttribute("data-workbench-view", "jobs");
     await expect(page.locator("#research-data")).toBeVisible();
     if (role === "admin") {
       const taskEndpoint = `http://127.0.0.1:3122/api/v1/workspaces/${scope}/data/tasks`;
       const beforeResponse = await page.request.get(taskEndpoint);
       assert.equal(beforeResponse.status(), 200);
       const before = await beforeResponse.json();
-      await openDataView(page, "逐笔与兼容");
+      await openDataView(page, "多维下载", "逐笔与兼容");
       const form = page.locator("#legacy-downloads");
       await form
         .getByLabel("A 股代码（6 位）", { exact: true })
@@ -281,10 +278,11 @@ try {
       await page.keyboard.press("Enter");
       await expect(page).toHaveURL(
         (u) =>
-          u.searchParams.get("data_view") === "ticks" &&
+          u.searchParams.get("data_view") === "download" &&
+          u.searchParams.get("research_view") === "ticks" &&
           u.searchParams.get("result") === "invalid",
       );
-      await expect(active).toHaveAttribute("data-workbench-view", "ticks");
+      await expect(active).toHaveAttribute("data-workbench-view", "download");
       phase = role + " legacy rejection business alert";
       await expect(
         page.locator(".data-workbench").getByRole("alert"),
@@ -312,7 +310,7 @@ try {
     await page.goto(
       origin + "/workspace/data?data_view=monitor&monitor_view=sources",
     );
-    await expect(active).toHaveAttribute("data-workbench-view", "monitor");
+    await expect(active).toHaveAttribute("data-workbench-view", "sources");
     await expect
       .poll(() =>
         page
@@ -340,7 +338,7 @@ try {
       path: root + `review/data-layout-${role}${suffix}-monitor.png`,
       fullPage: true,
     });
-    await openDataView(page, "行情与因子");
+    await openDataView(page, "多维下载");
     const final = await dimensions(page);
     assert(!final.overflow);
     assert.equal(errors.length, 0);
@@ -353,7 +351,7 @@ try {
       default: first,
       final,
       browser_errors: errors.length,
-      seven_views: true,
+      four_views: true,
       axe_violations: 0,
       draft_retained_on_switch: role === "admin",
       navigation_persistence: true,

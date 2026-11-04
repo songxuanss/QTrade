@@ -779,7 +779,7 @@ test("backtest freezes manifest inputs and persists cancel, progress, and comple
   await expect(page.getByRole("heading", { name: "回测实验" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "配置回测" })).toBeVisible();
   await expect(
-    page.getByRole("heading", { name: "Walk-forward 时间切分" }),
+    page.getByRole("heading", { name: "Walk-forward 样本外运行" }),
   ).toBeVisible();
   const walkForm = page.locator(".walk-forward-form");
   const planStart = await page.evaluate((value) => {
@@ -797,9 +797,7 @@ test("backtest freezes manifest inputs and persists cancel, progress, and comple
   await walkForm.locator('input[type="number"]').nth(0).fill("0.0069444");
   await walkForm.locator('input[type="number"]').nth(1).fill("0.0069444");
   await walkForm.locator('input[type="number"]').nth(2).fill("0.0416667");
-  await walkForm
-    .getByRole("button", { name: "生成 Walk-forward 切分" })
-    .click();
+  await walkForm.getByRole("button", { name: "预览切分" }).click();
   await expect(page.locator(".walk-forward-results tbody tr")).toHaveCount(1);
   await expect(page.locator(".walk-forward-results tbody tr")).toContainText(
     "10",
@@ -935,6 +933,10 @@ test("command palette keeps keyboard focus and active options accessible", async
 test("protected workspace logs in through PKCE callback and logs out without exposing tokens", async ({
   page,
 }) => {
+  // Full PKCE round-trip + Monaco load + two screenshot comparisons + axe on
+  // the WSL/9p delivery host needs more than the 30s default; assertions are
+  // unchanged and still fail fast on CI runners.
+  test.setTimeout(90_000);
   await page.request.post("http://127.0.0.1:3111/fixture/strategies/reset");
   await page.goto("/workspace/strategies");
   await expect(page).toHaveURL(/\/workspace\/strategies$/);
@@ -973,10 +975,12 @@ test("protected workspace logs in through PKCE callback and logs out without exp
   await page.goto("/workspace/data");
   await expect(page.getByRole("heading", { name: "数据管理" })).toBeVisible();
   const primary = page.getByRole("tablist", { name: "数据管理分区" });
-  await expect(
-    primary.getByRole("tab", { name: "行情与因子" }),
-  ).toHaveAttribute("aria-selected", "true");
-  await primary.getByRole("tab", { name: "逐笔与兼容" }).click();
+  await expect(primary.getByRole("tab", { name: "多维下载" })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+  // 逐笔与兼容 is now a nested entry of the 多维下载 view (research_view=ticks).
+  await page.getByRole("tab", { name: "逐笔与兼容", exact: true }).click();
   await expect(
     page.getByRole("heading", { name: "逐笔与兼容历史下载" }),
   ).toBeVisible();
@@ -1005,7 +1009,7 @@ test("protected workspace logs in through PKCE callback and logs out without exp
   await expect(
     page.getByRole("heading", { name: "日线与分钟历史下载" }),
   ).toBeVisible();
-  await primary.getByRole("tab", { name: "数据资产" }).click();
+  await primary.getByRole("tab", { name: "任务与结果" }).click();
   await page.getByRole("tab", { name: "原始批次" }).click();
   await expect(page.getByRole("heading", { name: "原始批次" })).toBeVisible();
   await page.getByRole("tab", { name: "质量问题" }).click();

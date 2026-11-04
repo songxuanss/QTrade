@@ -13,15 +13,17 @@ import {
 
 async function finish(
   result: string,
-  view: "ticks" | "assets" = "ticks",
+  view: "download" | "jobs" = "download",
   asset?: "tasks" | "quality" | "research",
   safeInput?: Record<string, string>,
+  entry?: "ticks",
 ) {
   revalidatePath("/workspace/data");
   // Redirect to the operation's owning area, never a client-supplied return URL.
   // The old stacked page hid this distinction; tabbed navigation must retain it.
   const query = new URLSearchParams({ result, data_view: view });
   if (asset) query.set("asset_view", asset);
+  if (entry) query.set("research_view", entry);
   for (const [key, value] of Object.entries(safeInput ?? {}))
     query.set(key, value);
   redirect(`/workspace/data?${query}`);
@@ -30,7 +32,7 @@ async function finish(
 export async function rerunTaskAction(form: FormData) {
   await finish(
     await rerunDataTask(String(form.get("task_id") ?? "")),
-    "assets",
+    "jobs",
     "tasks",
   );
 }
@@ -61,22 +63,23 @@ export async function createTickTaskAction(form: FormData) {
   }
   await finish(
     result,
-    result === "success" ? "assets" : "ticks",
+    result === "success" ? "jobs" : "download",
     result === "success" ? "tasks" : undefined,
     input.source.startsWith("mairui.a-share.") ? safeInput : undefined,
+    result === "success" ? undefined : "ticks",
   );
 }
 export async function claimIssueAction(form: FormData) {
   await finish(
     await claimDataIssue(String(form.get("issue_id") ?? "")),
-    "assets",
+    "jobs",
     "quality",
   );
 }
 export async function closeIssueAction(form: FormData) {
   await finish(
     await closeDataIssue(String(form.get("issue_id") ?? "")),
-    "assets",
+    "jobs",
     "quality",
   );
 }
@@ -84,7 +87,7 @@ export async function closeIssueAction(form: FormData) {
 export async function publishResearchAction(form: FormData) {
   await finish(
     await publishResearchDataset(String(form.get("task_id") ?? "")),
-    "assets",
+    "jobs",
     "research",
   );
 }
@@ -110,7 +113,7 @@ export async function composePoolDatasetAction(form: FormData) {
       rawGranularity as (typeof allowedGranularities)[number],
     )
   )
-    return finish("composition_rejected", "assets", "research");
+    return finish("composition_rejected", "jobs", "research");
   const granularity = rawGranularity as (typeof allowedGranularities)[number];
   const result = await composePoolDataset({
     snapshot_id: String(form.get("snapshot_id") ?? ""),
@@ -124,10 +127,10 @@ export async function composePoolDatasetAction(form: FormData) {
       result.error === "rejected"
         ? "composition_rejected"
         : "composition_unavailable",
-      "assets",
+      "jobs",
       "research",
     );
-  return finish("composition_saved", "assets", "research", {
+  return finish("composition_saved", "jobs", "research", {
     composed_dataset: result.result.dataset.dataset_id,
   });
 }
@@ -146,7 +149,7 @@ export async function createHistoryTaskAction(form: FormData) {
     new Date(end - 86400_000 + 28800_000).toISOString().slice(0, 10) !== last ||
     start >= end
   )
-    return finish("invalid");
+    return finish("invalid", "download", undefined, undefined, "ticks");
   const task = new FormData();
   task.set("source", "mairui.a-share.bar");
   task.set("authorization_id", "mairui-default");

@@ -79,7 +79,7 @@ try {
     await page.getByRole("button", { name: "切换", exact: true }).click();
     await expect(page).toHaveURL(`${origin}/`, { timeout: 60000 });
     await page.goto(`${origin}/workspace/data`);
-    await openDataView(page, "运行监控", "来源能力");
+    await openDataView(page, "来源与新鲜度", "来源能力");
 
     const response = await page.request.get(endpoint);
     phase = `${role} catalog and UI`;
