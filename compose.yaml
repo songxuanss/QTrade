@@ -3,7 +3,6 @@ name: qtrade
 x-python: &python
   build:
     context: .
-    network: host
     dockerfile: Dockerfile.python
     args:
       QTRADE_BUILD_REVISION: ${QTRADE_BUILD_REVISION:-unknown}
