@@ -36,16 +36,16 @@ verify() {
   (cd "$DEST" && grep -v '^#' "$MANIFEST" | grep -v '^[[:space:]]*$' | sha256sum -c -) >/dev/null 2>&1
 }
 
-copy_manifest_fonts() { # $1 = font tree to search
+copy_manifest_fonts() { # $1 = font tree to search; missing files are skipped
+  # because the manifest spans two trees (noto + liberation). verify() is the
+  # gate that fails loudly when a file is absent from every source.
   local src="$1" name found
   mkdir -p "$DEST"
   while read -r name; do
     found="$(find "$src" -type f -name "$name" -print -quit)"
-    if [ -z "$found" ]; then
-      echo "provision-snapshot-fonts: $name not found under $src" >&2
-      return 1
+    if [ -n "$found" ]; then
+      cp "$found" "$DEST/$name"
     fi
-    cp "$found" "$DEST/$name"
   done < <(manifest_names)
 }
 
