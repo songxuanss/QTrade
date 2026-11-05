@@ -9,7 +9,13 @@ export default defineConfig({
   workers: 1,
   forbidOnly: !!process.env.CI,
   retries: 0,
-  use: { baseURL: "http://127.0.0.1:3110", trace: "retain-on-failure" },
+  // See playwright.config.ts: pin the browser context timezone so timestamp
+  // pixels are identical on CI (UTC) and the delivery host (UTC+8).
+  use: {
+    baseURL: "http://127.0.0.1:3110",
+    trace: "retain-on-failure",
+    timezoneId: "UTC",
+  },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
   webServer: [
     {
@@ -26,6 +32,7 @@ export default defineConfig({
       env: {
         PORT: "3110",
         HOSTNAME: "127.0.0.1",
+        TZ: "UTC",
         QTRADE_ENV: "test",
         QTRADE_OIDC_ALLOW_HTTP: "true",
         QTRADE_INSECURE_LOCAL_COOKIES: "true",

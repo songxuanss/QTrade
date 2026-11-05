@@ -10,7 +10,14 @@ export default defineConfig({
   retries: process.env.CI ? 2 : 0,
   workers: process.env.CI ? 1 : undefined,
   reporter: process.env.CI ? "github" : "list",
-  use: { baseURL: "http://127.0.0.1:3100", trace: "retain-on-failure" },
+  // Pixel snapshots must not depend on the host clock zone: timestamps on
+  // the page render through the browser context timezone, which otherwise
+  // inherits the machine (UTC on CI, UTC+8 on the delivery host).
+  use: {
+    baseURL: "http://127.0.0.1:3100",
+    trace: "retain-on-failure",
+    timezoneId: "UTC",
+  },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
   webServer: [
     {
@@ -18,6 +25,7 @@ export default defineConfig({
       url: "http://127.0.0.1:3100",
       reuseExistingServer: !process.env.CI,
       timeout: 120_000,
+      env: { TZ: "UTC" },
     },
     {
       command: "../../.venv/bin/python ../../tests/fixtures/session-browser.py",
