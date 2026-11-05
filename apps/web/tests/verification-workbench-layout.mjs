@@ -152,7 +152,10 @@ try {
     );
     assert.equal(catalogResponse.status(), 200);
     const profileCount = (await catalogResponse.json()).profiles.length;
-    assert(profileCount >= 12, `source profile catalog shrank: ${profileCount}`);
+    assert(
+      profileCount >= 12,
+      `source profile catalog shrank: ${profileCount}`,
+    );
     await expect(
       page.getByText(`已读取 ${profileCount} 项来源能力说明`, { exact: true }),
     ).toBeVisible({ timeout: 60000 });
