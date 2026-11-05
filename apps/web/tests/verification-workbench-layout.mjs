@@ -143,8 +143,18 @@ try {
       .locator("summary")
       .filter({ hasText: /^来源能力与证据$/ })
       .click();
+    // The catalog grows as supplier feeds connect (11 profiles at the first
+    // snapshot, 12 after the factor and rights feeds). Cross-check the
+    // rendered count against the deployed catalog instead of freezing a
+    // stale literal; the floor keeps a collapsed catalog loud.
+    const catalogResponse = await page.request.get(
+      `http://127.0.0.1:3122/api/v1/workspaces/${scope}/data/collector/source-profiles`,
+    );
+    assert.equal(catalogResponse.status(), 200);
+    const profileCount = (await catalogResponse.json()).profiles.length;
+    assert(profileCount >= 12, `source profile catalog shrank: ${profileCount}`);
     await expect(
-      page.getByText("已读取 11 项来源能力说明", { exact: true }),
+      page.getByText(`已读取 ${profileCount} 项来源能力说明`, { exact: true }),
     ).toBeVisible({ timeout: 60000 });
     await expect(
       page.getByRole("region", { name: "来源证据明细", exact: true }),
