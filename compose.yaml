@@ -106,7 +106,6 @@ services:
   object-store:
     build:
       context: .
-      network: host
       dockerfile: infra/minio/Dockerfile
     command: ["server", "/data", "--console-address", ":9001"]
     environment:
@@ -161,7 +160,6 @@ services:
   strategy-runner:
     build:
       context: .
-      network: host
       dockerfile: Dockerfile.runner
       args:
         QTRADE_BUILD_REVISION: ${QTRADE_BUILD_REVISION:-unknown}
@@ -192,7 +190,6 @@ services:
   web:
     build:
       context: .
-      network: host
       dockerfile: apps/web/Dockerfile
       args:
         QTRADE_BUILD_REVISION: ${QTRADE_BUILD_REVISION:-unknown}
