@@ -1,4 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
+import { pinSnapshotFontEnv } from "./tests/font-env";
+
+pinSnapshotFontEnv();
 
 export default defineConfig({
   testDir: "./tests/e2e",
