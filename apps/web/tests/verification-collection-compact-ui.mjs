@@ -370,7 +370,7 @@ try {
       { timeout: 90000 },
     );
     phase = role + " saved task selector";
-    await panel
+    await results
       .getByLabel("查看已保存采集任务", { exact: true })
       .selectOption(report.job_id);
     await expect(results.locator("[data-collector-job]")).toHaveAttribute(

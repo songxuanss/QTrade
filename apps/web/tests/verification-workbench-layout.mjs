@@ -1,9 +1,14 @@
 /** Real SSO/API-backed navigation acceptance; no supplier readiness inferred. */
 import assert from "node:assert/strict";
 import { readFileSync, writeFileSync } from "node:fs";
-import { chromium, expect } from "@playwright/test";
+import { chromium, expect as playwrightExpect } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { openDataView } from "./data-workbench-navigation.mjs";
+
+// Web-first assertions default to a 5s expect timeout, independent of
+// page.setDefaultTimeout. The 3120 verification stack serves the app through
+// next dev, so an on-demand compile can exceed 5s after a cold full load.
+const expect = playwrightExpect.configure({ timeout: 30000 });
 
 const root = "../../.tools/verification-local/";
 const admin = JSON.parse(readFileSync("../../.tools/sso-local/state.json"));
@@ -65,6 +70,37 @@ async function dimensions(page) {
     overflow: document.documentElement.scrollWidth > innerWidth,
   }));
 }
+/**
+ * The catalog grows as supplier feeds connect (11 profiles at the first
+ * snapshot, 12 after the factor and rights feeds). The panel merges the
+ * collector and universe owners of the shared contract; cross-check the
+ * rendered count against both deployed catalogs instead of freezing a stale
+ * literal, and keep a floor so a collapsed catalog stays loud.
+ */
+async function assertSourceProfileCount(page) {
+  const ownerCatalogs = await Promise.all(
+    ["data/collector/source-profiles", "data/universes/source-profiles"].map(
+      async (ownerPath) => {
+        const response = await page.request.get(
+          `http://127.0.0.1:3122/api/v1/workspaces/${scope}/${ownerPath}`,
+        );
+        return response.ok() ? response.json() : null;
+      },
+    ),
+  );
+  assert(
+    ownerCatalogs.some((catalog) => catalog),
+    "no source profile owner reachable",
+  );
+  const profileCount = ownerCatalogs.reduce(
+    (sum, catalog) => sum + (catalog?.profiles.length ?? 0),
+    0,
+  );
+  assert(profileCount >= 12, `source profile catalog shrank: ${profileCount}`);
+  await expect(
+    page.getByText(`已读取 ${profileCount} 项来源能力说明`, { exact: true }),
+  ).toBeVisible({ timeout: 60000 });
+}
 try {
   for (const role of baseline || mobileOnly ? ["admin"] : ["admin", "reader"]) {
     const context = await browser.newContext({
@@ -94,7 +130,13 @@ try {
     const main = page.locator('[data-workbench-tabs="data_view"]');
     const active = main.locator(":scope > [data-workbench-view]:visible");
     await expect(active).toHaveCount(1);
-    await expect(active).toHaveAttribute("data-workbench-view", "download");
+    // B1 defaults readers to the results view: they cannot create collector
+    // jobs, so the create half is not a useful landing page. Admin still lands
+    // on the download/create view.
+    await expect(active).toHaveAttribute(
+      "data-workbench-view",
+      role === "reader" ? "jobs" : "download",
+    );
     const first = await dimensions(page);
     assert(!first.overflow);
     assert(
@@ -143,22 +185,9 @@ try {
       .locator("summary")
       .filter({ hasText: /^来源能力与证据$/ })
       .click();
-    // The catalog grows as supplier feeds connect (11 profiles at the first
-    // snapshot, 12 after the factor and rights feeds). Cross-check the
-    // rendered count against the deployed catalog instead of freezing a
-    // stale literal; the floor keeps a collapsed catalog loud.
-    const catalogResponse = await page.request.get(
-      `http://127.0.0.1:3122/api/v1/workspaces/${scope}/data/collector/source-profiles`,
-    );
-    assert.equal(catalogResponse.status(), 200);
-    const profileCount = (await catalogResponse.json()).profiles.length;
-    assert(
-      profileCount >= 12,
-      `source profile catalog shrank: ${profileCount}`,
-    );
-    await expect(
-      page.getByText(`已读取 ${profileCount} 项来源能力说明`, { exact: true }),
-    ).toBeVisible({ timeout: 60000 });
+    // The catalog grows as supplier feeds connect; cross-check the rendered
+    // count against both deployed owners (see assertSourceProfileCount).
+    await assertSourceProfileCount(page);
     await expect(
       page.getByRole("region", { name: "来源证据明细", exact: true }),
     ).toBeVisible();
@@ -236,6 +265,11 @@ try {
     await expect(page.locator("#distribution-collection")).toBeVisible();
     await page.goForward();
     await expect(active).toHaveAttribute("data-workbench-view", "sources");
+    // A hash-only target is a same-document navigation that the app router can
+    // supersede while hydrating, which Chromium reports as net::ERR_ABORTED.
+    // Load a neutral route first so the legacy anchor arrives as a real
+    // cross-document deep link.
+    await page.goto(origin + "/");
     await page.goto(origin + "/workspace/data#financial-collection");
     await expect(page.locator("#financial-collection")).toBeVisible();
     if (role === "reader")
@@ -340,13 +374,12 @@ try {
           }),
       )
       .toBe(true);
+    phase = role + " monitor sources catalog";
     await page
       .locator("summary")
       .filter({ hasText: /^来源能力与证据$/ })
       .click();
-    await expect(
-      page.getByText("已读取 11 项来源能力说明", { exact: true }),
-    ).toBeVisible({ timeout: 60000 });
+    await assertSourceProfileCount(page);
     await page.screenshot({
       path: root + `review/data-layout-${role}${suffix}-monitor.png`,
       fullPage: true,
@@ -391,7 +424,12 @@ try {
     `PASS data workbench ${baseline ? "baseline captured" : "navigation, roles, keyboard, persistence, axe0 and no overflow"}`,
   );
 } catch (error) {
-  console.error(`FAIL data layout at ${phase}: ${error?.name ?? "Error"}`);
+  const detail = String(error?.message ?? "")
+    .split("\n")[0]
+    .slice(0, 200);
+  console.error(
+    `FAIL data layout at ${phase}: ${error?.name ?? "Error"}${detail ? `: ${detail}` : ""}`,
+  );
   if (activePage) {
     const url = new URL(activePage.url());
     if (url.pathname === "/workspace/data")

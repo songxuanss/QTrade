@@ -26,6 +26,6 @@
 
 ## 5. 真实栈验证与交付
 
-- [ ] 5.1 构建并重启本地真实栈,Playwright 深链接矩阵:旧 data_view 七值、collect_view/collector_job、#锚点、universe_* 参数、SSO returnTo;桌面+移动 390px 四视图无横向溢出;草稿跨视图保持;只读角色强制结果视图。截图存证。
+- [x] 5.1 构建并重启本地真实栈,Playwright 深链接矩阵:旧 data_view 七值、collect_view/collector_job、#锚点、universe_* 参数、SSO returnTo;桌面+移动 390px 四视图无横向溢出;草稿跨视图保持;只读角色强制结果视图。截图存证。证据:`.tools/verification-local/review/b1-deeplink-matrix.json`(admin 41 项深链、嵌套默认 4、草稿跨视图、390px 无溢出、reader 默认结果视图+3 项显式参数)、`data-layout-results.json`(双角色 axe0/无溢出/草稿保持/监控实读)、`collection-compact-ui.json`(243 条分页、双宽度、双角色 frozen chart);截图 `b1-matrix-*.png`、`data-layout-*.png`、`collection-compact-ui-*.png`。三脚本独占轮次 exit 0(并发 Playwright 负载会致 30s/90s 超时 flake)。
 - [x] 5.2 迁移债务披露:其余钉死 13000 旧端口的 collector 流脚本(independent-collector/plan-guards/default-range/preferences/budget-wait/factor-catalog/collection-replay/quality/runtime-recovery/normalization-input 等)在 B1 之前即已陈旧,不在本变更内全量重写;提交说明中如实披露。
 - [x] 5.3 审查 staged diff(无凭据、不含 apps/api/security.py 旧改动),按里程碑提交并推送;如实披露未尽事项。
