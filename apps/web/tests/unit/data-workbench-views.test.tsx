@@ -8,6 +8,7 @@ import type {
   CollectorJob,
   CollectorSource,
 } from "../../src/features/data/collector-types";
+import type { UniverseSnapshot } from "../../src/features/data/universe-server";
 
 const actions = vi.hoisted(() => ({ readCollectorJob: vi.fn() }));
 vi.mock("next/navigation", () => ({
@@ -140,7 +141,10 @@ describe("DataWorkbenchViews four-view assembly", () => {
     );
   }
 
-  async function renderViews(search = "") {
+  async function renderViews(
+    search = "",
+    overrides: Record<string, unknown> = {},
+  ) {
     window.history.replaceState(null, "", `/workspace/data${search}`);
     await act(async () => {
       root.render(
@@ -153,6 +157,7 @@ describe("DataWorkbenchViews four-view assembly", () => {
             available: true,
             canManage: true,
             snapshots: [],
+            ...overrides,
           }}
           universePanel={<div data-slot="universe" />}
           entriesTabs={<div data-slot="entries" />}
@@ -282,5 +287,165 @@ describe("DataWorkbenchViews four-view assembly", () => {
     // The create-side inline alert stays owned by the create half; the results
     // banner does not duplicate it while the error belongs to a create action.
     expect(container.querySelectorAll('[role="alert"]')).toHaveLength(1);
+  });
+
+  const poolSnapshot: UniverseSnapshot = {
+    snapshot_id: "snap-bank",
+    universe_id: "u1",
+    version: 2,
+    name: "银行",
+    observed_at: "2026-01-02T00:00:00Z",
+    market_scope: ["CN"],
+    content_sha256: "sha",
+    members: [
+      {
+        instrument: {
+          instrument_id: "601288.SH",
+          name: "农业银行",
+          exchange: "SH",
+        },
+        affiliations: [],
+      },
+      {
+        instrument: {
+          instrument_id: "600036.SH",
+          name: "招商银行",
+          exchange: "SH",
+        },
+        affiliations: [],
+      },
+    ],
+    reference_issues: [],
+  };
+
+  async function typeValue(input: HTMLInputElement, value: string) {
+    const setValue = Object.getOwnPropertyDescriptor(
+      HTMLInputElement.prototype,
+      "value",
+    )!.set!;
+    await act(async () => {
+      setValue.call(input, value);
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+  }
+
+  function findButton(text: string, scope: ParentNode = container) {
+    return [...scope.querySelectorAll<HTMLButtonElement>("button")].find(
+      (button) => button.textContent?.trim() === text,
+    )!;
+  }
+
+  it("summarizes the draft in the scope bar and marks inherited pools", async () => {
+    await renderViews("", { snapshots: [poolSnapshot] });
+    const bar = container.querySelector<HTMLElement>(
+      "[data-workbench-scope-bar]",
+    )!;
+    expect(bar.textContent).toContain("尚未选择标的");
+    const instruments = container.querySelector<HTMLInputElement>(
+      'input[aria-label="独立采集标的"]',
+    )!;
+    await typeValue(instruments, "601288.SH, 600519.SH");
+    expect(bar.textContent).toContain("2 个手工标的");
+    const pool = container.querySelector<HTMLInputElement>(
+      ".collector-pool-options input",
+    )!;
+    await act(async () => pool.click());
+    expect(bar.querySelector('[data-scope-inherited="true"]')).not.toBeNull();
+    expect(bar.textContent).toContain("1 个股票池（2 个成员）");
+    expect(bar.textContent).toContain("去重后 3 个标的");
+    const start = container.querySelector<HTMLInputElement>(
+      'input[aria-label="独立采集开始日期"]',
+    )!;
+    const end = container.querySelector<HTMLInputElement>(
+      'input[aria-label="独立采集结束日期"]',
+    )!;
+    await typeValue(start, "2026-01-01");
+    await typeValue(end, "2026-12-31");
+    expect(bar.textContent).toContain("2026-01-01 → 2026-12-31");
+  });
+
+  it("jumps from the scope bar back to the download view", async () => {
+    await renderViews();
+    await clickTab("任务与结果");
+    expect(visibleView()).toBe("jobs");
+    const target = container.querySelector<HTMLButtonElement>(
+      '[data-scope-segment="target"]',
+    )!;
+    await act(async () => target.click());
+    expect(visibleView()).toBe("download");
+    const bar = container.querySelector<HTMLElement>(
+      "[data-workbench-scope-bar]",
+    )!;
+    await act(async () => findButton("数据目录", bar).click());
+    expect(visibleView()).toBe("catalog");
+  });
+
+  it("detaches inherited pools without touching manual codes", async () => {
+    await renderViews("", { snapshots: [poolSnapshot] });
+    const instruments = container.querySelector<HTMLInputElement>(
+      'input[aria-label="独立采集标的"]',
+    )!;
+    await typeValue(instruments, "600519.SH");
+    const pool = container.querySelector<HTMLInputElement>(
+      ".collector-pool-options input",
+    )!;
+    await act(async () => pool.click());
+    await act(async () => findButton("解除继承").click());
+    expect(pool.checked).toBe(false);
+    expect(instruments.value).toBe("600519.SH");
+    expect(container.querySelector("[aria-label='已继承股票池']")).toBeNull();
+  });
+
+  it("adds drawer picks to the draft and restores focus", async () => {
+    await renderViews("", { snapshots: [poolSnapshot] });
+    const trigger = findButton("从清单选择");
+    await act(async () => trigger.click());
+    const dialog = container.querySelector<HTMLElement>(
+      "[data-instrument-drawer]",
+    )!;
+    expect(dialog.getAttribute("role")).toBe("dialog");
+    expect(dialog.getAttribute("aria-modal")).toBe("true");
+    const search = dialog.querySelector<HTMLInputElement>(
+      'input[aria-label="搜索标的清单"]',
+    )!;
+    await typeValue(search, "600036");
+    const member = dialog.querySelector<HTMLInputElement>(
+      '[data-drawer-member="600036.SH"] input',
+    )!;
+    await act(async () => member.click());
+    await act(async () => findButton("加入本次范围", dialog).click());
+    expect(container.querySelector("[data-instrument-drawer]")).toBeNull();
+    expect(
+      container.querySelector<HTMLInputElement>(
+        'input[aria-label="独立采集标的"]',
+      )!.value,
+    ).toBe("600036.SH");
+    await vi.waitFor(() => expect(document.activeElement).toBe(trigger));
+  });
+
+  it("closes the drawer with Escape", async () => {
+    await renderViews("", { snapshots: [poolSnapshot] });
+    const trigger = findButton("从清单选择");
+    await act(async () => trigger.click());
+    expect(container.querySelector("[data-instrument-drawer]")).not.toBeNull();
+    await act(async () => {
+      window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+    });
+    expect(container.querySelector("[data-instrument-drawer]")).toBeNull();
+  });
+
+  it("mirrors the draft count in the mobile selection bar", async () => {
+    await renderViews();
+    expect(container.querySelector("[data-mobile-scope-bar]")).toBeNull();
+    const instruments = container.querySelector<HTMLInputElement>(
+      'input[aria-label="独立采集标的"]',
+    )!;
+    await typeValue(instruments, "601288.SH, 600519.SH");
+    const bar = container.querySelector<HTMLElement>(
+      "[data-mobile-scope-bar]",
+    )!;
+    expect(bar.textContent).toContain("已选 2 个标的");
+    await act(async () => findButton("查看清单", bar).click());
+    expect(container.querySelector("[data-instrument-drawer]")).not.toBeNull();
   });
 });

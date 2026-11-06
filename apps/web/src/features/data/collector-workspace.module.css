@@ -213,3 +213,37 @@
     flex-wrap: wrap;
   }
 }
+
+/* Inherited pool chips: the summary of what arrives from the catalog, kept
+   next to the pool picker so detaching is one action. */
+.inheritedChips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 4px 0 10px;
+}
+.inheritedChips button {
+  min-height: 32px;
+  padding: 4px 10px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 999px;
+  background: var(--surface-raised);
+  color: var(--text);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+.inheritedChips button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.inheritedEmpty {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0 10px;
+  font-size: 11px;
+  color: var(--muted);
+}

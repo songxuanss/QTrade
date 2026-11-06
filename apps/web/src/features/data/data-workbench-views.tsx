@@ -2,7 +2,9 @@
 
 import type { ComponentProps, ReactNode } from "react";
 import { CollectorPanel } from "./collector-panel";
+import scopeStyles from "./collector-scope.module.css";
 import { WorkbenchTabs, type PanelAliases } from "./workbench-tabs";
+import { MobileSelectionBar, WorkbenchScopeBar } from "./workbench-scope-bar";
 
 type CollectorPanelProps = Omit<
   ComponentProps<typeof CollectorPanel>,
@@ -66,52 +68,56 @@ export function DataWorkbenchViews({
   return (
     <CollectorPanel {...collectorProps}>
       {(collector) => (
-        <WorkbenchTabs
-          label="数据管理分区"
-          queryKey="data_view"
-          initialKey={initialView}
-          anchors={viewAnchors}
-          aliases={viewAliases}
-          panels={[
-            {
-              key: "catalog",
-              title: "数据目录",
-              description:
-                "按市场、板块与股票逐级圈定采集范围；股票池以冻结快照提交。",
-              content: universePanel,
-            },
-            {
-              key: "download",
-              title: "多维下载",
-              description:
-                "配置范围 → 预览确认 → 提交；财务、分红与逐笔兼容入口在本视图下方。",
-              content: (
-                <>
-                  {collector.create}
-                  {entriesTabs}
-                </>
-              ),
-            },
-            {
-              key: "jobs",
-              title: "任务与结果",
-              description:
-                "执行进度 → 质量检查 → 查看数据；含数据资产与兼容任务。",
-              content: (
-                <>
-                  {collector.results}
-                  {assetsContent}
-                </>
-              ),
-            },
-            {
-              key: "sources",
-              title: "来源与新鲜度",
-              description: "来源能力、用量预算、数据新鲜度与计划调度。",
-              content: sourcesTabs,
-            },
-          ]}
-        />
+        <>
+          <WorkbenchScopeBar collector={collector} />
+          <WorkbenchTabs
+            label="数据管理分区"
+            queryKey="data_view"
+            initialKey={initialView}
+            anchors={viewAnchors}
+            aliases={viewAliases}
+            panels={[
+              {
+                key: "catalog",
+                title: "数据目录",
+                description:
+                  "按市场、板块与股票逐级圈定采集范围；股票池以冻结快照提交。",
+                content: universePanel,
+              },
+              {
+                key: "download",
+                title: "多维下载",
+                description:
+                  "配置范围 → 预览确认 → 提交；财务、分红与逐笔兼容入口在本视图下方。",
+                content: (
+                  <div className={scopeStyles.padded}>
+                    {collector.create}
+                    <MobileSelectionBar collector={collector} />
+                    {entriesTabs}
+                  </div>
+                ),
+              },
+              {
+                key: "jobs",
+                title: "任务与结果",
+                description:
+                  "执行进度 → 质量检查 → 查看数据；含数据资产与兼容任务。",
+                content: (
+                  <>
+                    {collector.results}
+                    {assetsContent}
+                  </>
+                ),
+              },
+              {
+                key: "sources",
+                title: "来源与新鲜度",
+                description: "来源能力、用量预算、数据新鲜度与计划调度。",
+                content: sourcesTabs,
+              },
+            ]}
+          />
+        </>
       )}
     </CollectorPanel>
   );

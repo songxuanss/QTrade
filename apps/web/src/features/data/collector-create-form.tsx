@@ -1,6 +1,6 @@
 "use client";
 
-import type { RefObject } from "react";
+import type { MouseEvent, RefObject } from "react";
 import { IsoDateInput } from "../../components/ui/iso-date";
 import workspaceStyles from "./collector-workspace.module.css";
 import { FactorFieldPicker } from "./factor-field-picker";
@@ -68,6 +68,9 @@ export function CollectorCreateForm({
   onPreview,
   canManage,
   available,
+  onOpenDrawer,
+  onDetachSnapshots,
+  onGoToCatalog,
 }: {
   sources: CollectorSource[];
   source: CollectorSource | undefined;
@@ -117,7 +120,13 @@ export function CollectorCreateForm({
   onPreview: (form: FormData) => void;
   canManage: boolean;
   available: boolean;
+  onOpenDrawer: (event: MouseEvent<HTMLButtonElement>) => void;
+  onDetachSnapshots: () => void;
+  onGoToCatalog: () => void;
 }) {
+  const selectedPools = snapshots.filter((item) =>
+    snapshotIds.includes(item.snapshot_id),
+  );
   return (
     <div className="collector-builder">
       {canManage && available && (
@@ -145,6 +154,7 @@ export function CollectorCreateForm({
             数据类别
             <select
               aria-label="采集数据类别"
+              data-scope-field="kind"
               value={kind}
               onChange={(e) =>
                 onKindChange(e.target.value as "bars" | "factors")
@@ -158,6 +168,7 @@ export function CollectorCreateForm({
             数据来源
             <select
               aria-label="采集数据来源"
+              data-scope-field="source"
               value={sourceId || source?.source || ""}
               onChange={(e) => onSourceChange(e.target.value)}
             >
@@ -187,6 +198,7 @@ export function CollectorCreateForm({
             周期
             <select
               aria-label="独立采集周期"
+              data-scope-field="period"
               value={kind === "factors" ? "1d" : period}
               onChange={(e) => onPeriodChange(e.target.value)}
             >
@@ -208,9 +220,12 @@ export function CollectorCreateForm({
           <fieldset
             className="collector-wide collector-pool-picker"
             aria-label="独立采集股票池"
+            data-scope-group="inherited"
+            data-scope-field="pools"
+            tabIndex={-1}
           >
             <legend>
-              行业、主题与指数股票池（可多选）
+              继承自数据目录 · 冻结股票池（可多选）
               {snapshotIds.length > 0 && (
                 <span className="collector-pool-selected">
                   已选 {snapshotIds.length}
@@ -218,8 +233,43 @@ export function CollectorCreateForm({
               )}
             </legend>
             <p>
-              可同时选择多个行业/主题/指数池，也可在下方追加公司代码；成员合并去重后提交，提交时冻结当前成员快照。
+              股票池成员以快照冻结提交；也可在“本次设置”追加公司代码，两者合并去重。
             </p>
+            {selectedPools.length > 0 ? (
+              <div
+                className={workspaceStyles.inheritedChips}
+                aria-label="已继承股票池"
+              >
+                {selectedPools.map((item) => (
+                  <button
+                    key={item.snapshot_id}
+                    type="button"
+                    onClick={() => onSnapshotToggle(item.snapshot_id, false)}
+                    aria-label={`移除股票池 ${item.name}`}
+                  >
+                    {item.name} · v{item.version} ×
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  className="button button-secondary"
+                  onClick={onDetachSnapshots}
+                >
+                  解除继承
+                </button>
+              </div>
+            ) : (
+              <p className={workspaceStyles.inheritedEmpty}>
+                <span>尚未继承股票池。</span>
+                <button
+                  type="button"
+                  className="button button-secondary"
+                  onClick={onGoToCatalog}
+                >
+                  前往数据目录
+                </button>
+              </p>
+            )}
             <div className="collector-pool-options">
               {snapshots.map((item) => {
                 const selected = snapshotIds.includes(item.snapshot_id);
@@ -258,17 +308,32 @@ export function CollectorCreateForm({
               </p>
             )}
           </fieldset>
-          <label className="collector-wide">
-            追加公司代码（可与上方股票池组合）
-            <input
-              name="instruments"
-              value={instruments}
-              onChange={(event) => onInstrumentsChange(event.target.value)}
-              aria-label="独立采集标的"
-              placeholder="601288.SH, 600519.SH；指数使用 index:000001.SH"
-              maxLength={20000}
-            />
-          </label>
+          <fieldset
+            className="collector-wide"
+            aria-label="本次设置的手工标的"
+            data-scope-group="explicit"
+          >
+            <legend>本次设置 · 手工标的</legend>
+            <label>
+              追加公司代码（可与上方股票池组合）
+              <input
+                name="instruments"
+                value={instruments}
+                onChange={(event) => onInstrumentsChange(event.target.value)}
+                aria-label="独立采集标的"
+                placeholder="601288.SH, 600519.SH；指数使用 index:000001.SH"
+                maxLength={20000}
+                data-scope-field="instruments"
+              />
+            </label>
+            <button
+              type="button"
+              className="button button-secondary"
+              onClick={onOpenDrawer}
+            >
+              从清单选择
+            </button>
+          </fieldset>
           <p
             className={`collector-wide collector-scope-note ${combinedCount ? "" : "is-empty"}`}
           >
@@ -314,6 +379,7 @@ export function CollectorCreateForm({
             name="first"
             value={first}
             onChange={onFirstChange}
+            dataField="dates"
           />
           <IsoDateInput
             className="collector-date-field"
@@ -327,6 +393,7 @@ export function CollectorCreateForm({
             下载方式
             <select
               aria-label="独立采集下载方式"
+              data-scope-field="mode"
               value={mode}
               onChange={(e) =>
                 onModeChange(e.target.value as "missing" | "all")
@@ -379,7 +446,11 @@ export function CollectorCreateForm({
               </div>
             )}
           {kind === "factors" && (
-            <fieldset className="collector-wide collector-fields">
+            <fieldset
+              className="collector-wide collector-fields"
+              data-scope-field="fields"
+              tabIndex={-1}
+            >
               <legend>选择历史因子</legend>
               <FactorCatalogStatus
                 snapshot={catalogState}

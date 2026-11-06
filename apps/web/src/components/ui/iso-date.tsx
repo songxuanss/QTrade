@@ -23,6 +23,7 @@ export function IsoDateInput({
   required = false,
   disabled = false,
   className,
+  dataField,
 }: {
   label: string;
   ariaLabel?: string;
@@ -33,6 +34,8 @@ export function IsoDateInput({
   required?: boolean;
   disabled?: boolean;
   className?: string;
+  /** Marks the text input as a jump target for the scope bar. */
+  dataField?: string;
 }) {
   const [uncontrolled, setUncontrolled] = useState(defaultValue);
   const picker = useRef<HTMLInputElement>(null);
@@ -62,6 +65,7 @@ export function IsoDateInput({
           type="text"
           name={name}
           aria-label={accessibleLabel}
+          data-scope-field={dataField}
           inputMode="numeric"
           autoComplete="off"
           spellCheck={false}

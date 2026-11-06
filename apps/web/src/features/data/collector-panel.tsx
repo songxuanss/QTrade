@@ -22,6 +22,12 @@ import { collectionDates } from "./collection-dates";
 import { CollectorCreateForm } from "./collector-create-form";
 import { CollectorPlanPreview } from "./collector-plan-preview";
 import { CollectorJobDetail } from "./collector-job-detail";
+import {
+  mergeInstrumentIds,
+  removeInstrumentIds,
+  type CollectorScope,
+} from "./collector-scope";
+import { InstrumentDrawer } from "./instrument-drawer";
 import { PERIOD_ORDER, errors, preferredSource } from "./collector-labels";
 import { WORKBENCH_NAVIGATION_EVENT } from "./workbench-tabs";
 import type {
@@ -48,12 +54,20 @@ function subscribeView(onChange: () => void) {
 
 /** Split-mode composition API: one mounted instance feeds the create half to
  * the download view and the results half to the jobs view, so switching
- * top-level views can never discard drafts or interrupt job polling. */
+ * top-level views can never discard drafts or interrupt job polling. `scope`
+ * and `actions` let the global scope bar and the mobile selection bar read the
+ * same draft and jump back to the field they summarize. */
 export type CollectorSplitApi = {
   create: ReactNode;
   results: ReactNode;
   view: "create" | "results";
   navigate: (next: "create" | "results") => void;
+  scope: CollectorScope;
+  actions: {
+    goToView: (key: "catalog" | "download" | "jobs" | "sources") => void;
+    focusField: (field: string) => void;
+    openInstrumentDrawer: () => void;
+  };
 };
 
 export function CollectorPanel({
@@ -211,6 +225,8 @@ export function CollectorPanel({
   );
   const [records, setRecords] = useState<CollectorRecord[]>([]);
   const [nextRecordOffset, setNextRecordOffset] = useState<number | null>(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const drawerTriggerRef = useRef<HTMLElement | null>(null);
 
   const applyJob = useCallback((next: CollectorJob) => {
     setJob(next);
@@ -523,6 +539,68 @@ export function CollectorPanel({
       ? Math.max(1, Math.ceil(dayCount / 7))
       : 0;
   const estimatedSegments = combinedIds.size * segmentsPerInstrument;
+  const poolIds = new Set(
+    selectedPools.flatMap((item) =>
+      item.members.map((member) => member.instrument.instrument_id),
+    ),
+  );
+  const scope: CollectorScope = {
+    kind,
+    period,
+    sourceName: source?.name ?? "",
+    sourceConfigured: Boolean(source?.configured),
+    first,
+    last,
+    manualIds,
+    snapshots,
+    snapshotIds,
+    selectedFields,
+    factorNames: new Map(
+      displayedFactors.map((item) => [item.factor_id, item.name]),
+    ),
+  };
+  function goToView(key: "catalog" | "download" | "jobs" | "sources") {
+    const url = new URL(location.href);
+    url.searchParams.set("data_view", key);
+    url.searchParams.delete("collect_view");
+    history.replaceState(null, "", url);
+    window.dispatchEvent(new Event(WORKBENCH_NAVIGATION_EVENT));
+  }
+  function focusField(field: string) {
+    if (view !== "create") goToView("download");
+    // Two frames: the tab switch renders the download view first, then the
+    // labeled control becomes focusable.
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() => {
+        document
+          .querySelector<HTMLElement>(
+            `#independent-collector [data-scope-field="${field}"]`,
+          )
+          ?.focus();
+      }),
+    );
+  }
+  function openInstrumentDrawer() {
+    setDrawerOpen(true);
+  }
+  function restoreDrawerFocus() {
+    drawerTriggerRef.current?.focus();
+  }
+  function commitDrawer(commit: { added: string[]; removed: string[] }) {
+    if (!commit.added.length && !commit.removed.length) return;
+    invalidateSelection();
+    setInstruments((current) => {
+      let next = current;
+      if (commit.removed.length)
+        next = removeInstrumentIds(next, commit.removed);
+      if (commit.added.length) next = mergeInstrumentIds(next, commit.added);
+      return next;
+    });
+  }
+  function detachSnapshots() {
+    invalidateSelection();
+    setSnapshotIds([]);
+  }
   const proMinuteSource = sources.find(
     (item) => item.source === "mairui.pro.bars" && item.configured,
   );
@@ -668,6 +746,12 @@ export function CollectorPanel({
         onPreview={(form) => void build(form)}
         canManage={canManage}
         available={available}
+        onOpenDrawer={(event) => {
+          drawerTriggerRef.current = event.currentTarget;
+          setDrawerOpen(true);
+        }}
+        onDetachSnapshots={detachSnapshots}
+        onGoToCatalog={() => goToView("catalog")}
       />
       <CollectorPlanPreview
         preview={preview}
@@ -738,59 +822,83 @@ export function CollectorPanel({
           ),
           view,
           navigate,
+          scope,
+          actions: { goToView, focusField, openInstrumentDrawer },
         })}
+        {drawerOpen && (
+          <InstrumentDrawer
+            snapshots={snapshots}
+            manualIds={manualIds}
+            poolIds={poolIds}
+            onClose={() => setDrawerOpen(false)}
+            onCommit={commitDrawer}
+            restoreFocus={restoreDrawerFocus}
+          />
+        )}
       </>
     );
 
   return (
-    <section
-      className={`panel collector-workbench ${workspaceStyles.workbench}`}
-      id="independent-collector"
-      aria-labelledby="collector-title"
-    >
-      <div className={workspaceStyles.heading}>
-        <div>
-          <h2 id="collector-title">独立数据采集</h2>
-        </div>
-        {connection}
-      </div>
-      {notices}
-      {banner}
-      <div
-        className={workspaceStyles.toolbar}
-        role="group"
-        aria-label="采集工作视图"
+    <>
+      <section
+        className={`panel collector-workbench ${workspaceStyles.workbench}`}
+        id="independent-collector"
+        aria-labelledby="collector-title"
       >
-        <div className={workspaceStyles.switcher}>
-          {canManage && (
+        <div className={workspaceStyles.heading}>
+          <div>
+            <h2 id="collector-title">独立数据采集</h2>
+          </div>
+          {connection}
+        </div>
+        {notices}
+        {banner}
+        <div
+          className={workspaceStyles.toolbar}
+          role="group"
+          aria-label="采集工作视图"
+        >
+          <div className={workspaceStyles.switcher}>
+            {canManage && (
+              <button
+                type="button"
+                aria-pressed={view === "create"}
+                onClick={() => navigate("create")}
+              >
+                新建采集
+              </button>
+            )}
             <button
               type="button"
-              aria-pressed={view === "create"}
-              onClick={() => navigate("create")}
+              aria-pressed={view === "results"}
+              onClick={() => navigate("results")}
             >
-              新建采集
+              任务与结果
             </button>
-          )}
-          <button
-            type="button"
-            aria-pressed={view === "results"}
-            onClick={() => navigate("results")}
-          >
-            任务与结果
-          </button>
+          </div>
+          <span className={workspaceStyles.hint}>
+            {view === "create"
+              ? "配置范围 → 预览确认 → 提交"
+              : "执行进度 → 质量检查 → 查看数据"}
+          </span>
         </div>
-        <span className={workspaceStyles.hint}>
-          {view === "create"
-            ? "配置范围 → 预览确认 → 提交"
-            : "执行进度 → 质量检查 → 查看数据"}
-        </span>
-      </div>
-      <div className={workspaceStyles.view} hidden={view !== "create"}>
-        {createInner}
-      </div>
-      <div className={workspaceStyles.view} hidden={view !== "results"}>
-        {resultsInner}
-      </div>
-    </section>
+        <div className={workspaceStyles.view} hidden={view !== "create"}>
+          {createInner}
+        </div>
+        <div className={workspaceStyles.view} hidden={view !== "results"}>
+          {resultsInner}
+        </div>
+      </section>
+      {drawerOpen && (
+        <InstrumentDrawer
+          snapshots={snapshots}
+          manualIds={manualIds}
+          poolIds={poolIds}
+          onClose={() => setDrawerOpen(false)}
+          onCommit={commitDrawer}
+          restoreFocus={restoreDrawerFocus}
+        />
+      )}
+    </>
   );
 }

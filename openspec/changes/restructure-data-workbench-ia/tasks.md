@@ -29,3 +29,12 @@
 - [x] 5.1 构建并重启本地真实栈,Playwright 深链接矩阵:旧 data_view 七值、collect_view/collector_job、#锚点、universe_* 参数、SSO returnTo;桌面+移动 390px 四视图无横向溢出;草稿跨视图保持;只读角色强制结果视图。截图存证。证据:`.tools/verification-local/review/b1-deeplink-matrix.json`(admin 41 项深链、嵌套默认 4、草稿跨视图、390px 无溢出、reader 默认结果视图+3 项显式参数)、`data-layout-results.json`(双角色 axe0/无溢出/草稿保持/监控实读)、`collection-compact-ui.json`(243 条分页、双宽度、双角色 frozen chart);截图 `b1-matrix-*.png`、`data-layout-*.png`、`collection-compact-ui-*.png`。三脚本独占轮次 exit 0(并发 Playwright 负载会致 30s/90s 超时 flake)。
 - [x] 5.2 迁移债务披露:其余钉死 13000 旧端口的 collector 流脚本(independent-collector/plan-guards/default-range/preferences/budget-wait/factor-catalog/collection-replay/quality/runtime-recovery/normalization-input 等)在 B1 之前即已陈旧,不在本变更内全量重写;提交说明中如实披露。
 - [x] 5.3 审查 staged diff(无凭据、不含 apps/api/security.py 旧改动),按里程碑提交并推送;如实披露未尽事项。
+
+## 6. B2 UX 增强(范围条/继承分组/抽屉/移动已选栏)
+
+- [x] 6.1 `collector-scope.ts`:手工标的解析/合并/移除与范围摘要纯函数,单测覆盖去重、继承计数与日期/来源标注。
+- [x] 6.2 全局范围条:类别、标的(含"继承自数据目录"标记)、日期、来源四段;点击切视图并聚焦字段;不改变提交语义。
+- [x] 6.3 继承态分组:冻结股票池分组 + 已继承池 chips + 解除继承;手工标的与日期不受影响。
+- [x] 6.4 标的清单抽屉:搜索、股票池分组、批量加入/移出、dialog 语义、焦点循环、Escape 关闭与焦点归还。
+- [x] 6.5 移动端 sticky 已选栏:390px 显示标的/因子数量与清单入口,不遮挡提交、无横向溢出。
+- [x] 6.6 真栈验收:`verification-b2-scope-ux.mjs` 桌面+390 截图与 JSON 证据(`.tools/verification-local/review/b2-scope-ux.json`、`b2-scope-*.png`):范围条反映草稿、解除继承保留手工标的、抽屉加入/移出与焦点归还、Escape、范围条跳转聚焦、axe 0、390 无溢出;证据使用真实 MaiRui 股票池快照(北证50, 50 成员)。布局/深链矩阵/紧凑脚本回归全绿;Vitest 104 项、tsc/eslint/prettier/openspec strict 全绿。
