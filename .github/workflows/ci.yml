@@ -65,7 +65,22 @@ jobs:
         with:
           python-version: "3.12"
       - run: uv sync --locked --python 3.12
-      - run: docker compose up --build --wait --wait-timeout 240
+      # Keep the failing build tail readable from the public check-run
+      # summary, so CI failures can be diagnosed without a job-log token.
+      - name: Compose stack
+        run: |
+          set -o pipefail
+          docker compose up --build --wait --wait-timeout 240 2>&1 | tee /tmp/compose.log
+          status=${PIPESTATUS[0]}
+          if [ "$status" -ne 0 ]; then
+            {
+              echo "### docker compose up failed (exit $status)"
+              echo '```'
+              tail -n 120 /tmp/compose.log
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit "$status"
+          fi
       - run: uv run --locked python scripts/selftest-compose.py
       - run: uv run --locked python scripts/selftest-objectstore.py
       - run: uv run --locked python scripts/selftest-postgres.py
