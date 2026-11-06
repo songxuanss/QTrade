@@ -73,12 +73,13 @@ jobs:
           docker compose up --build --wait --wait-timeout 240 2>&1 | tee /tmp/compose.log
           status=${PIPESTATUS[0]}
           if [ "$status" -ne 0 ]; then
-            {
-              echo "### docker compose up failed (exit $status)"
-              echo '```'
-              tail -n 120 /tmp/compose.log
-              echo '```'
-            } >> "$GITHUB_STEP_SUMMARY"
+            tail -n 120 /tmp/compose.log >> "$GITHUB_STEP_SUMMARY"
+            # The job log needs a token; annotations are readable from the
+            # public check-run API, so surface the failing lines there too.
+            tail -n 60 /tmp/compose.log \
+              | grep -Ei "error|failed|denied|cannot|invalid|not found" \
+              | tail -n 8 | sed 's/^/::error::/' | cut -c1-420 || true
+            tail -n 3 /tmp/compose.log | sed 's/^/::error::/' | cut -c1-420 || true
             exit "$status"
           fi
       - run: uv run --locked python scripts/selftest-compose.py
