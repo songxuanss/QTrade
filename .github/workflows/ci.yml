@@ -70,8 +70,12 @@ jobs:
       - name: Compose stack
         run: |
           set -o pipefail
+          # GitHub runs bash -e; capture the pipeline status instead of letting
+          # errexit abort before the diagnostics below.
+          set +e
           docker compose up --build --wait --wait-timeout 240 2>&1 | tee /tmp/compose.log
           status=${PIPESTATUS[0]}
+          set -e
           if [ "$status" -ne 0 ]; then
             tail -n 120 /tmp/compose.log >> "$GITHUB_STEP_SUMMARY"
             # The job log needs a token; annotations are readable from the
