@@ -189,8 +189,10 @@ services:
 
   web:
     build:
-      context: .
-      dockerfile: apps/web/Dockerfile
+      # The Next.js app is self-contained; a repo-root context cannot be used
+      # because .dockerignore excludes apps/web from the shared build context.
+      context: apps/web
+      dockerfile: Dockerfile
       args:
         QTRADE_BUILD_REVISION: ${QTRADE_BUILD_REVISION:-unknown}
     environment:

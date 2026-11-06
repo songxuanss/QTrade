@@ -1,8 +1,8 @@
 FROM node:22-bookworm-slim AS build
 WORKDIR /app
-COPY apps/web/package*.json ./
+COPY package*.json ./
 RUN npm ci
-COPY apps/web/ ./
+COPY . ./
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN npm run build
 
