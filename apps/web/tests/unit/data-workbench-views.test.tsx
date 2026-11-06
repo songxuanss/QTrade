@@ -9,6 +9,11 @@ import type {
   CollectorSource,
 } from "../../src/features/data/collector-types";
 import type { UniverseSnapshot } from "../../src/features/data/universe-server";
+import type { CollectorPreview } from "../../src/features/data/collector-types";
+import {
+  previewCollector,
+  submitCollector,
+} from "../../src/app/workspace/collector-actions";
 
 const actions = vi.hoisted(() => ({ readCollectorJob: vi.fn() }));
 vi.mock("next/navigation", () => ({
@@ -432,6 +437,156 @@ describe("DataWorkbenchViews four-view assembly", () => {
       window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
     });
     expect(container.querySelector("[data-instrument-drawer]")).toBeNull();
+  });
+
+  function makePreview(): CollectorPreview {
+    return {
+      request: {
+        schema_version: 1,
+        scope_id: "scope",
+        actor_id: "actor",
+        correlation_id: "correlation-preview",
+        request_id: "request-preview",
+        source: "mairui.history.bars",
+        dataset_kind: "bars",
+        instrument_ids: ["601288.SH"],
+        granularity: "1d",
+        start: "2025-01-01T00:00:00Z",
+        end: "2025-01-02T00:00:00Z",
+        fields: [],
+        mode: "missing",
+      },
+      mapping_version: "m1",
+      coverage_version: "coverage-v1",
+      planned_parts: 1,
+      completed_parts: 0,
+      active_parts: 0,
+      missing_parts: 1,
+      instrument_names: { "601288.SH": "农业银行" },
+      field_definitions: [],
+      limitations: [],
+    };
+  }
+
+  async function fillDraft(instruments: string) {
+    await typeValue(
+      container.querySelector<HTMLInputElement>(
+        'input[aria-label="独立采集标的"]',
+      )!,
+      instruments,
+    );
+    await typeValue(
+      container.querySelector<HTMLInputElement>(
+        'input[aria-label="独立采集开始日期"]',
+      )!,
+      "2025-01-01",
+    );
+    await typeValue(
+      container.querySelector<HTMLInputElement>(
+        'input[aria-label="独立采集结束日期"]',
+      )!,
+      "2025-12-31",
+    );
+  }
+
+  async function flush() {
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 30));
+    });
+  }
+
+  it("adds the current draft as an orchestration card", async () => {
+    await renderViews();
+    await fillDraft("601288.SH");
+    await act(async () => findButton("加入编排").click());
+    const card = container.querySelector("[data-orchestration-card]")!;
+    expect(card.getAttribute("data-card-state")).toBe("draft");
+    expect(card.textContent).toContain("601288.SH");
+    expect(card.textContent).toContain("2025-01-01 → 2025-12-31");
+  });
+
+  it("previews and submits orchestration cards in order", async () => {
+    vi.mocked(previewCollector).mockResolvedValue({ preview: makePreview() });
+    vi.mocked(submitCollector).mockResolvedValue({ job: makeJob("queued") });
+    await renderViews();
+    await fillDraft("601288.SH");
+    await act(async () => findButton("加入编排").click());
+    await fillDraft("600519.SH");
+    await act(async () => findButton("加入编排").click());
+    expect(
+      container.querySelectorAll("[data-orchestration-card]"),
+    ).toHaveLength(2);
+    await act(async () =>
+      container
+        .querySelector<HTMLButtonElement>(
+          '[data-orchestration-action="preview"]',
+        )!
+        .click(),
+    );
+    await flush();
+    const cards = container.querySelectorAll("[data-orchestration-card]");
+    expect(
+      [...cards].map((card) => card.getAttribute("data-card-state")),
+    ).toEqual(["previewed", "previewed"]);
+    expect(vi.mocked(previewCollector)).toHaveBeenCalledTimes(2);
+    expect(
+      vi
+        .mocked(previewCollector)
+        .mock.calls.map((call) => call[0].instrument_ids),
+    ).toEqual([["601288.SH"], ["600519.SH"]]);
+    await act(async () =>
+      container
+        .querySelector<HTMLButtonElement>(
+          '[data-orchestration-action="submit"]',
+        )!
+        .click(),
+    );
+    await flush();
+    expect(vi.mocked(submitCollector)).toHaveBeenCalledTimes(2);
+    expect(
+      [...container.querySelectorAll("[data-orchestration-card]")].map((card) =>
+        card.getAttribute("data-card-state"),
+      ),
+    ).toEqual(["submitted", "submitted"]);
+    expect(visibleView()).toBe("jobs");
+  });
+
+  it("stops sequential submission at the first failing card", async () => {
+    vi.mocked(previewCollector).mockResolvedValue({ preview: makePreview() });
+    vi.mocked(submitCollector)
+      .mockResolvedValueOnce({ job: makeJob("queued") })
+      .mockResolvedValueOnce({ error: "unavailable" });
+    await renderViews();
+    await fillDraft("601288.SH");
+    await act(async () => findButton("加入编排").click());
+    await fillDraft("600519.SH");
+    await act(async () => findButton("加入编排").click());
+    await act(async () =>
+      container
+        .querySelector<HTMLButtonElement>(
+          '[data-orchestration-action="preview"]',
+        )!
+        .click(),
+    );
+    await flush();
+    await act(async () =>
+      container
+        .querySelector<HTMLButtonElement>(
+          '[data-orchestration-action="submit"]',
+        )!
+        .click(),
+    );
+    await flush();
+    expect(vi.mocked(submitCollector)).toHaveBeenCalledTimes(2);
+    expect(
+      [...container.querySelectorAll("[data-orchestration-card]")].map((card) =>
+        card.getAttribute("data-card-state"),
+      ),
+    ).toEqual(["submitted", "failed"]);
+    expect(
+      container.querySelector("[data-orchestration] [role='alert']")
+        ?.textContent,
+    ).toContain("顺序提交在该卡片停止");
   });
 
   it("mirrors the draft count in the mobile selection bar", async () => {

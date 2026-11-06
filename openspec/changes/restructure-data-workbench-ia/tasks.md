@@ -38,3 +38,11 @@
 - [x] 6.4 标的清单抽屉:搜索、股票池分组、批量加入/移出、dialog 语义、焦点循环、Escape 关闭与焦点归还。
 - [x] 6.5 移动端 sticky 已选栏:390px 显示标的/因子数量与清单入口,不遮挡提交、无横向溢出。
 - [x] 6.6 真栈验收:`verification-b2-scope-ux.mjs` 桌面+390 截图与 JSON 证据(`.tools/verification-local/review/b2-scope-ux.json`、`b2-scope-*.png`):范围条反映草稿、解除继承保留手工标的、抽屉加入/移出与焦点归还、Escape、范围条跳转聚焦、axe 0、390 无溢出;证据使用真实 MaiRui 股票池快照(北证50, 50 成员)。布局/深链矩阵/紧凑脚本回归全绿;Vitest 104 项、tsc/eslint/prettier/openspec strict 全绿。
+
+## 7. B3 多维编排与 preferences v2
+
+- [x] 7.1 `CollectionPreferences` 升到 schema v2(内嵌 `CollectionDimensionDraft`,v1 仍可读),新增 DB 约束迁移 0042 允许 1/2;契约与存储测试覆盖。
+- [x] 7.2 编排纯函数:`toDimensionDraft`/`fromDimensionDraft`、卡片标签与目标数、唯一 dimension_id;Vitest 覆盖往返/日期空值/因子周期。
+- [x] 7.3 `CollectionOrchestration` 面板:加入编排(上限 20)、移除、循环预览(逐卡真实 preview)、顺序提交(首张失败停止并显示原因)。
+- [x] 7.4 持久化:保存 v2 草稿(含卡片),刷新后按顺序恢复为待预览;v1 草稿读取不受影响。
+- [x] 7.5 真栈验收:`verification-b3-orchestration.mjs` 两卡循环预览+顺序提交,真实 Worker 各完成 3 条记录,v2 草稿保存/刷新往返,axe 0、390 无溢;布局/矩阵/紧凑回归全绿。

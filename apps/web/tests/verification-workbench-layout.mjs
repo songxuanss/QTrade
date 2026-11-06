@@ -267,10 +267,23 @@ try {
     await expect(active).toHaveAttribute("data-workbench-view", "sources");
     // A hash-only target is a same-document navigation that the app router can
     // supersede while hydrating, which Chromium reports as net::ERR_ABORTED.
-    // Load a neutral route first so the legacy anchor arrives as a real
-    // cross-document deep link.
-    await page.goto(origin + "/");
-    await page.goto(origin + "/workspace/data#financial-collection");
+    // Load about:blank first so the legacy anchor arrives as a real
+    // cross-document deep link; retry that transport error once.
+    for (let attempt = 1; attempt <= 2; attempt += 1) {
+      await page.goto("about:blank");
+      try {
+        await page.goto(origin + "/workspace/data#financial-collection", {
+          timeout: 90000,
+        });
+        break;
+      } catch (error) {
+        if (
+          attempt === 2 ||
+          !/ERR_ABORTED|ERR_FAILED/.test(String(error?.message))
+        )
+          throw error;
+      }
+    }
     await expect(page.locator("#financial-collection")).toBeVisible();
     if (role === "reader")
       await expect(

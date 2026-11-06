@@ -263,3 +263,101 @@
   display: flex;
   gap: 8px;
 }
+
+/* Multi-dimension orchestration cards */
+.orchestration {
+  margin: 18px 0 0;
+  padding: 16px 18px 18px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 9px;
+  background: var(--surface);
+}
+.orchestrationHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.orchestrationHeader h2 {
+  margin: 0 0 4px;
+  font-size: 15px;
+}
+.orchestrationHeader p {
+  margin: 0;
+  max-width: 62ch;
+  font-size: 11px;
+  color: var(--muted);
+}
+.orchestrationActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.orchestrationActions button {
+  min-height: 38px;
+}
+.orchestrationConfirm {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.orchestrationEmpty {
+  margin: 14px 0 2px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.orchestrationList {
+  display: grid;
+  gap: 8px;
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.orchestrationCard {
+  padding: 10px 12px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: var(--surface-raised);
+}
+.orchestrationCardHead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.orchestrationCardHead > div {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.orchestrationCardHead strong {
+  display: block;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.orchestrationCardHead p {
+  margin: 2px 0 0;
+  font-size: 10px;
+  color: var(--muted);
+}
+.orchestrationIndex {
+  flex: 0 0 auto;
+  font-size: 11px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.orchestrationState {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+.orchestrationCard[data-card-state="failed"] {
+  border-color: var(--danger, #b44545);
+}
+.orchestrationDetail {
+  margin: 6px 0 0;
+  font-size: 10px;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}

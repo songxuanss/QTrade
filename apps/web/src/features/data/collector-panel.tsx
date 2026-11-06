@@ -24,9 +24,18 @@ import { CollectorPlanPreview } from "./collector-plan-preview";
 import { CollectorJobDetail } from "./collector-job-detail";
 import {
   mergeInstrumentIds,
+  parseInstrumentIds,
   removeInstrumentIds,
   type CollectorScope,
 } from "./collector-scope";
+import {
+  fromDimensionDraft,
+  MAX_CARDS,
+  newDimensionId,
+  toDimensionDraft,
+  type OrchestrationCard,
+} from "./collection-orchestration";
+import type { OrchestrationApi } from "./collection-orchestration-panel";
 import { InstrumentDrawer } from "./instrument-drawer";
 import { PERIOD_ORDER, errors, preferredSource } from "./collector-labels";
 import { WORKBENCH_NAVIGATION_EVENT } from "./workbench-tabs";
@@ -68,6 +77,7 @@ export type CollectorSplitApi = {
     focusField: (field: string) => void;
     openInstrumentDrawer: () => void;
   };
+  orchestration: OrchestrationApi;
 };
 
 export function CollectorPanel({
@@ -227,6 +237,12 @@ export function CollectorPanel({
   const [nextRecordOffset, setNextRecordOffset] = useState<number | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const drawerTriggerRef = useRef<HTMLElement | null>(null);
+  const [cards, setCards] = useState<OrchestrationCard[]>(() =>
+    (initialPreferences?.dimensions ?? []).map(fromDimensionDraft),
+  );
+  const [batchConfirmed, setBatchConfirmed] = useState(false);
+  const [batchBusy, setBatchBusy] = useState(false);
+  const [batchError, setBatchError] = useState("");
 
   const applyJob = useCallback((next: CollectorJob) => {
     setJob(next);
@@ -361,7 +377,7 @@ export function CollectorPanel({
     setSavedSelection(false);
     try {
       const result = await saveCollectorPreferences({
-        schema_version: 1,
+        schema_version: 2,
         dataset_kind: kind,
         source: sourceId || source?.source || "",
         granularity: period,
@@ -372,6 +388,7 @@ export function CollectorPanel({
         snapshot_ids: snapshotIds,
         fields: selectedFields,
         mode,
+        dimensions: cards.map(toDimensionDraft),
       });
       if (result.error) setError(result.error);
       else if (selectionRevision.current === revision) setSavedSelection(true);
@@ -601,6 +618,148 @@ export function CollectorPanel({
     invalidateSelection();
     setSnapshotIds([]);
   }
+  function addCard() {
+    if (cards.length >= MAX_CARDS) return;
+    setCards((current) => [
+      ...current,
+      {
+        dimension_id: newDimensionId(),
+        kind,
+        source: sourceId || source?.source || "",
+        period: kind === "factors" ? "1d" : period,
+        first,
+        last,
+        instruments,
+        snapshotIds: [...snapshotIds],
+        selectedFields: [...selectedFields],
+        mode,
+        state: "draft",
+      },
+    ]);
+  }
+  function removeCard(dimensionId: string) {
+    setCards((current) =>
+      current.filter((item) => item.dimension_id !== dimensionId),
+    );
+  }
+  function patchCard(dimensionId: string, patch: Partial<OrchestrationCard>) {
+    setCards((current) =>
+      current.map((item) =>
+        item.dimension_id === dimensionId ? { ...item, ...patch } : item,
+      ),
+    );
+  }
+  async function previewAll() {
+    if (batchBusy) return;
+    setBatchBusy(true);
+    setBatchError("");
+    try {
+      for (const card of cards) {
+        if (!["draft", "previewed", "failed"].includes(card.state)) continue;
+        patchCard(card.dimension_id, { state: "previewing", error: undefined });
+        const catalogSource = catalog.find(
+          (item) => item.source === card.source,
+        );
+        if (!catalogSource) {
+          patchCard(card.dimension_id, {
+            state: "failed",
+            error: "来源不可用，请重新选择",
+          });
+          continue;
+        }
+        let firstDate = card.first;
+        let lastDate = card.last;
+        if (!firstDate && !lastDate) {
+          const range = await readCollectorDefaultRange(
+            card.source,
+            card.kind === "factors" ? "1d" : card.period,
+          );
+          if (range.range) {
+            firstDate = range.range.first;
+            lastDate = range.range.last;
+            patchCard(card.dimension_id, { first: firstDate, last: lastDate });
+          } else {
+            patchCard(card.dimension_id, {
+              state: "failed",
+              error:
+                errors[
+                  range.error === "unsupported"
+                    ? "default_unavailable"
+                    : (range.error ?? "unavailable")
+                ] ?? "无法计算默认日期",
+            });
+            continue;
+          }
+        }
+        if (Boolean(firstDate) !== Boolean(lastDate)) {
+          patchCard(card.dimension_id, {
+            state: "failed",
+            error: "开始与结束日期必须同时填写",
+          });
+          continue;
+        }
+        const dates = collectionDates(
+          firstDate,
+          lastDate,
+          catalogSource.timezone,
+        );
+        const response = await previewCollector({
+          source: card.source,
+          dataset_kind: card.kind,
+          instrument_ids: parseInstrumentIds(card.instruments),
+          snapshot_ids: card.snapshotIds,
+          granularity: card.kind === "factors" ? "1d" : card.period,
+          ...dates,
+          fields: card.kind === "factors" ? card.selectedFields : [],
+          mode: card.mode,
+        });
+        if (response.preview)
+          patchCard(card.dimension_id, {
+            state: "previewed",
+            preview: response.preview,
+            error: undefined,
+          });
+        else
+          patchCard(card.dimension_id, {
+            state: "failed",
+            error: errors[response.error ?? "unavailable"] ?? "预览失败",
+          });
+      }
+    } finally {
+      setBatchBusy(false);
+    }
+  }
+  async function submitAll() {
+    if (batchBusy) return;
+    setBatchBusy(true);
+    setBatchError("");
+    let lastJob: CollectorJob | null = null;
+    try {
+      for (const card of cards) {
+        if (card.state !== "previewed" || !card.preview) continue;
+        patchCard(card.dimension_id, { state: "submitting", error: undefined });
+        const response = await submitCollector(card.preview, batchConfirmed);
+        if (response.job) {
+          patchCard(card.dimension_id, {
+            state: "submitted",
+            jobId: response.job.job_id,
+          });
+          applyJob(response.job);
+          lastJob = response.job;
+        } else {
+          patchCard(card.dimension_id, {
+            state: "failed",
+            error: errors[response.error ?? "unavailable"] ?? "提交失败",
+          });
+          setBatchError("顺序提交在该卡片停止；处理失败原因后重新预览再提交。");
+          break;
+        }
+      }
+      if (lastJob) choose(lastJob);
+    } finally {
+      setBatchBusy(false);
+    }
+  }
   const proMinuteSource = sources.find(
     (item) => item.source === "mairui.pro.bars" && item.configured,
   );
@@ -824,6 +983,20 @@ export function CollectorPanel({
           navigate,
           scope,
           actions: { goToView, focusField, openInstrumentDrawer },
+          orchestration: {
+            cards,
+            confirmed: batchConfirmed,
+            busy: batchBusy,
+            error: batchError,
+            add: addCard,
+            remove: removeCard,
+            previewAll: () => void previewAll(),
+            submitAll: () => void submitAll(),
+            setConfirmed: setBatchConfirmed,
+            poolNames: new Map(
+              snapshots.map((item) => [item.snapshot_id, item.name]),
+            ),
+          },
         })}
         {drawerOpen && (
           <InstrumentDrawer

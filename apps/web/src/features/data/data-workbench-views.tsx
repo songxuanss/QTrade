@@ -2,6 +2,7 @@
 
 import type { ComponentProps, ReactNode } from "react";
 import { CollectorPanel } from "./collector-panel";
+import { CollectionOrchestration } from "./collection-orchestration-panel";
 import scopeStyles from "./collector-scope.module.css";
 import { WorkbenchTabs, type PanelAliases } from "./workbench-tabs";
 import { MobileSelectionBar, WorkbenchScopeBar } from "./workbench-scope-bar";
@@ -92,6 +93,9 @@ export function DataWorkbenchViews({
                 content: (
                   <div className={scopeStyles.padded}>
                     {collector.create}
+                    <CollectionOrchestration
+                      orchestration={collector.orchestration}
+                    />
                     <MobileSelectionBar collector={collector} />
                     {entriesTabs}
                   </div>

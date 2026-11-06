@@ -175,8 +175,20 @@ export type CollectorDefaultRange = {
   endpoint_semantics: "start_inclusive_end_exclusive";
   availability: "estimated_not_verified";
 };
+export type CollectorDimensionDraft = {
+  dimension_id: string;
+  dataset_kind: "bars" | "factors";
+  source: string;
+  granularity: string;
+  first: string | null;
+  last: string | null;
+  instruments: string;
+  snapshot_ids: string[];
+  fields: string[];
+  mode: "missing" | "all";
+};
 export type CollectorPreferences = {
-  schema_version: 1;
+  schema_version: 1 | 2;
   dataset_kind: "bars" | "factors";
   source: string;
   granularity: string;
@@ -187,6 +199,7 @@ export type CollectorPreferences = {
   snapshot_ids?: string[];
   fields: string[];
   mode: "missing" | "all";
+  dimensions?: CollectorDimensionDraft[];
 };
 export type CollectorQuality = {
   quality_id: string;
