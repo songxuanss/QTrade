@@ -203,6 +203,11 @@ app.include_router(alert_evaluation_router(alert_evaluation_submission, security
 strategies: StrategyService | None
 strategy_lifecycle: StrategyLifecycleService | None
 backtests: BacktestService | None
+# The membership router is mounted unconditionally; keep the optional service
+# visible when sessions/OIDC are unconfigured (the Compose default) instead of
+# raising NameError at import time.
+membership_store: PostgresMembershipStore | None = None
+membership_service: UniverseMembershipService | None = None
 if service is not None:
     strategy_objects = S3ObjectStore.connect(
         bucket=os.environ.get("OBJECT_STORE_BUCKET", "qtrade"),
