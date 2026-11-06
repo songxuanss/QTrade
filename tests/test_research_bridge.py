@@ -67,7 +67,23 @@ def test_preferences_server_identity_role_and_typed_draft():
     assert result["snapshot_ids"] == snapshots
     assert list(saved) == [(actor, scope)] and not calls
     assert client.put(root, json=draft | {"actor_id": str(uuid4())}).status_code == 422
-    assert client.put(root, json=draft | {"schema_version": 2}).status_code == 422
+    assert client.put(root, json=draft | {"schema_version": 3}).status_code == 422
+    v2 = draft | {
+        "schema_version": 2,
+        "dimensions": [
+            {
+                "dimension_id": str(uuid4()),
+                "dataset_kind": "bars",
+                "source": "mairui.pro.bars",
+                "granularity": "5m",
+                "instruments": "600519.SH",
+                "fields": [],
+                "mode": "all",
+            }
+        ],
+    }
+    assert client.put(root, json=v2).status_code == 200
+    assert client.get(root).json()["dimensions"][0]["instruments"] == "600519.SH"
     assert client.put(root, json=draft | {"first": "2025-02-30"}).status_code == 422
 
 
