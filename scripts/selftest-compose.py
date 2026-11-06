@@ -45,6 +45,7 @@ def main():
         "api",
         "worker",
         "realtime",
+        "strategy-runner",
         "postgres",
         "valkey",
         "object-store",
@@ -79,7 +80,7 @@ def main():
     finally:
         compose("start", "market-db")
     assert all(wait_ready(200)["checks"].values())
-    print("PASS: eight services healthy; non-root processes; dependency failure and recovery")
+    print("PASS: nine services healthy; non-root processes; dependency failure and recovery")
 
 
 if __name__ == "__main__":

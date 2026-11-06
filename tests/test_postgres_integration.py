@@ -130,31 +130,6 @@ def test_collection_preferences_user_scope_isolation_and_live_authority(conn, da
     store.put(other, scope, draft.model_copy(update={"instruments": "600519.SH"}))
     assert store.get(owner, scope).instruments == "601288.SH"
     assert store.get(other, scope).instruments == "600519.SH"
-    v2 = CollectionPreferences.model_validate_json(
-        json.dumps(
-            {
-                **json.loads(draft.model_dump_json()),
-                "schema_version": 2,
-                "dimensions": [
-                    {
-                        "dimension_id": "11111111-1111-4111-8111-111111111111",
-                        "dataset_kind": "bars",
-                        "source": "mairui.pro.bars",
-                        "granularity": "5m",
-                        "instruments": "600519.SH",
-                        "fields": [],
-                        "mode": "all",
-                    }
-                ],
-            }
-        )
-    )
-    store.put(owner, scope, v2)
-    assert store.get(owner, scope) == v2
-    assert (
-        str(store.get(owner, scope).dimensions[0].dimension_id)
-        == "11111111-1111-4111-8111-111111111111"
-    )
     conn.execute(
         "UPDATE membership SET role='viewer' WHERE workspace_id=%s AND user_id=%s", (scope, other)
     )
@@ -186,6 +161,40 @@ def test_collection_preferences_user_scope_isolation_and_live_authority(conn, da
     with pytest.raises(PortError) as invalid:
         store.get(owner, scope)
     assert invalid.value.code == ErrorCode.UNAVAILABLE
+    # Schema v2 keeps ordered dimension cards on the same persisted row.
+    conn.execute(
+        "UPDATE membership SET active=true WHERE workspace_id=%s AND user_id=%s",
+        (scope, other),
+    )
+    conn.execute(
+        "UPDATE membership SET role='admin' WHERE workspace_id=%s AND user_id=%s",
+        (scope, other),
+    )
+    v2 = CollectionPreferences.model_validate_json(
+        json.dumps(
+            {
+                **json.loads(draft.model_dump_json()),
+                "schema_version": 2,
+                "dimensions": [
+                    {
+                        "dimension_id": "11111111-1111-4111-8111-111111111111",
+                        "dataset_kind": "bars",
+                        "source": "mairui.pro.bars",
+                        "granularity": "5m",
+                        "instruments": "600519.SH",
+                        "fields": [],
+                        "mode": "all",
+                    }
+                ],
+            }
+        )
+    )
+    store.put(owner, scope, v2)
+    assert store.get(owner, scope) == v2
+    assert (
+        str(store.get(owner, scope).dimensions[0].dimension_id)
+        == "11111111-1111-4111-8111-111111111111"
+    )
 
 
 def copy_current_migrations(target):
